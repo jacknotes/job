@@ -599,7 +599,8 @@ break语句可以在循环过程中直接退出循环，而continue语句可以�
 要特别注意，不要滥用break和continue语句。break和continue会造成代码执行逻辑分叉过多，容易出错。大多数循环并不需要用到break和continue语句，上面的两个例子，都可以通过改写循环条件或者修改循环逻辑，去掉break和continue语句。
 有些时候，如果代码写得有问题，会让程序陷入“死循环”，也就是永远循环下去。这时可以用Ctrl+C退出程序，或者强制结束Python进程。
 
-#dict--Python内置了字典：dict的支持，dict全称dictionary，在其他语言中也称为map，使用键-值（key-value）存储，具有极快的查找速度。
+###dict--
+Python内置了字典：dict的支持，dict全称dictionary，在其他语言中也称为map，使用键-值（key-value）存储，具有极快的查找速度。
 
 举个例子，假设要根据同学的名字查找对应的成绩，如果用list实现，需要两个list：
 names = ['Michael', 'Bob', 'Tracy']
@@ -668,10 +669,12 @@ dict可以用在需要高速查找的很多地方，在Python代码中几乎无�
 Traceback (most recent call last):
   File "<stdin>", line 1, in <module>
 TypeError: unhashable type: 'list'
+注：字典，列表，元组要事先声明后才能使用
 
-#set--set和dict类似，也是一组key的集合，但不存储value。由于key不能重复，所以，在set中，没有重复的key。
+#set--
+set和dict类似，也是一组key的集合，但不存储value。由于key不能重复，所以，在set中，没有重复的key。
+注：set是键的集合，dic是键值的集合,它们都是无序的,且set也是无重复的
 要创建一个set，需要提供一个list作为输入集合：
-
 >>> s = set([1, 2, 3])
 >>> s
 {1, 2, 3}
@@ -695,7 +698,6 @@ TypeError: unhashable type: 'list'
 {1, 2, 3}
 
 set可以看成数学意义上的无序和无重复元素的集合，因此，两个set可以做数学意义上的交集、并集等操作：
-
 >>> s1 = set([1, 2, 3])
 >>> s2 = set([2, 3, 4])
 >>> s1 & s2  #交集输出
