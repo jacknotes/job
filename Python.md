@@ -1269,7 +1269,6 @@ False
 
 #列表生成式
 列表生成式即List Comprehensions，是Python内置的非常简单却强大的可以用来创建list的生成式。
-
 但如果要生成[1x1, 2x2, 3x3, ..., 10x10]怎么做？方法一是循环：
 >>> L = []
 >>> for x in range(1, 11):
@@ -1317,84 +1316,9 @@ False
 >>> g = (x * x for x in range(10))
 >>> g
 <generator object <genexpr> at 0x1022ef630>
-所以，我们创建了一个generator后，基本上永远不会调用next()，而是通过for循环来迭代它，并且不需要关心StopIteration的错误。
-generator非常强大。如果推算的算法比较复杂，用类似列表生成式的for循环无法实现的时候，还可以用函数来实现。
-比如，著名的斐波拉契数列（Fibonacci），除第一个和第二个数外，任意一个数都可由前两个数相加得到：
-1, 1, 2, 3, 5, 8, 13, 21, 34, ...
-斐波拉契数列用列表生成式写不出来，但是，用函数把它打印出来却很容易：
-def fib(max):
-    n, a, b = 0, 0, 1
-    while n < max:
-        print(b)
-        a, b = b, a + b
-        n = n + 1
-    return 'done'
-上面的函数和generator仅一步之遥。要把fib函数变成generator，只需要把print(b)改为yield b就可以了：
-
-def fib(max):
-    n, a, b = 0, 0, 1
-    while n < max:
-        yield b
-        a, b = b, a + b
-        n = n + 1
-    return 'done'
-这就是定义generator的另一种方法。如果一个函数定义中包含yield关键字，那么这个函数就不再是一个普通函数，而是一个generator：
->>> for n in fib(6):
-...     print(n)
-...
-1
-1
-2
-3
-5
-8
-注意，赋值语句：
-a, b = b, a + b
-相当于：
-t = (b, a + b) # t是一个tuple
-a = t[0]
-b = t[1]
-上面的函数和generator仅一步之遥。要把fib函数变成generator，只需要把print(b)改为yield b就可以了:
-def fib(max):
-    n, a, b = 0, 0, 1
-    while n < max:
-        yield b
-        a, b = b, a + b
-        n = n + 1
-    return 'done'
-这就是定义generator的另一种方法。如果一个函数定义中包含yield关键字，那么这个函数就不再是一个普通函数，而是一个generator：
->>> f = fib(6)
->>> f
-<generator object fib at 0x104feaaa0>
-
-但不必显式写出临时变量t就可以赋值。
-但是用for循环调用generator时，发现拿不到generator的return语句的返回值。如果想要拿到返回值，必须捕获StopIteration错误，返回值包含在StopIteration的value中：
->>> g = fib(6)
->>> g
-<generator object fib at 0x104feaaa0>
->>> while True:
-...     try:
-...         x = next(g)
-...         print('g:', x)
-...     except StopIteration as e:
-...         print('Generator return value:', e.value)
-...         break
-...
-g: 1
-g: 1
-g: 2
-g: 3
-g: 5
-g: 8
-Generator return value: done
-
-
 创建L和g的区别仅在于最外层的[]和()，L是一个list，而g是一个generator。
-
 我们可以直接打印出list的每一个元素，但我们怎么打印出generator的每一个元素呢？
-
 如果要一个一个打印出来，可以通过next()函数获得generator的下一个返回值：
-
 >>> next(g)
 0
 >>> next(g)
@@ -1422,7 +1346,6 @@ StopIteration
 我们讲过，generator保存的是算法，每次调用next(g)，就计算出g的下一个元素的值，直到计算到最后一个元素，没有更多的元素时，抛出StopIteration的错误。
 
 当然，上面这种不断调用next(g)实在是太变态了，正确的方法是使用for循环，因为generator也是可迭代对象：
-
 >>> g = (x * x for x in range(10))
 >>> for n in g:
 ...     print(n)
@@ -1439,9 +1362,38 @@ StopIteration
 81
 所以，我们创建了一个generator后，基本上永远不会调用next()，而是通过for循环来迭代它，并且不需要关心StopIteration的错误。
 
+所以，我们创建了一个generator后，基本上永远不会调用next()，而是通过for循环来迭代它，并且不需要关心StopIteration的错误。
 generator非常强大。如果推算的算法比较复杂，用类似列表生成式的for循环无法实现的时候，还可以用函数来实现。
-这里，最难理解的就是generator和函数的执行流程不一样。函数是顺序执行，遇到return语句或者最后一行函数语句就返回。而变成generator的函数，在每次调用next()的时候执行，遇到yield语句返回，再次执行时从上次返回的yield语句处继续执行。
+比如，著名的斐波拉契数列（Fibonacci），除第一个和第二个数外，任意一个数都可由前两个数相加得到：
+1, 1, 2, 3, 5, 8, 13, 21, 34, ...
+斐波拉契数列用列表生成式写不出来，但是，用函数把它打印出来却很容易：
+def fib(max):
+    n, a, b = 0, 0, 1
+    while n < max:
+        print(b)
+        a, b = b, a + b
+        n = n + 1
+    return 'done'
+注意，赋值语句：
+a, b = b, a + b
+相当于：
+t = (b, a + b) # t是一个tuple
+a = t[0]
+b = t[1]
+上面的函数和generator仅一步之遥。要把fib函数变成generator，只需要把print(b)改为yield b就可以了：
+def fib(max):
+    n, a, b = 0, 0, 1
+    while n < max:
+        yield b
+        a, b = b, a + b
+        n = n + 1
+    return 'done'
+这就是定义generator的另一种方法。如果一个函数定义中包含yield关键字，那么这个函数就不再是一个普通函数，而是一个generator：
+>>> f = fib(6)
+>>> f
+<generator object fib at 0x104feaaa0>
 
+这里，最难理解的就是generator和函数的执行流程不一样。函数是顺序执行，遇到return语句或者最后一行函数语句就返回。而变成generator的函数，在每次调用next()的时候执行，遇到yield语句返回，再次执行时从上次返回的yield语句处继续执行。
 举个简单的例子，定义一个generator，依次返回数字1，3，5：
 def odd():
     print('step 1')
@@ -1451,7 +1403,6 @@ def odd():
     print('step 3')
     yield(5)
 调用该generator时，首先要生成一个generator对象，然后用next()函数不断获得下一个返回值：
-
 >>> o = odd()
 >>> next(o)
 step 1
@@ -1467,7 +1418,37 @@ Traceback (most recent call last):
   File "<stdin>", line 1, in <module>
 StopIteration
 可以看到，odd不是普通函数，而是generator，在执行过程中，遇到yield就中断，下次又继续执行。执行3次yield后，已经没有yield可以执行了，所以，第4次调用next(o)就报错。
+回到fib的例子，我们在循环过程中不断调用yield，就会不断中断。当然要给循环设置一个条件来退出循环，不然就会产生一个无限数列出来。
+同样的，把函数改成generator后，我们基本上从来不会用next()来获取下一个返回值，而是直接使用for循环来迭代：
+>>> for n in fib(6):
+...     print(n)
+...
+1
+1
+2
+3
+5
+8
 
+但是用for循环调用generator时，发现拿不到generator的return语句的返回值。如果想要拿到返回值，必须捕获StopIteration错误，返回值包含在StopIteration的value中：
+>>> g = fib(6)
+>>> g
+<generator object fib at 0x104feaaa0>
+>>> while True:
+...     try:
+...         x = next(g)
+...         print('g:', x)
+...     except StopIteration as e:
+...         print('Generator return value:', e.value)
+...         break
+...
+g: 1
+g: 1
+g: 2
+g: 3
+g: 5
+g: 8
+Generator return value: done
 ###小结
 generator是非常强大的工具，在Python中，可以简单地把列表生成式改成generator，也可以通过函数实现复杂逻辑的generator。
 要理解generator的工作原理，它是在for循环的过程中不断计算出下一个元素，并在适当的条件结束for循环。对于函数改成的generator来说，遇到return语句或者执行到函数体最后一行语句，就是结束generator的指令，for循环随之结束。
@@ -1498,7 +1479,6 @@ True
 True
 >>> isinstance(100, Iterable)
 False
-
 而生成器不但可以作用于for循环，还可以被next()函数不断调用并返回下一个值，直到最后抛出StopIteration错误表示无法继续返回下一个值了。
 ###可以被next()函数调用并不断返回下一个值的对象称为迭代器：Iterator。
 可以使用isinstance()判断一个对象是否是Iterator对象：
@@ -1511,23 +1491,19 @@ False
 False
 >>> isinstance('abc', Iterator)
 False
-
 生成器都是Iterator对象，但list、dict、str虽然是Iterable，却不是Iterator。
 把list、dict、str等Iterable变成Iterator可以使用iter()函数：
 >>> isinstance(iter([]), Iterator)
 True
 >>> isinstance(iter('abc'), Iterator)
 True
-
-#为什么list、dict、str等数据类型不是Iterator？
+为什么list、dict、str等数据类型不是Iterator？
 这是因为Python的Iterator对象表示的是一个数据流，Iterator对象可以被next()函数调用并不断返回下一个数据，直到没有数据时抛出StopIteration错误。可以把这个数据流看做是一个有序序列，但我们却不能提前知道序列的长度，只能不断通过next()函数实现按需计算下一个数据，所以Iterator的计算是惰性的，只有在需要返回下一个数据时它才会计算。
 Iterator甚至可以表示一个无限大的数据流，例如全体自然数。而使用list是永远不可能存储全体自然数的。
-
 #小结
 1 凡是可作用于for循环的对象都是Iterable类型；
 2 凡是可作用于next()函数的对象都是Iterator类型，它们表示一个惰性计算的序列；
 3 集合数据类型如list、dict、str等是Iterable但不是Iterator，不过可以通过iter()函数获得一个Iterator对象。
-
 Python的for循环本质上就是通过不断调用next()函数实现的，例如：
 for x in [1, 2, 3, 4, 5]:
     pass
@@ -1545,10 +1521,58 @@ while True:
 
 ################函数式编程
 ###高阶函数
+变量可以指向函数
+以Python内置的求绝对值的函数abs()为例，调用该函数用以下代码：
+>>> abs(-10)
+10
+但是，如果只写abs呢？
+>>> abs
+<built-in function abs>
+要获得函数调用结果，我们可以把结果赋值给变量：
+>>> x = abs(-10)
+>>> x
+10
+但是，如果把函数本身赋值给变量呢？
+>>> f = abs
+>>> f
+<built-in function abs>
+结论：函数本身也可以赋值给变量，即：变量可以指向函数。
+
+函数名也是变量：
+那么函数名是什么呢？函数名其实就是指向函数的变量！对于abs()这个函数，完全可以把函数名abs看成变量，它指向一个可以计算绝对值的函数！
+如果把abs指向其他对象，会有什么情况发生？
+>>> abs = 10
+>>> abs(-10)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+TypeError: 'int' object is not callable
+注：由于abs函数实际上是定义在import builtins模块中的，所以要让修改abs变量的指向在其它模块也生效，要用import builtins; builtins.abs = 10。
+
+传入函数：
+既然变量可以指向函数，函数的参数能接收变量，那么一个函数就可以接收另一个函数作为参数，这种函数就称之为高阶函数。
+一个最简单的高阶函数：
+def add(x, y, f):
+    return f(x) + f(y)
+
 #map/reduce
 -----map()函数：
 map()函数接收两个参数，一个是函数，一个是Iterable，map将传入的函数依次作用到序列的每个元素，并把结果作为新的Iterator返回。
+举例说明，比如我们有一个函数f(x)=x2，要把这个函数作用在一个list [1, 2, 3, 4, 5, 6, 7, 8, 9]上，就可以用map()实现如下：
+            f(x) = x * x
 
+                  │
+                  │
+  ┌───┬───┬───┬───┼───┬───┬───┬───┐
+  │   │   │   │   │   │   │   │   │
+  ▼   ▼   ▼   ▼   ▼   ▼   ▼   ▼   ▼
+
+[ 1   2   3   4   5   6   7   8   9 ]
+
+  │   │   │   │   │   │   │   │   │
+  │   │   │   │   │   │   │   │   │
+  ▼   ▼   ▼   ▼   ▼   ▼   ▼   ▼   ▼
+
+[ 1   4   9  16  25  36  49  64  81 ]
 现在，我们用Python代码实现：
 >>> def f(x):
 ...     return x * x
@@ -1564,7 +1588,7 @@ for n in [1, 2, 3, 4, 5, 6, 7, 8, 9]:
     L.append(f(n))
 print(L)
 的确可以，但是，从上面的循环代码，能一眼看明白“把f(x)作用在list的每一个元素并把结果生成一个新的list”吗？
-所以，map()作为高阶函数，事实上它把运算规则抽象了，因此，我们不但可以计算简单的f(x)=x2，还可以计算任意复杂的函数，比如，把这个list所有数字转为字符串：
+所以，map()作为高阶函数，事实上它把运算规则抽象了，因此，我们不但可以计算简单的f(x)=x**2，还可以计算任意复杂的函数，比如，把这个list所有数字转为字符串：
 >>> list(map(str, [1, 2, 3, 4, 5, 6, 7, 8, 9]))
 ['1', '2', '3', '4', '5', '6', '7', '8', '9']
 只需要一行代码。
@@ -1580,7 +1604,6 @@ reduce(f, [x1, x2, x3, x4]) = f(f(f(x1, x2), x3), x4)
 >>> reduce(add, [1, 3, 5, 7, 9])
 25
 当然求和运算可以直接用Python内建函数sum()，没必要动用reduce。
-
 如果考虑到字符串str也是一个序列，对上面的例子稍加改动，配合map()，我们就可以写出把str转换为int的函数：
 >>> from functools import reduce
 >>> def fn(x, y):
@@ -1595,7 +1618,6 @@ reduce(f, [x1, x2, x3, x4]) = f(f(f(x1, x2), x3), x4)
 整理成一个str2int的函数就是：
 from functools import reduce
 DIGITS = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9}
-
 def str2int(s):
     def fn(x, y):
         return x * 10 + y
@@ -1614,7 +1636,6 @@ def str2int(s):
 ###filter
 #Python内建的filter()函数用于过滤序列。
 和map()类似，filter()也接收一个函数和一个序列。和map()不同的是，filter()把传入的函数依次作用于每个元素，然后根据返回值是True还是False决定保留还是丢弃该元素。
-
 例如，在一个list中，删掉偶数，只保留奇数，可以这么写：
 def is_odd(n):
     return n % 2 == 1
