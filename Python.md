@@ -1638,7 +1638,7 @@ def _not_divisible(n):
     return lambda x: x % n > 0
 def primes():
     yield 2
-    it = _odd_iter() # 初始序列
+    it = _odd_iter() #初始序列,此时it已经有整个序列的值了，也就是[3,5,7,9,11,13,15,17,19....],只是不占用空间，因为他是生成器，在用时才会取来
     while True:
         n = next(it) # 返回序列的第一个数
         yield n
