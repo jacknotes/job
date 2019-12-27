@@ -19,6 +19,7 @@ kafka采用zookeeper对集群中的broker、consumer进行管理，可以注册t
 
 ----消息队列
 消息队列技术是分布式应用间交换信息的一种技术。常用的消息队列技术是 Message Queue。
+分布式协调技术，所谓分布式协调技术主要是用来解决分布式环境当中多个进程之间的同步控制，让他们有序的去访问某种共享资源，防止造成资源竞争（脑裂）的后果。
 ----Message Queue 的通讯模式
 点对点通讯：点对点方式是最为传统和常见的通讯方式，它支持一对一、一对多、多对多、多对一等多种配置方式，支持树状、网状等多种拓扑结构。
 
@@ -76,13 +77,7 @@ Kafka使用zookeeper作为其分布式协调框架，很好的将消息生产、
 
 
 ###Kafka单机安装 
-consumer注意事项：
-对于消费者，kafka中有两个设置的地方：对于老的消费者，由--zookeeper参数设置；对于新的消费者，由--bootstrap-server参数设置
-如果使用了--zookeeper参数,那么consumer的信息将会存放在zk之中,则使用bin/kafka-console-consumer.sh --zookeeper 172.168.2.222:2181 --topic dblab01 
-如果使用了--bootstrap-server参数,那么consumer的信息将会存放在kafka之中,则使用bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic dblab01 --from-beginning
-
-环境配置：
-环境配置
+环境配置:
 操作系统：CentOS 7.6.1810
 JDK版本：1.8.0_201
 Zookeeper版本:zookeeper-3.4.14
@@ -151,6 +146,11 @@ tcp6       0      0 :::9092                 :::*                    LISTEN      
 21148 Jps
 20797 Kafka  #kafka实例
 3.单机连通性测试
+consumer注意事项：
+对于消费者，kafka中有两个设置的地方：对于老的消费者，由--zookeeper参数设置；对于新的消费者，由--bootstrap-server参数设置
+如果使用了--zookeeper参数,那么consumer的信息将会存放在zk之中,则使用bin/kafka-console-consumer.sh --zookeeper 172.168.2.222:2181 --topic dblab01 
+如果使用了--bootstrap-server参数,那么consumer的信息将会存放在kafka之中,则使用bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic dblab01 --from-beginning
+
 [root@jack ~]# kafka-topics.sh --create --bootstrap-server 127.0.0.1:9092 --topic test2 --partitions 1 --replication-factor 1 #新建个topic
 [root@jack ~]# kafka-topics.sh --list --bootstrap-server 127.0.0.1:9092 #查看topic消息队列
 __consumer_offsets
@@ -167,6 +167,249 @@ safsdaf
 jack    
 hello world  #这些都是之前的消息
 hello jack  #这是新接收到的消息
+
+
+
+####kafka高可用集群搭建：
+1.zookeeper高可用伪集群搭建：
+curl -L -O http://apache.fayea.com/zookeeper/zookeeper-3.4.14/zookeeper-3.4.14.tar.gz
+tar xf zookeeper-3.4.14.tar.gz -C /usr/local/
+ln -sv /usr/local/zookeeper-3.4.14/ /usr/local/zookeeper
+node1:编辑节点1的zookeeper配置文件：
+[root@jack ~]# vim /usr/local/zookeeper/conf/zoo.cfg 
+tickTime=2000  #用于计算的基础时间单元。比如session超时：N*tickTime
+initLimit=10   #用于集群，允许从节点连接并同步到 master节点的初始化连接时间，以tickTime的倍数来表示
+syncLimit=5    #用于集群， master主节点与从节点之间发送消息，请求和应答时间长度（心跳机制）
+dataDir=/tmp/zookeeper/data1    #数据存储位置
+dataLogDir=/tmp/zookeeper/log1  #日志目录
+clientPort=2181    #用于客户端连接的端口，默认2181
+server.1=127.0.0.1:2287:3387   #指名集群间通讯端口和选举端口
+server.2=127.0.0.1:2288:3388
+server.3=127.0.0.1:2289:3389   
+#上面server.1 这个1是服务器的标识，可以是任意有效数字，标识这是第几个服务器节点，这个标识要写到dataDir目录下面myid文件里
+[root@jack ~]# cp -a /usr/local/zookeeper /usr/local/zookeeper2
+[root@jack ~]# cp -a /usr/local/zookeeper /usr/local/zookeeper3
+node2:编辑节点2的zookeeper配置文件：
+[root@jack ~]# vim /usr/local/zookeeper2/conf/zoo.cfg
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=/tmp/zookeeper/data2
+dataLogDir=/tmp/zookeeper/log2
+clientPort=2182
+server.1=127.0.0.1:2287:3387
+server.2=127.0.0.1:2288:3388
+server.3=127.0.0.1:2289:3389
+node3:编辑节点3的zookeeper配置文件：
+[root@jack ~]# vim /usr/local/zookeeper3/conf/zoo.cfg
+tickTime=2000
+initLimit=10
+syncLimit=5
+dataDir=/tmp/zookeeper/data3
+dataLogDir=/tmp/zookeeper/log3
+clientPort=2183
+server.1=127.0.0.1:2287:3387
+server.2=127.0.0.1:2288:3388
+server.3=127.0.0.1:2289:3389
+###标识节点
+分别在三个节点的数据存储目录下新建myid文件,并写入对应的节点标识。Zookeeper集群通过myid文件识别集群节点，并通过上文配置的节点通信端口和选举端口来进行节点通信，选举出leader节点。
+mkdir -p  /tmp/zookeeper/data{1,2,3}
+mkdir -p  /tmp/zookeeper/log{1,2,3}
+[root@jack zookeeper]# echo 1 > /tmp/zookeeper/data1/myid 
+[root@jack zookeeper]# echo 2 > /tmp/zookeeper/data2/myid 
+[root@jack zookeeper]# echo 3 > /tmp/zookeeper/data2/myid 
+/usr/local/zookeeper/bin/zkServer.sh start   #启动zookeeper
+/usr/local/zookeeper2/bin/zkServer.sh start
+/usr/local/zookeeper3/bin/zkServer.sh start
+[root@jack zookeeper]# netstat -tunlp  | egrep '218|338'
+tcp6       0      0 :::2183                 :::*                    LISTEN      9581/java           
+tcp6       0      0 127.0.0.1:3387          :::*                    LISTEN      9535/java           
+tcp6       0      0 127.0.0.1:3388          :::*                    LISTEN      9551/java           
+tcp6       0      0 127.0.0.1:3389          :::*                    LISTEN      9581/java           
+tcp6       0      0 :::2181                 :::*                    LISTEN      9535/java           
+tcp6       0      0 :::2182                 :::*                    LISTEN      9551/java      
+
+ot@jack zookeeper]# /usr/local/zookeeper/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper/bin/../conf/zoo.cfg
+Mode: follower
+[root@jack zookeeper]# /usr/local/zookeeper2/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper2/bin/../conf/zoo.cfg
+^[[AMode: follower
+[root@jack zookeeper]# /usr/local/zookeeper3/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper3/bin/../conf/zoo.cfg
+Mode: leader    #zookeeper3为leader
+
+2.kafka伪集群搭建
+curl -L -O https://mirrors.cnnic.cn/apache/kafka/2.2.2/kafka_2.12-2.2.2.tgz
+tar xfz kafka_2.12-2.2.2.tgz -C /usr/local
+ln -sv /usr/local/kafka_2.12-2.2.2/ /usr/local/kafka
+#node1:编辑kafka配置文件
+[root@jack zookeeper]# vim /usr/local/kafka/config/server.properties
+broker.id=0
+listeners=PLAINTEXT://:9092
+num.network.threads=4
+num.io.threads=8
+socket.send.buffer.bytes=1024000
+socket.receive.buffer.bytes=1024000
+socket.request.max.bytes=104857600  
+log.dirs=/tmp/kafka1
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.retention.hours=168
+log.segment.bytes=1073741824
+log.retention.check.interval.ms=300000
+zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
+zookeeper.connection.timeout.ms=6000
+group.initial.rebalance.delay.ms=0
+#node2:编辑kafka配置文件
+[root@jack zookeeper]# vim /usr/local/kafka/config/server.properties
+broker.id=1
+listeners=PLAINTEXT://:9093
+num.network.threads=4
+num.io.threads=8
+socket.send.buffer.bytes=1024000
+socket.receive.buffer.bytes=1024000
+socket.request.max.bytes=104857600  
+log.dirs=/tmp/kafka2
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.retention.hours=168
+log.segment.bytes=1073741824
+log.retention.check.interval.ms=300000
+zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
+zookeeper.connection.timeout.ms=6000
+group.initial.rebalance.delay.ms=0
+#node3:编辑kafka配置文件
+[root@jack zookeeper]# vim /usr/local/kafka/config/server.properties
+broker.id=2
+listeners=PLAINTEXT://:9094
+num.network.threads=4
+num.io.threads=8
+socket.send.buffer.bytes=1024000
+socket.receive.buffer.bytes=1024000
+socket.request.max.bytes=104857600  
+log.dirs=/tmp/kafka3
+num.partitions=1
+num.recovery.threads.per.data.dir=1
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.retention.hours=168
+log.segment.bytes=1073741824
+log.retention.check.interval.ms=300000
+zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
+zookeeper.connection.timeout.ms=6000
+group.initial.rebalance.delay.ms=0
+#start kafka
+/usr/local/kafka/bin/kafka-server-start.sh -daemon /usr/local/kafka/config/server.properties
+/usr/local/kafka2/bin/kafka-server-start.sh -daemon /usr/local/kafka2/config/server.properties
+/usr/local/kafka3/bin/kafka-server-start.sh -daemon /usr/local/kafka3/config/server.properties
+#检查kafka服务
+[root@jack zookeeper]# netstat -tunlp  | egrep '909'
+tcp6       0      0 :::9092                 :::*                    LISTEN      9876/java           
+tcp6       0      0 :::9093                 :::*                    LISTEN      10181/java          
+tcp6       0      0 :::9094                 :::*                    LISTEN      10507/java    
+[root@jack zookeeper]# /usr/local/kafka/bin/kafka-topics.sh --create --bootstrap-server localhost:9092 --replication-factor 3 --partitions 3 --topic topic
+#新建一个topic,名叫topic的消息队列
+[root@jack zookeeper]# /usr/local/kafka/bin/kafka-topics.sh --describe --bootstrap-server localhost:9092 --topic topic
+Topic:topic	PartitionCount:3	ReplicationFactor:3	Configs:segment.bytes=1073741824
+	Topic: topic	Partition: 0	Leader: 2	Replicas: 2,0,1	Isr: 2,0,1
+	Topic: topic	Partition: 1	Leader: 1	Replicas: 1,2,0	Isr: 1,2,0
+	Topic: topic	Partition: 2	Leader: 0	Replicas: 0,1,2	Isr: 0,1,2
+#parttionCount:3表示有3个分区，ReplicationFactor:3表示每个分区复制了3份，第一行Topic:topic表示消息队列叫topic,Partition:0表示第一个分区，Leader:2表示这个分区的Leader在第三个节点上(也就是broker.id=2的kafka服务器上),Replicas:2,0,1表示这个分区有3个副本，其中2为Learder,其它为follower，ISR:2,0,1表示isr管理器维护和同步成功了这个分区上的三个副本.
+###测试集群
+[root@jack zookeeper]# /usr/local/kafka/bin/kafka-console-producer.sh --broker-list localhost:9092 --topic topic #生产者进行生产消息
+>hello kafka
+[root@jack ~]# /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9093 --topic topic --from-beginning #消费者进行消费
+hello kafka
+##模拟故障一台broker.id=0,看topic消息队列是否受影响
+[root@jack ~]# jps -m
+17930 Kafka /usr/local/kafka2/config/server.properties
+18298 Kafka /usr/local/kafka3/config/server.properties
+16956 ConsoleConsumer --bootstrap-server localhost:9093 --topic topic --from-beginning
+9581 QuorumPeerMain /usr/local/zookeeper3/bin/../conf/zoo.cfg
+16669 ConsoleProducer --broker-list localhost:9092 --topic topic
+17629 Kafka /usr/local/kafka/config/server.properties
+9535 QuorumPeerMain /usr/local/zookeeper/bin/../conf/zoo.cfg
+9551 QuorumPeerMain /usr/local/zookeeper2/bin/../conf/zoo.cfg
+[root@jack ~]#  kill -9 17629  #此时kafka节点1已经下线,也就是9092已经下线
+[root@jack ~]# /usr/local/kafka/bin/kafka-topics.sh --describe --bootstrap-server localhost:9093 --topic topic
+Topic:topic	PartitionCount:3	ReplicationFactor:3	Configs:segment.bytes=1073741824
+	Topic: topic	Partition: 0	Leader: 2	Replicas: 2,0,1	Isr: 1,2
+	Topic: topic	Partition: 1	Leader: 1	Replicas: 1,2,0	Isr: 1,2
+	Topic: topic	Partition: 2	Leader: 1	Replicas: 0,1,2	Isr: 1,2
+[root@jack zookeeper]# /usr/local/kafka/bin/kafka-console-producer.sh --broker-list localhost:9094 --topic topic
+>jack123
+[root@jack kafka1]# /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9094 --topic topic --from-beginning
+jack123
+#此时消息队列可以很正常生产和消费。
+##模拟zookeeper一台故障
+[root@jack ~]# /usr/local/zookeeper/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper/bin/../conf/zoo.cfg
+Mode: follower
+[root@jack ~]# /usr/local/zookeeper2/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper2/bin/../conf/zoo.cfg
+Mode: leader
+[root@jack ~]# /usr/local/zookeeper3/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper3/bin/../conf/zoo.cfg
+Mode: follower
+#现在模拟zookeeper node1故障
+[root@jack ~]# /usr/local/zookeeper2/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper2/bin/../conf/zoo.cfg
+Mode: leader
+[root@jack ~]# /usr/local/zookeeper3/bin/zkServer.sh status
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper3/bin/../conf/zoo.cfg
+Mode: follower
+[root@jack ~]# /usr/local/zookeeper/bin/zkServer.sh status  #此时zookeeper node1已经下线
+ZooKeeper JMX enabled by default
+Using config: /usr/local/zookeeper/bin/../conf/zoo.cfg
+Error contacting service. It is probably not running.
+[root@jack ~]# netstat -tunlp | grep 218   #2181 node1快线下线
+tcp6       0      0 :::2183                 :::*                    LISTEN      32192/java          
+tcp6       0      0 :::2182                 :::*                    LISTEN      9551/java     
+
+ot@jack ~]# /usr/local/kafka/bin/kafka-topics.sh --describe --bootstrap-server localhost:9094 --topic topic
+Topic:topic	PartitionCount:3	ReplicationFactor:3	Configs:segment.bytes=1073741824
+	Topic: topic	Partition: 0	Leader: 2	Replicas: 2,0,1	Isr: 2,0,1
+	Topic: topic	Partition: 1	Leader: 1	Replicas: 1,2,0	Isr: 2,0,1
+	Topic: topic	Partition: 2	Leader: 0	Replicas: 0,1,2	Isr: 2,0,1
+#kafka集群不受影响，而且生产者和消费者都正常的执行
+###注意：当zookeeper集群只有一个节点在线时，则你只能通过监听端口来判断zookerper是否在线。通过zkServer.sh status是看不出来的。2.当你的kafka集群生产者连接的是node3,消费者连接的也是node3，此时当node3的kafka故障，则你的生产者和消费者会报错误日志，不能连接9094端口进行消息队列的执行。只能连接9092或9093端口进行生产和消费。
+##猜测：估计kafka消息队列需要用到LVS进行调度，否则我们生产和消费遇到正在使用的kafka节点时会退出。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
