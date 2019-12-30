@@ -267,6 +267,11 @@ log.retention.check.interval.ms=300000
 zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
 zookeeper.connection.timeout.ms=6000
 group.initial.rebalance.delay.ms=0
+replica.lag.max.messages =4000
+## 如果follower落后与leader太多,将会认为此follower[或者说partition relicas]已经失效,通常,在follower与leader通讯时,因为网络延迟或者链接断开,总会导致replicas中消息同步滞后,如果消息之后太多,leader将认为此follower网络延迟较大或者消息吞吐能力有限,将会把此replicas迁移到其他follower中.在broker数量较少,或者网络不足的环境中,建议提高此值.
+eplica.lag.time.max.ms =10000
+## replicas响应partition leader的最长等待时间，若是超过这个时间，就将replicas列入ISR(in-sync replicas)，并认为它是死的，不会再加入管理中
+
 #node2:编辑kafka配置文件
 [root@jack zookeeper]# vim /usr/local/kafka/config/server.properties
 broker.id=1
@@ -288,6 +293,12 @@ log.retention.check.interval.ms=300000
 zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
 zookeeper.connection.timeout.ms=6000
 group.initial.rebalance.delay.ms=0
+replica.lag.max.messages =4000
+## 如果follower落后与leader太多,将会认为此follower[或者说partition relicas]已经失效,通常,在follower与leader通讯时,因为网络延迟或者链接断>开,总会导致replicas中消息同步滞后,如果消息之后太多,leader将认为此follower网络延迟较大或者消息吞吐能力有限,将会把此replicas迁移到其他follo
+wer中.在broker数量较少,或者网络不足的环境中,建议提高此值.
+eplica.lag.time.max.ms =10000
+## replicas响应partition leader的最长等待时间，若是超过这个时间，就将replicas列入ISR(in-sync replicas)，并认为它是死的，不会再加入管理中
+
 #node3:编辑kafka配置文件
 [root@jack zookeeper]# vim /usr/local/kafka/config/server.properties
 broker.id=2
@@ -309,6 +320,12 @@ log.retention.check.interval.ms=300000
 zookeeper.connect=localhost:2181,localhost:2182,localhost:2183
 zookeeper.connection.timeout.ms=6000
 group.initial.rebalance.delay.ms=0
+replica.lag.max.messages =4000
+## 如果follower落后与leader太多,将会认为此follower[或者说partition relicas]已经失效,通常,在follower与leader通讯时,因为网络延迟或者链接断>开,总会导致replicas中消息同步滞后,如果消息之后太多,leader将认为此follower网络延迟较大或者消息吞吐能力有限,将会把此replicas迁移到其他follo
+wer中.在broker数量较少,或者网络不足的环境中,建议提高此值.
+eplica.lag.time.max.ms =10000
+## replicas响应partition leader的最长等待时间，若是超过这个时间，就将replicas列入ISR(in-sync replicas)，并认为它是死的，不会再加入管理中
+
 #start kafka
 /usr/local/kafka/bin/kafka-server-start.sh -daemon /usr/local/kafka/config/server.properties
 /usr/local/kafka2/bin/kafka-server-start.sh -daemon /usr/local/kafka2/config/server.properties
@@ -389,27 +406,42 @@ Topic:topic	PartitionCount:3	ReplicationFactor:3	Configs:segment.bytes=107374182
 	Topic: topic	Partition: 2	Leader: 0	Replicas: 0,1,2	Isr: 2,0,1
 #kafka集群不受影响，而且生产者和消费者都正常的执行
 ###注意：当zookeeper集群只有一个节点在线时，则你只能通过监听端口来判断zookerper是否在线。通过zkServer.sh status是看不出来的。2.当你的kafka集群生产者连接的是node3,消费者连接的也是node3，此时当node3的kafka故障，则你的生产者和消费者会报错误日志，不能连接9094端口进行消息队列的执行。只能连接9092或9093端口进行生产和消费。
-##猜测：估计kafka消息队列需要用到LVS进行调度，否则我们生产和消费遇到正在使用的kafka节点时会退出。
+##正常使用方法
+[root@jack job]# /usr/local/kafka/bin/kafka-console-producer.sh --broker-list localhost:9092,localhost:9093,localhost:9094 --topic topic
+[root@jack ~]# /usr/local/kafka/bin//kafka-console-consumer.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --topic topic
+##注：只有生产者和消费者像上面这样进行生产和消费时，当其中任意两台broker故障时，生产者和消费者都正常实现消息传输
 
+##kafka的故障恢复及备份
+1. zookeeper多台集群，当某台集群故障时，会自己选择新的lead，自己会故障转移。当恢复备份时，复制zookeeper的安装包，并更改配置文件，然后在自己的data数据目录下新建一个myid文件，文件内空为自己所在的服务器id,跟zoo.cfg配置文件中server.1参数中1相同。重启zookeeper服务会自动加入zookeeper集群
+2. kafka多台集群，当某台集群故障时，只需要重新让好的kafka broker加入，并重启服务，此新的broker会从之前topic的lead中自动同步数据到新的broker,集群ID必须和故障的broker ID一样，否则不会同步topic信息
+#注意：有多少个节点时，最好把ReplicationFactor设成节点数量，可使集群高可用
 
+#使用kafka消费组
+[root@jack kafka3]# /usr/local/kafka/bin/kafka-consumer-groups.sh --list --bootstrap-server localhost:9092,localhost:9093,localhost:9094
+console-consumer-13507
+[root@jack kafka3]# /usr/local/kafka/bin/kafka-consumer-groups.sh --describe --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --group console-consumer-13507
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                     HOST            CLIENT-ID
+topic           0          -               21              -               consumer-1-f2550944-f0a1-4f65-a144-c77ffd17490f /172.168.2.222  consumer-1
+topic           1          -               19              -               consumer-1-f2550944-f0a1-4f65-a144-c77ffd17490f /172.168.2.222  consumer-1
+topic           2          -               21              -               consumer-1-f2550944-f0a1-4f65-a144-c77ffd17490f /172.168.2.222  consumer-1
+[root@jack kafka3]# /usr/local/kafka/bin/kafka-console-producer.sh --broker-list localhost:9092,localhost:9093,localhost:9094 --topic test  #生产者在test topic
+>1
+>2
+>3
+>4
+>5
+>6
+[root@jack ~]# /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --topic test --consumer-property group.id=mygroup --from-beginning  #创建消费组，需要指定--consumer-property group.id=mygroup，否则是一个消费者,--consumer-property consumer.id=jack表示指定consumer的id
+1
+2
+4
+5
+[root@jack job]# /usr/local/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092,localhost:9093,localhost:9094 --topic test --consumer-property group.id=mygroup --from-beginning
+3
+6
+[root@jack ~]# /usr/local/kafka/bin/kafka-consumer-groups.sh --list --bootstrap-server localhost:9092,localhost:9093,localhost:9094
+mygroup  #此时已经有了这个新组
+console-consumer-13507
 
 
