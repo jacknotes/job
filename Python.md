@@ -3735,4 +3735,2040 @@ Exception raised:
 ***Test Failed*** 2 failures.
 注意到最后3行代码。当模块正常导入时，doctest不会被执行。只有在命令行直接运行时，才执行doctest。所以，不必担心doctest会在非测试环境下执行。
 
+###IO编程
+IO编程
+IO在计算机中指Input/Output，也就是输入和输出。由于程序和运行时数据是在内存中驻留，由CPU这个超快的计算核心来执行，涉及到数据交换的地方，通常是磁盘、网络等，就需要IO接口。
+比如你打开浏览器，访问新浪首页，浏览器这个程序就需要通过网络IO获取新浪的网页。浏览器首先会发送数据给新浪服务器，告诉它我想要首页的HTML，这个动作是往外发数据，叫Output，随后新浪服务器把网页发过来，这个动作是从外面接收数据，叫Input。所以，通常，程序完成IO操作会有Input和Output两个数据流。当然也有只用一个的情况，比如，从磁盘读取文件到内存，就只有Input操作，反过来，把数据写到磁盘文件里，就只是一个Output操作。
+IO编程中，Stream（流）是一个很重要的概念，可以把流想象成一个水管，数据就是水管里的水，但是只能单向流动。Input Stream就是数据从外面（磁盘、网络）流进内存，Output Stream就是数据从内存流到外面去。对于浏览网页来说，浏览器和新浪服务器之间至少需要建立两根水管，才可以既能发数据，又能收数据。
+由于CPU和内存的速度远远高于外设的速度，所以，在IO编程中，就存在速度严重不匹配的问题。举个例子来说，比如要把100M的数据写入磁盘，CPU输出100M的数据只需要0.01秒，可是磁盘要接收这100M数据可能需要10秒，怎么办呢？有两种办法：
+第一种是CPU等着，也就是程序暂停执行后续代码，等100M的数据在10秒后写入磁盘，再接着往下执行，这种模式称为同步IO；
+另一种方法是CPU不等待，只是告诉磁盘，“您老慢慢写，不着急，我接着干别的事去了”，于是，后续代码可以立刻接着执行，这种模式称为异步IO。
+同步和异步的区别就在于是否等待IO执行的结果。好比你去麦当劳点餐，你说“来个汉堡”，服务员告诉你，对不起，汉堡要现做，需要等5分钟，于是你站在收银台前面等了5分钟，拿到汉堡再去逛商场，这是同步IO。
+你说“来个汉堡”，服务员告诉你，汉堡需要等5分钟，你可以先去逛商场，等做好了，我们再通知你，这样你可以立刻去干别的事情（逛商场），这是异步IO。
+很明显，使用异步IO来编写程序性能会远远高于同步IO，但是异步IO的缺点是编程模型复杂。想想看，你得知道什么时候通知你“汉堡做好了”，而通知你的方法也各不相同。如果是服务员跑过来找到你，这是回调模式，如果服务员发短信通知你，你就得不停地检查手机，这是轮询模式。总之，异步IO的复杂度远远高于同步IO。
+操作IO的能力都是由操作系统提供的，每一种编程语言都会把操作系统提供的低级C接口封装起来方便使用，Python也不例外。我们后面会详细讨论Python的IO编程接口。
+注意，本章的IO编程都是同步模式，异步IO由于复杂度太高，后续涉及到服务器端程序开发时我们再讨论。
+
+###文件读写
+读写文件是最常见的IO操作。Python内置了读写文件的函数，用法和C是兼容的。
+读写文件前，我们先必须了解一下，在磁盘上读写文件的功能都是由操作系统提供的，现代操作系统不允许普通的程序直接操作磁盘，所以，读写文件就是请求操作系统打开一个文件对象（通常称为文件描述符），然后，通过操作系统提供的接口从这个文件对象中读取数据（读文件），或者把数据写入这个文件对象（写文件）。
+读文件
+要以读文件的模式打开一个文件对象，使用Python内置的open()函数，传入文件名和标示符：
+>>> f = open('/Users/michael/test.txt', 'r')
+标示符'r'表示读，这样，我们就成功地打开了一个文件。
+如果文件不存在，open()函数就会抛出一个IOError的错误，并且给出错误码和详细的信息告诉你文件不存在：
+>>> f=open('/Users/michael/notfound.txt', 'r')
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/michael/notfound.txt'
+如果文件打开成功，接下来，调用read()方法可以一次读取文件的全部内容，Python把内容读到内存，用一个str对象表示：
+>>> f.read()
+'Hello, world!'
+最后一步是调用close()方法关闭文件。文件使用完毕后必须关闭，因为文件对象会占用操作系统的资源，并且操作系统同一时间能打开的文件数量也是有限的：
+>>> f.close()
+由于文件读写时都有可能产生IOError，一旦出错，后面的f.close()就不会调用。所以，为了保证无论是否出错都能正确地关闭文件，我们可以使用try ... finally来实现：
+try:
+    f = open('/path/to/file', 'r')
+    print(f.read())
+finally:
+    if f:
+        f.close()
+但是每次都这么写实在太繁琐，所以，Python引入了with语句来自动帮我们调用close()方法：
+with open('/path/to/file', 'r') as f:
+    print(f.read())
+这和前面的try ... finally是一样的，但是代码更佳简洁，并且不必调用f.close()方法。
+调用read()会一次性读取文件的全部内容，如果文件有10G，内存就爆了，所以，要保险起见，可以反复调用read(size)方法，每次最多读取size个字节的内容。另外，调用readline()可以每次读取一行内容，调用readlines()一次读取所有内容并按行返回list。因此，要根据需要决定怎么调用。
+如果文件很小，read()一次性读取最方便；如果不能确定文件大小，反复调用read(size)比较保险；如果是配置文件，调用readlines()最方便：
+for line in f.readlines():
+    print(line.strip()) # 把末尾的'\n'删掉
+file-like Object
+像open()函数返回的这种有个read()方法的对象，在Python中统称为file-like Object。除了file外，还可以是内存的字节流，网络流，自定义流等等。file-like Object不要求从特定类继承，只要写个read()方法就行。
+StringIO就是在内存中创建的file-like Object，常用作临时缓冲。
+二进制文件
+前面讲的默认都是读取文本文件，并且是UTF-8编码的文本文件。要读取二进制文件，比如图片、视频等等，用'rb'模式打开文件即可：
+>>> f = open('/Users/michael/test.jpg', 'rb')
+>>> f.read()
+b'\xff\xd8\xff\xe1\x00\x18Exif\x00\x00...' # 十六进制表示的字节
+字符编码
+要读取非UTF-8编码的文本文件，需要给open()函数传入encoding参数，例如，读取GBK编码的文件：
+>>> f = open('/Users/michael/gbk.txt', 'r', encoding='gbk')
+>>> f.read()
+'测试'
+遇到有些编码不规范的文件，你可能会遇到UnicodeDecodeError，因为在文本文件中可能夹杂了一些非法编码的字符。遇到这种情况，open()函数还接收一个errors参数，表示如果遇到编码错误后如何处理。最简单的方式是直接忽略：
+>>> f = open('/Users/michael/gbk.txt', 'r', encoding='gbk', errors='ignore')
+写文件
+写文件和读文件是一样的，唯一区别是调用open()函数时，传入标识符'w'或者'wb'表示写文本文件或写二进制文件：
+>>> f = open('/Users/michael/test.txt', 'w')
+>>> f.write('Hello, world!')
+>>> f.close()
+你可以反复调用write()来写入文件，但是务必要调用f.close()来关闭文件。当我们写文件时，操作系统往往不会立刻把数据写入磁盘，而是放到内存缓存起来，空闲的时候再慢慢写入。只有调用close()方法时，操作系统才保证把没有写入的数据全部写入磁盘。忘记调用close()的后果是数据可能只写了一部分到磁盘，剩下的丢失了。所以，还是用with语句来得保险：
+with open('/Users/michael/test.txt', 'w') as f:
+    f.write('Hello, world!')
+要写入特定编码的文本文件，请给open()函数传入encoding参数，将字符串自动转换成指定编码。
+细心的童鞋会发现，以'w'模式写入文件时，如果文件已存在，会直接覆盖（相当于删掉后新写入一个文件）。如果我们希望追加到文件末尾怎么办？可以传入'a'以追加（append）模式写入。
+所有模式的定义及含义可以参考Python的官方文档。
+
+###StringIO和BytesIO
+StringIO
+很多时候，数据读写不一定是文件，也可以在内存中读写。
+StringIO顾名思义就是在内存中读写str。
+要把str写入StringIO，我们需要先创建一个StringIO，然后，像文件一样写入即可：
+>>> from io import StringIO
+>>> f = StringIO()
+>>> f.write('hello')
+5
+>>> f.write(' ')
+1
+>>> f.write('world!')
+6
+>>> print(f.getvalue())
+hello world!
+getvalue()方法用于获得写入后的str。
+要读取StringIO，可以用一个str初始化StringIO，然后，像读文件一样读取：
+>>> from io import StringIO
+>>> f = StringIO('Hello!\nHi!\nGoodbye!')
+>>> while True:
+...     s = f.readline()
+...     if s == '':
+...         break
+...     print(s.strip())
+...
+Hello!
+Hi!
+Goodbye!
+BytesIO
+StringIO操作的只能是str，如果要操作二进制数据，就需要使用BytesIO。
+BytesIO实现了在内存中读写bytes，我们创建一个BytesIO，然后写入一些bytes：
+>>> from io import BytesIO
+>>> f = BytesIO()
+>>> f.write('中文'.encode('utf-8'))
+6
+>>> print(f.getvalue())
+b'\xe4\xb8\xad\xe6\x96\x87'
+请注意，写入的不是str，而是经过UTF-8编码的bytes。
+和StringIO类似，可以用一个bytes初始化BytesIO，然后，像读文件一样读取：
+>>> from io import BytesIO
+>>> f = BytesIO(b'\xe4\xb8\xad\xe6\x96\x87')
+>>> f.read()
+b'\xe4\xb8\xad\xe6\x96\x87'
+小结
+StringIO和BytesIO是在内存中操作str和bytes的方法，使得和读写文件具有一致的接口。
+
+###操作文件和目录
+如果我们要操作文件、目录，可以在命令行下面输入操作系统提供的各种命令来完成。比如dir、cp等命令。
+如果要在Python程序中执行这些目录和文件的操作怎么办？其实操作系统提供的命令只是简单地调用了操作系统提供的接口函数，Python内置的os模块也可以直接调用操作系统提供的接口函数。
+打开Python交互式命令行，我们来看看如何使用os模块的基本功能：
+>>> import os
+>>> os.name # 操作系统类型
+'posix'
+如果是posix，说明系统是Linux、Unix或Mac OS X，如果是nt，就是Windows系统。
+要获取详细的系统信息，可以调用uname()函数：
+>>> os.uname()
+posix.uname_result(sysname='Darwin', nodename='MichaelMacPro.local', release='14.3.0', version='Darwin Kernel Version 14.3.0: Mon Mar 23 11:59:05 PDT 2015; root:xnu-2782.20.48~5/RELEASE_X86_64', machine='x86_64')
+注意uname()函数在Windows上不提供，也就是说，os模块的某些函数是跟操作系统相关的。
+环境变量
+在操作系统中定义的环境变量，全部保存在os.environ这个变量中，可以直接查看：
+>>> os.environ
+environ({'VERSIONER_PYTHON_PREFER_32_BIT': 'no', 'TERM_PROGRAM_VERSION': '326', 'LOGNAME': 'michael', 'USER': 'michael', 'PATH': '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/mysql/bin', ...})
+要获取某个环境变量的值，可以调用os.environ.get('key')：
+>>> os.environ.get('PATH')
+'/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/X11/bin:/usr/local/mysql/bin'
+>>> os.environ.get('x', 'default')
+'default'
+操作文件和目录
+操作文件和目录的函数一部分放在os模块中，一部分放在os.path模块中，这一点要注意一下。查看、创建和删除目录可以这么调用：
+# 查看当前目录的绝对路径:
+>>> os.path.abspath('.')
+'/Users/michael'
+# 在某个目录下创建一个新目录，首先把新目录的完整路径表示出来:
+>>> os.path.join('/Users/michael', 'testdir')
+'/Users/michael/testdir'
+# 然后创建一个目录:
+>>> os.mkdir('/Users/michael/testdir')
+# 删掉一个目录:
+>>> os.rmdir('/Users/michael/testdir')
+把两个路径合成一个时，不要直接拼字符串，而要通过os.path.join()函数，这样可以正确处理不同操作系统的路径分隔符。在Linux/Unix/Mac下，os.path.join()返回这样的字符串：
+part-1/part-2
+而Windows下会返回这样的字符串：
+part-1\part-2
+同样的道理，要拆分路径时，也不要直接去拆字符串，而要通过os.path.split()函数，这样可以把一个路径拆分为两部分，后一部分总是最后级别的目录或文件名：
+>>> os.path.split('/Users/michael/testdir/file.txt')
+('/Users/michael/testdir', 'file.txt')
+os.path.splitext()可以直接让你得到文件扩展名，很多时候非常方便：
+>>> os.path.splitext('/path/to/file.txt')
+('/path/to/file', '.txt')
+这些合并、拆分路径的函数并不要求目录和文件要真实存在，它们只对字符串进行操作。
+文件操作使用下面的函数。假定当前目录下有一个test.txt文件：
+# 对文件重命名:
+>>> os.rename('test.txt', 'test.py')
+# 删掉文件:
+>>> os.remove('test.py')
+但是复制文件的函数居然在os模块中不存在！原因是复制文件并非由操作系统提供的系统调用。理论上讲，我们通过上一节的读写文件可以完成文件复制，只不过要多写很多代码。
+幸运的是shutil模块提供了copyfile()的函数，你还可以在shutil模块中找到很多实用函数，它们可以看做是os模块的补充。
+最后看看如何利用Python的特性来过滤文件。比如我们要列出当前目录下的所有目录，只需要一行代码：
+>>> [x for x in os.listdir('.') if os.path.isdir(x)]
+['.lein', '.local', '.m2', '.npm', '.ssh', '.Trash', '.vim', 'Applications', 'Desktop', ...]
+要列出所有的.py文件，也只需一行代码：
+>>> [x for x in os.listdir('.') if os.path.isfile(x) and os.path.splitext(x)[1]=='.py']
+['apis.py', 'config.py', 'models.py', 'pymonitor.py', 'test_db.py', 'urls.py', 'wsgiapp.py']
+是不是非常简洁？
+小结
+Python的os模块封装了操作系统的目录和文件操作，要注意这些函数有的在os模块中，有的在os.path模块中。
+
+###序列化
+在程序运行的过程中，所有的变量都是在内存中，比如，定义一个dict：
+d = dict(name='Bob', age=20, score=88)
+可以随时修改变量，比如把name改成'Bill'，但是一旦程序结束，变量所占用的内存就被操作系统全部回收。如果没有把修改后的'Bill'存储到磁盘上，下次重新运行程序，变量又被初始化为'Bob'。
+我们把变量从内存中变成可存储或传输的过程称之为序列化，在Python中叫pickling，在其他语言中也被称之为serialization，marshalling，flattening等等，都是一个意思。
+序列化之后，就可以把序列化后的内容写入磁盘，或者通过网络传输到别的机器上。
+反过来，把变量内容从序列化的对象重新读到内存里称之为反序列化，即unpickling。
+Python提供了pickle模块来实现序列化。
+首先，我们尝试把一个对象序列化并写入文件：
+>>> import pickle
+>>> d = dict(name='Bob', age=20, score=88)
+>>> pickle.dumps(d)
+b'\x80\x03}q\x00(X\x03\x00\x00\x00ageq\x01K\x14X\x05\x00\x00\x00scoreq\x02KXX\x04\x00\x00\x00nameq\x03X\x03\x00\x00\x00Bobq\x04u.'
+pickle.dumps()方法把任意对象序列化成一个bytes，然后，就可以把这个bytes写入文件。或者用另一个方法pickle.dump()直接把对象序列化后写入一个file-like Object：
+>>> f = open('dump.txt', 'wb')
+>>> pickle.dump(d, f)
+>>> f.close()
+看看写入的dump.txt文件，一堆乱七八糟的内容，这些都是Python保存的对象内部信息。
+当我们要把对象从磁盘读到内存时，可以先把内容读到一个bytes，然后用pickle.loads()方法反序列化出对象，也可以直接用pickle.load()方法从一个file-like Object中直接反序列化出对象。我们打开另一个Python命令行来反序列化刚才保存的对象：
+>>> f = open('dump.txt', 'rb')
+>>> d = pickle.load(f)
+>>> f.close()
+>>> d
+{'age': 20, 'score': 88, 'name': 'Bob'}
+变量的内容又回来了！
+当然，这个变量和原来的变量是完全不相干的对象，它们只是内容相同而已。
+Pickle的问题和所有其他编程语言特有的序列化问题一样，就是它只能用于Python，并且可能不同版本的Python彼此都不兼容，因此，只能用Pickle保存那些不重要的数据，不能成功地反序列化也没关系。
+JSON
+如果我们要在不同的编程语言之间传递对象，就必须把对象序列化为标准格式，比如XML，但更好的方法是序列化为JSON，因为JSON表示出来就是一个字符串，可以被所有语言读取，也可以方便地存储到磁盘或者通过网络传输。JSON不仅是标准格式，并且比XML更快，而且可以直接在Web页面中读取，非常方便。
+JSON表示的对象就是标准的JavaScript语言的对象，JSON和Python内置的数据类型对应如下：
+JSON类型	Python类型
+{}	dict
+[]	list
+"string"	str
+1234.56	int或float
+true/false	True/False
+null	None
+Python内置的json模块提供了非常完善的Python对象到JSON格式的转换。我们先看看如何把Python对象变成一个JSON：
+>>> import json
+>>> d = dict(name='Bob', age=20, score=88)
+>>> json.dumps(d)
+'{"age": 20, "score": 88, "name": "Bob"}'
+dumps()方法返回一个str，内容就是标准的JSON。类似的，dump()方法可以直接把JSON写入一个file-like Object。
+要把JSON反序列化为Python对象，用loads()或者对应的load()方法，前者把JSON的字符串反序列化，后者从file-like Object中读取字符串并反序列化：
+>>> json_str = '{"age": 20, "score": 88, "name": "Bob"}'
+>>> json.loads(json_str)
+{'age': 20, 'score': 88, 'name': 'Bob'}
+由于JSON标准规定JSON编码是UTF-8，所以我们总是能正确地在Python的str与JSON的字符串之间转换。
+JSON进阶
+Python的dict对象可以直接序列化为JSON的{}，不过，很多时候，我们更喜欢用class表示对象，比如定义Student类，然后序列化：
+import json
+class Student(object):
+    def __init__(self, name, age, score):
+        self.name = name
+        self.age = age
+        self.score = score
+s = Student('Bob', 20, 88)
+print(json.dumps(s))
+运行代码，毫不留情地得到一个TypeError：
+Traceback (most recent call last):
+  ...
+TypeError: <__main__.Student object at 0x10603cc50> is not JSON serializable
+错误的原因是Student对象不是一个可序列化为JSON的对象。
+如果连class的实例对象都无法序列化为JSON，这肯定不合理！
+别急，我们仔细看看dumps()方法的参数列表，可以发现，除了第一个必须的obj参数外，dumps()方法还提供了一大堆的可选参数：
+https://docs.python.org/3/library/json.html#json.dumps
+这些可选参数就是让我们来定制JSON序列化。前面的代码之所以无法把Student类实例序列化为JSON，是因为默认情况下，dumps()方法不知道如何将Student实例变为一个JSON的{}对象。
+可选参数default就是把任意一个对象变成一个可序列为JSON的对象，我们只需要为Student专门写一个转换函数，再把函数传进去即可：
+def student2dict(std):
+    return {
+        'name': std.name,
+        'age': std.age,
+        'score': std.score
+    }
+这样，Student实例首先被student2dict()函数转换成dict，然后再被顺利序列化为JSON：
+>>> print(json.dumps(s, default=student2dict))
+{"age": 20, "name": "Bob", "score": 88}
+不过，下次如果遇到一个Teacher类的实例，照样无法序列化为JSON。我们可以偷个懒，把任意class的实例变为dict：
+print(json.dumps(s, default=lambda obj: obj.__dict__))
+因为通常class的实例都有一个__dict__属性，它就是一个dict，用来存储实例变量。也有少数例外，比如定义了__slots__的class。
+同样的道理，如果我们要把JSON反序列化为一个Student对象实例，loads()方法首先转换出一个dict对象，然后，我们传入的object_hook函数负责把dict转换为Student实例：
+def dict2student(d):
+    return Student(d['name'], d['age'], d['score'])
+运行结果如下：
+>>> json_str = '{"age": 20, "score": 88, "name": "Bob"}'
+>>> print(json.loads(json_str, object_hook=dict2student))
+<__main__.Student object at 0x10cd3c190>
+打印出的是反序列化的Student实例对象。
+小结
+Python语言特定的序列化模块是pickle，但如果要把序列化搞得更通用、更符合Web标准，就可以使用json模块。
+json模块的dumps()和loads()函数是定义得非常好的接口的典范。当我们使用时，只需要传入一个必须的参数。但是，当默认的序列化或反序列机制不满足我们的要求时，我们又可以传入更多的参数来定制序列化或反序列化的规则，既做到了接口简单易用，又做到了充分的扩展性和灵活性。
+
+###进程和线程
+很多同学都听说过，现代操作系统比如Mac OS X，UNIX，Linux，Windows等，都是支持“多任务”的操作系统。
+什么叫“多任务”呢？简单地说，就是操作系统可以同时运行多个任务。打个比方，你一边在用浏览器上网，一边在听MP3，一边在用Word赶作业，这就是多任务，至少同时有3个任务正在运行。还有很多任务悄悄地在后台同时运行着，只是桌面上没有显示而已。
+现在，多核CPU已经非常普及了，但是，即使过去的单核CPU，也可以执行多任务。由于CPU执行代码都是顺序执行的，那么，单核CPU是怎么执行多任务的呢？
+答案就是操作系统轮流让各个任务交替执行，任务1执行0.01秒，切换到任务2，任务2执行0.01秒，再切换到任务3，执行0.01秒……这样反复执行下去。表面上看，每个任务都是交替执行的，但是，由于CPU的执行速度实在是太快了，我们感觉就像所有任务都在同时执行一样。
+真正的并行执行多任务只能在多核CPU上实现，但是，由于任务数量远远多于CPU的核心数量，所以，操作系统也会自动把很多任务轮流调度到每个核心上执行。
+对于操作系统来说，一个任务就是一个进程（Process），比如打开一个浏览器就是启动一个浏览器进程，打开一个记事本就启动了一个记事本进程，打开两个记事本就启动了两个记事本进程，打开一个Word就启动了一个Word进程。
+有些进程还不止同时干一件事，比如Word，它可以同时进行打字、拼写检查、打印等事情。在一个进程内部，要同时干多件事，就需要同时运行多个“子任务”，我们把进程内的这些“子任务”称为线程（Thread）。
+由于每个进程至少要干一件事，所以，一个进程至少有一个线程。当然，像Word这种复杂的进程可以有多个线程，多个线程可以同时执行，多线程的执行方式和多进程是一样的，也是由操作系统在多个线程之间快速切换，让每个线程都短暂地交替运行，看起来就像同时执行一样。当然，真正地同时执行多线程需要多核CPU才可能实现。
+我们前面编写的所有的Python程序，都是执行单任务的进程，也就是只有一个线程。如果我们要同时执行多个任务怎么办？
+有两种解决方案：
+一种是启动多个进程，每个进程虽然只有一个线程，但多个进程可以一块执行多个任务。
+还有一种方法是启动一个进程，在一个进程内启动多个线程，这样，多个线程也可以一块执行多个任务。
+当然还有第三种方法，就是启动多个进程，每个进程再启动多个线程，这样同时执行的任务就更多了，当然这种模型更复杂，实际很少采用。
+总结一下就是，多任务的实现有3种方式：
+多进程模式；
+多线程模式；
+多进程+多线程模式。
+同时执行多个任务通常各个任务之间并不是没有关联的，而是需要相互通信和协调，有时，任务1必须暂停等待任务2完成后才能继续执行，有时，任务3和任务4又不能同时执行，所以，多进程和多线程的程序的复杂度要远远高于我们前面写的单进程单线程的程序。
+因为复杂度高，调试困难，所以，不是迫不得已，我们也不想编写多任务。但是，有很多时候，没有多任务还真不行。想想在电脑上看电影，就必须由一个线程播放视频，另一个线程播放音频，否则，单线程实现的话就只能先把视频播放完再播放音频，或者先把音频播放完再播放视频，这显然是不行的。
+Python既支持多进程，又支持多线程，我们会讨论如何编写这两种多任务程序。
+小结
+线程是最小的执行单元，而进程由至少一个线程组成。如何调度进程和线程，完全由操作系统决定，程序自己不能决定什么时候执行，执行多长时间。
+多进程和多线程的程序涉及到同步、数据共享的问题，编写起来更复杂。
+
+###多进程
+要让Python程序实现多进程（multiprocessing），我们先了解操作系统的相关知识。
+Unix/Linux操作系统提供了一个fork()系统调用，它非常特殊。普通的函数调用，调用一次，返回一次，但是fork()调用一次，返回两次，因为操作系统自动把当前进程（称为父进程）复制了一份（称为子进程），然后，分别在父进程和子进程内返回。
+子进程永远返回0，而父进程返回子进程的ID。这样做的理由是，一个父进程可以fork出很多子进程，所以，父进程要记下每个子进程的ID，而子进程只需要调用getppid()就可以拿到父进程的ID。
+Python的os模块封装了常见的系统调用，其中就包括fork，可以在Python程序中轻松创建子进程：
+import os
+print('Process (%s) start...' % os.getpid())
+# Only works on Unix/Linux/Mac:
+pid = os.fork()
+if pid == 0:
+    print('I am child process (%s) and my parent is %s.' % (os.getpid(), os.getppid()))
+else:
+    print('I (%s) just created a child process (%s).' % (os.getpid(), pid))
+运行结果如下：
+Process (876) start...
+I (876) just created a child process (877).
+I am child process (877) and my parent is 876.
+由于Windows没有fork调用，上面的代码在Windows上无法运行。而Mac系统是基于BSD（Unix的一种）内核，所以，在Mac下运行是没有问题的，推荐大家用Mac学Python！
+有了fork调用，一个进程在接到新任务时就可以复制出一个子进程来处理新任务，常见的Apache服务器就是由父进程监听端口，每当有新的http请求时，就fork出子进程来处理新的http请求。
+multiprocessing
+如果你打算编写多进程的服务程序，Unix/Linux无疑是正确的选择。由于Windows没有fork调用，难道在Windows上无法用Python编写多进程的程序？
+由于Python是跨平台的，自然也应该提供一个跨平台的多进程支持。multiprocessing模块就是跨平台版本的多进程模块。
+multiprocessing模块提供了一个Process类来代表一个进程对象，下面的例子演示了启动一个子进程并等待其结束：
+from multiprocessing import Process
+import os
+# 子进程要执行的代码
+def run_proc(name):
+    print('Run child process %s (%s)...' % (name, os.getpid()))
+if __name__=='__main__':
+    print('Parent process %s.' % os.getpid())
+    p = Process(target=run_proc, args=('test',))
+    print('Child process will start.')
+    p.start()
+    p.join()
+    print('Child process end.')
+执行结果如下：
+Parent process 928.
+Child process will start.
+Run child process test (929)...
+Process end.
+创建子进程时，只需要传入一个执行函数和函数的参数，创建一个Process实例，用start()方法启动，这样创建进程比fork()还要简单。
+join()方法可以等待子进程结束后再继续往下运行，通常用于进程间的同步。
+Pool
+如果要启动大量的子进程，可以用进程池的方式批量创建子进程：
+from multiprocessing import Pool
+import os, time, random
+def long_time_task(name):
+    print('Run task %s (%s)...' % (name, os.getpid()))
+    start = time.time()
+    time.sleep(random.random() * 3)
+    end = time.time()
+    print('Task %s runs %0.2f seconds.' % (name, (end - start)))
+
+if __name__=='__main__':
+    print('Parent process %s.' % os.getpid())
+    p = Pool(4)
+    for i in range(5):
+        p.apply_async(long_time_task, args=(i,))
+    print('Waiting for all subprocesses done...')
+    p.close()
+    p.join()
+    print('All subprocesses done.')
+执行结果如下：
+Parent process 669.
+Waiting for all subprocesses done...
+Run task 0 (671)...
+Run task 1 (672)...
+Run task 2 (673)...
+Run task 3 (674)...
+Task 2 runs 0.14 seconds.
+Run task 4 (673)...
+Task 1 runs 0.27 seconds.
+Task 3 runs 0.86 seconds.
+Task 0 runs 1.41 seconds.
+Task 4 runs 1.91 seconds.
+All subprocesses done.
+代码解读：
+对Pool对象调用join()方法会等待所有子进程执行完毕，调用join()之前必须先调用close()，调用close()之后就不能继续添加新的Process了。
+请注意输出的结果，task 0，1，2，3是立刻执行的，而task 4要等待前面某个task完成后才执行，这是因为Pool的默认大小在我的电脑上是4，因此，最多同时执行4个进程。这是Pool有意设计的限制，并不是操作系统的限制。如果改成：
+p = Pool(5)
+就可以同时跑5个进程。
+由于Pool的默认大小是CPU的核数，如果你不幸拥有8核CPU，你要提交至少9个子进程才能看到上面的等待效果。
+子进程
+很多时候，子进程并不是自身，而是一个外部进程。我们创建了子进程后，还需要控制子进程的输入和输出。
+subprocess模块可以让我们非常方便地启动一个子进程，然后控制其输入和输出。
+下面的例子演示了如何在Python代码中运行命令nslookup www.python.org，这和命令行直接运行的效果是一样的：
+import subprocess
+print('$ nslookup www.python.org')
+r = subprocess.call(['nslookup', 'www.python.org'])
+print('Exit code:', r)
+运行结果：
+
+$ nslookup www.python.org
+Server:		192.168.19.4
+Address:	192.168.19.4#53
+
+Non-authoritative answer:
+www.python.org	canonical name = python.map.fastly.net.
+Name:	python.map.fastly.net
+Address: 199.27.79.223
+Exit code: 0
+如果子进程还需要输入，则可以通过communicate()方法输入：
+import subprocess
+print('$ nslookup')
+p = subprocess.Popen(['nslookup'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+output, err = p.communicate(b'set q=mx\npython.org\nexit\n')
+print(output.decode('utf-8'))
+print('Exit code:', p.returncode)
+上面的代码相当于在命令行执行命令nslookup，然后手动输入：
+set q=mx
+python.org
+exit
+运行结果如下：
+$ nslookup
+Server:		192.168.19.4
+Address:	192.168.19.4#53
+
+Non-authoritative answer:
+python.org	mail exchanger = 50 mail.python.org.
+
+Authoritative answers can be found from:
+mail.python.org	internet address = 82.94.164.166
+mail.python.org	has AAAA address 2001:888:2000:d::a6
+
+Exit code: 0
+进程间通信
+Process之间肯定是需要通信的，操作系统提供了很多机制来实现进程间的通信。Python的multiprocessing模块包装了底层的机制，提供了Queue、Pipes等多种方式来交换数据。
+我们以Queue为例，在父进程中创建两个子进程，一个往Queue里写数据，一个从Queue里读数据：
+from multiprocessing import Process, Queue
+import os, time, random
+# 写数据进程执行的代码:
+def write(q):
+    print('Process to write: %s' % os.getpid())
+    for value in ['A', 'B', 'C']:
+        print('Put %s to queue...' % value)
+        q.put(value)
+        time.sleep(random.random())
+# 读数据进程执行的代码:
+def read(q):
+    print('Process to read: %s' % os.getpid())
+    while True:
+        value = q.get(True)
+        print('Get %s from queue.' % value)
+if __name__=='__main__':
+    # 父进程创建Queue，并传给各个子进程：
+    q = Queue()
+    pw = Process(target=write, args=(q,))
+    pr = Process(target=read, args=(q,))
+    # 启动子进程pw，写入:
+    pw.start()
+    # 启动子进程pr，读取:
+    pr.start()
+    # 等待pw结束:
+    pw.join()
+    # pr进程里是死循环，无法等待其结束，只能强行终止:
+    pr.terminate()
+运行结果如下：
+Process to write: 50563
+Put A to queue...
+Process to read: 50564
+Get A from queue.
+Put B to queue...
+Get B from queue.
+Put C to queue...
+Get C from queue.
+在Unix/Linux下，multiprocessing模块封装了fork()调用，使我们不需要关注fork()的细节。由于Windows没有fork调用，因此，multiprocessing需要“模拟”出fork的效果，父进程所有Python对象都必须通过pickle序列化再传到子进程去，所以，如果multiprocessing在Windows下调用失败了，要先考虑是不是pickle失败了。
+小结
+在Unix/Linux下，可以使用fork()调用实现多进程。
+要实现跨平台的多进程，可以使用multiprocessing模块。
+进程间通信是通过Queue、Pipes等实现的。
+
+###多线程
+多任务可以由多进程完成，也可以由一个进程内的多线程完成。
+我们前面提到了进程是由若干线程组成的，一个进程至少有一个线程。
+由于线程是操作系统直接支持的执行单元，因此，高级语言通常都内置多线程的支持，Python也不例外，并且，Python的线程是真正的Posix Thread，而不是模拟出来的线程。
+Python的标准库提供了两个模块：_thread和threading，_thread是低级模块，threading是高级模块，对_thread进行了封装。绝大多数情况下，我们只需要使用threading这个高级模块。
+启动一个线程就是把一个函数传入并创建Thread实例，然后调用start()开始执行：
+import time, threading
+# 新线程执行的代码:
+def loop():
+    print('thread %s is running...' % threading.current_thread().name)
+    n = 0
+    while n < 5:
+        n = n + 1
+        print('thread %s >>> %s' % (threading.current_thread().name, n))
+        time.sleep(1)
+    print('thread %s ended.' % threading.current_thread().name)
+
+print('thread %s is running...' % threading.current_thread().name)
+t = threading.Thread(target=loop, name='LoopThread')
+t.start()
+t.join()
+print('thread %s ended.' % threading.current_thread().name)
+执行结果如下：
+thread MainThread is running...
+thread LoopThread is running...
+thread LoopThread >>> 1
+thread LoopThread >>> 2
+thread LoopThread >>> 3
+thread LoopThread >>> 4
+thread LoopThread >>> 5
+thread LoopThread ended.
+thread MainThread ended.
+由于任何进程默认就会启动一个线程，我们把该线程称为主线程，主线程又可以启动新的线程，Python的threading模块有个current_thread()函数，它永远返回当前线程的实例。主线程实例的名字叫MainThread，子线程的名字在创建时指定，我们用LoopThread命名子线程。名字仅仅在打印时用来显示，完全没有其他意义，如果不起名字Python就自动给线程命名为Thread-1，Thread-2……
+Lock
+多线程和多进程最大的不同在于，多进程中，同一个变量，各自有一份拷贝存在于每个进程中，互不影响，而多线程中，所有变量都由所有线程共享，所以，任何一个变量都可以被任何一个线程修改，因此，线程之间共享数据最大的危险在于多个线程同时改一个变量，把内容给改乱了。
+来看看多个线程同时操作一个变量怎么把内容给改乱了：
+import time, threading
+# 假定这是你的银行存款:
+balance = 0
+def change_it(n):
+    # 先存后取，结果应该为0:
+    global balance
+    balance = balance + n
+    balance = balance - n
+
+def run_thread(n):
+    for i in range(100000):
+        change_it(n)
+t1 = threading.Thread(target=run_thread, args=(5,))
+t2 = threading.Thread(target=run_thread, args=(8,))
+t1.start()
+t2.start()
+t1.join()
+t2.join()
+print(balance)
+我们定义了一个共享变量balance，初始值为0，并且启动两个线程，先存后取，理论上结果应该为0，但是，由于线程的调度是由操作系统决定的，当t1、t2交替执行时，只要循环次数足够多，balance的结果就不一定是0了。
+原因是因为高级语言的一条语句在CPU执行时是若干条语句，即使一个简单的计算：
+balance = balance + n
+也分两步：
+计算balance + n，存入临时变量中；
+将临时变量的值赋给balance。
+也就是可以看成：
+x = balance + n
+balance = x
+由于x是局部变量，两个线程各自都有自己的x，当代码正常执行时：
+初始值 balance = 0
+t1: x1 = balance + 5 # x1 = 0 + 5 = 5
+t1: balance = x1     # balance = 5
+t1: x1 = balance - 5 # x1 = 5 - 5 = 0
+t1: balance = x1     # balance = 0
+
+t2: x2 = balance + 8 # x2 = 0 + 8 = 8
+t2: balance = x2     # balance = 8
+t2: x2 = balance - 8 # x2 = 8 - 8 = 0
+t2: balance = x2     # balance = 0  
+结果 balance = 0
+但是t1和t2是交替运行的，如果操作系统以下面的顺序执行t1、t2：
+初始值 balance = 0
+t1: x1 = balance + 5  # x1 = 0 + 5 = 5
+
+t2: x2 = balance + 8  # x2 = 0 + 8 = 8
+t2: balance = x2      # balance = 8
+
+t1: balance = x1      # balance = 5
+t1: x1 = balance - 5  # x1 = 5 - 5 = 0
+t1: balance = x1      # balance = 0
+
+t2: x2 = balance - 8  # x2 = 0 - 8 = -8
+t2: balance = x2   # balance = -8
+结果 balance = -8
+究其原因，是因为修改balance需要多条语句，而执行这几条语句时，线程可能中断，从而导致多个线程把同一个对象的内容改乱了。
+两个线程同时一存一取，就可能导致余额不对，你肯定不希望你的银行存款莫名其妙地变成了负数，所以，我们必须确保一个线程在修改balance的时候，别的线程一定不能改。
+如果我们要确保balance计算正确，就要给change_it()上一把锁，当某个线程开始执行change_it()时，我们说，该线程因为获得了锁，因此其他线程不能同时执行change_it()，只能等待，直到锁被释放后，获得该锁以后才能改。由于锁只有一个，无论多少线程，同一时刻最多只有一个线程持有该锁，所以，不会造成修改的冲突。创建一个锁就是通过threading.Lock()来实现：
+balance = 0
+lock = threading.Lock()
+def run_thread(n):
+    for i in range(100000):
+        # 先要获取锁:
+        lock.acquire()
+        try:
+            # 放心地改吧:
+            change_it(n)
+        finally:
+            # 改完了一定要释放锁:
+            lock.release()
+当多个线程同时执行lock.acquire()时，只有一个线程能成功地获取锁，然后继续执行代码，其他线程就继续等待直到获得锁为止。
+获得锁的线程用完后一定要释放锁，否则那些苦苦等待锁的线程将永远等待下去，成为死线程。所以我们用try...finally来确保锁一定会被释放。
+锁的好处就是确保了某段关键代码只能由一个线程从头到尾完整地执行，坏处当然也很多，首先是阻止了多线程并发执行，包含锁的某段代码实际上只能以单线程模式执行，效率就大大地下降了。其次，由于可以存在多个锁，不同的线程持有不同的锁，并试图获取对方持有的锁时，可能会造成死锁，导致多个线程全部挂起，既不能执行，也无法结束，只能靠操作系统强制终止。
+多核CPU
+如果你不幸拥有一个多核CPU，你肯定在想，多核应该可以同时执行多个线程。
+如果写一个死循环的话，会出现什么情况呢？
+打开Mac OS X的Activity Monitor，或者Windows的Task Manager，都可以监控某个进程的CPU使用率。
+我们可以监控到一个死循环线程会100%占用一个CPU。
+如果有两个死循环线程，在多核CPU中，可以监控到会占用200%的CPU，也就是占用两个CPU核心。
+要想把N核CPU的核心全部跑满，就必须启动N个死循环线程。
+试试用Python写个死循环：
+import threading, multiprocessing
+def loop():
+    x = 0
+    while True:
+        x = x ^ 1
+for i in range(multiprocessing.cpu_count()):
+    t = threading.Thread(target=loop)
+    t.start()
+启动与CPU核心数量相同的N个线程，在4核CPU上可以监控到CPU占用率仅有102%，也就是仅使用了一核。
+但是用C、C++或Java来改写相同的死循环，直接可以把全部核心跑满，4核就跑到400%，8核就跑到800%，为什么Python不行呢？
+因为Python的线程虽然是真正的线程，但解释器执行代码时，有一个GIL锁：Global Interpreter Lock，任何Python线程执行前，必须先获得GIL锁，然后，每执行100条字节码，解释器就自动释放GIL锁，让别的线程有机会执行。这个GIL全局锁实际上把所有线程的执行代码都给上了锁，所以，多线程在Python中只能交替执行，即使100个线程跑在100核CPU上，也只能用到1个核。
+GIL是Python解释器设计的历史遗留问题，通常我们用的解释器是官方实现的CPython，要真正利用多核，除非重写一个不带GIL的解释器。
+所以，在Python中，可以使用多线程，但不要指望能有效利用多核。如果一定要通过多线程利用多核，那只能通过C扩展来实现，不过这样就失去了Python简单易用的特点。
+不过，也不用过于担心，Python虽然不能利用多线程实现多核任务，但可以通过多进程实现多核任务。多个Python进程有各自独立的GIL锁，互不影响。
+小结
+多线程编程，模型复杂，容易发生冲突，必须用锁加以隔离，同时，又要小心死锁的发生。
+Python解释器由于设计时有GIL全局锁，导致了多线程无法利用多核。多线程的并发在Python中就是一个美丽的梦。
+
+###ThreadLocal
+在多线程环境下，每个线程都有自己的数据。一个线程使用自己的局部变量比使用全局变量好，因为局部变量只有线程自己能看见，不会影响其他线程，而全局变量的修改必须加锁。
+但是局部变量也有问题，就是在函数调用的时候，传递起来很麻烦：
+def process_student(name):
+    std = Student(name)
+    # std是局部变量，但是每个函数都要用它，因此必须传进去：
+    do_task_1(std)
+    do_task_2(std)
+def do_task_1(std):
+    do_subtask_1(std)
+    do_subtask_2(std)
+def do_task_2(std):
+    do_subtask_2(std)
+    do_subtask_2(std)
+每个函数一层一层调用都这么传参数那还得了？用全局变量？也不行，因为每个线程处理不同的Student对象，不能共享。
+如果用一个全局dict存放所有的Student对象，然后以thread自身作为key获得线程对应的Student对象如何？
+global_dict = {}
+def std_thread(name):
+    std = Student(name)
+    # 把std放到全局变量global_dict中：
+    global_dict[threading.current_thread()] = std
+    do_task_1()
+    do_task_2()
+def do_task_1():
+    # 不传入std，而是根据当前线程查找：
+    std = global_dict[threading.current_thread()]
+    ...
+def do_task_2():
+    # 任何函数都可以查找出当前线程的std变量：
+    std = global_dict[threading.current_thread()]
+    ...
+这种方式理论上是可行的，它最大的优点是消除了std对象在每层函数中的传递问题，但是，每个函数获取std的代码有点丑。
+有没有更简单的方式？
+ThreadLocal应运而生，不用查找dict，ThreadLocal帮你自动做这件事：
+import threading
+# 创建全局ThreadLocal对象:
+local_school = threading.local()
+
+def process_student():
+    # 获取当前线程关联的student:
+    std = local_school.student
+    print('Hello, %s (in %s)' % (std, threading.current_thread().name))
+
+def process_thread(name):
+    # 绑定ThreadLocal的student:
+    local_school.student = name
+    process_student()
+t1 = threading.Thread(target= process_thread, args=('Alice',), name='Thread-A')
+t2 = threading.Thread(target= process_thread, args=('Bob',), name='Thread-B')
+t1.start()
+t2.start()
+t1.join()
+t2.join()
+执行结果：
+Hello, Alice (in Thread-A)
+Hello, Bob (in Thread-B)
+全局变量local_school就是一个ThreadLocal对象，每个Thread对它都可以读写student属性，但互不影响。你可以把local_school看成全局变量，但每个属性如local_school.student都是线程的局部变量，可以任意读写而互不干扰，也不用管理锁的问题，ThreadLocal内部会处理。
+可以理解为全局变量local_school是一个dict，不但可以用local_school.student，还可以绑定其他变量，如local_school.teacher等等。
+ThreadLocal最常用的地方就是为每个线程绑定一个数据库连接，HTTP请求，用户身份信息等，这样一个线程的所有调用到的处理函数都可以非常方便地访问这些资源。
+小结
+一个ThreadLocal变量虽然是全局变量，但每个线程都只能读写自己线程的独立副本，互不干扰。ThreadLocal解决了参数在一个线程中各个函数之间互相传递的问题。
+
+###进程 vs. 线程
+我们介绍了多进程和多线程，这是实现多任务最常用的两种方式。现在，我们来讨论一下这两种方式的优缺点。
+首先，要实现多任务，通常我们会设计Master-Worker模式，Master负责分配任务，Worker负责执行任务，因此，多任务环境下，通常是一个Master，多个Worker。
+如果用多进程实现Master-Worker，主进程就是Master，其他进程就是Worker。
+如果用多线程实现Master-Worker，主线程就是Master，其他线程就是Worker。
+多进程模式最大的优点就是稳定性高，因为一个子进程崩溃了，不会影响主进程和其他子进程。（当然主进程挂了所有进程就全挂了，但是Master进程只负责分配任务，挂掉的概率低）著名的Apache最早就是采用多进程模式。
+多进程模式的缺点是创建进程的代价大，在Unix/Linux系统下，用fork调用还行，在Windows下创建进程开销巨大。另外，操作系统能同时运行的进程数也是有限的，在内存和CPU的限制下，如果有几千个进程同时运行，操作系统连调度都会成问题。
+多线程模式通常比多进程快一点，但是也快不到哪去，而且，多线程模式致命的缺点就是任何一个线程挂掉都可能直接造成整个进程崩溃，因为所有线程共享进程的内存。在Windows上，如果一个线程执行的代码出了问题，你经常可以看到这样的提示：“该程序执行了非法操作，即将关闭”，其实往往是某个线程出了问题，但是操作系统会强制结束整个进程。
+在Windows下，多线程的效率比多进程要高，所以微软的IIS服务器默认采用多线程模式。由于多线程存在稳定性的问题，IIS的稳定性就不如Apache。为了缓解这个问题，IIS和Apache现在又有多进程+多线程的混合模式，真是把问题越搞越复杂。
+线程切换
+无论是多进程还是多线程，只要数量一多，效率肯定上不去，为什么呢？
+我们打个比方，假设你不幸正在准备中考，每天晚上需要做语文、数学、英语、物理、化学这5科的作业，每项作业耗时1小时。
+如果你先花1小时做语文作业，做完了，再花1小时做数学作业，这样，依次全部做完，一共花5小时，这种方式称为单任务模型，或者批处理任务模型。
+假设你打算切换到多任务模型，可以先做1分钟语文，再切换到数学作业，做1分钟，再切换到英语，以此类推，只要切换速度足够快，这种方式就和单核CPU执行多任务是一样的了，以幼儿园小朋友的眼光来看，你就正在同时写5科作业。
+但是，切换作业是有代价的，比如从语文切到数学，要先收拾桌子上的语文书本、钢笔（这叫保存现场），然后，打开数学课本、找出圆规直尺（这叫准备新环境），才能开始做数学作业。操作系统在切换进程或者线程时也是一样的，它需要先保存当前执行的现场环境（CPU寄存器状态、内存页等），然后，把新任务的执行环境准备好（恢复上次的寄存器状态，切换内存页等），才能开始执行。这个切换过程虽然很快，但是也需要耗费时间。如果有几千个任务同时进行，操作系统可能就主要忙着切换任务，根本没有多少时间去执行任务了，这种情况最常见的就是硬盘狂响，点窗口无反应，系统处于假死状态。
+所以，多任务一旦多到一个限度，就会消耗掉系统所有的资源，结果效率急剧下降，所有任务都做不好。
+计算密集型 vs. IO密集型
+是否采用多任务的第二个考虑是任务的类型。我们可以把任务分为计算密集型和IO密集型。
+计算密集型任务的特点是要进行大量的计算，消耗CPU资源，比如计算圆周率、对视频进行高清解码等等，全靠CPU的运算能力。这种计算密集型任务虽然也可以用多任务完成，但是任务越多，花在任务切换的时间就越多，CPU执行任务的效率就越低，所以，要最高效地利用CPU，计算密集型任务同时进行的数量应当等于CPU的核心数。
+计算密集型任务由于主要消耗CPU资源，因此，代码运行效率至关重要。Python这样的脚本语言运行效率很低，完全不适合计算密集型任务。对于计算密集型任务，最好用C语言编写。
+第二种任务的类型是IO密集型，涉及到网络、磁盘IO的任务都是IO密集型任务，这类任务的特点是CPU消耗很少，任务的大部分时间都在等待IO操作完成（因为IO的速度远远低于CPU和内存的速度）。对于IO密集型任务，任务越多，CPU效率越高，但也有一个限度。常见的大部分任务都是IO密集型任务，比如Web应用。
+IO密集型任务执行期间，99%的时间都花在IO上，花在CPU上的时间很少，因此，用运行速度极快的C语言替换用Python这样运行速度极低的脚本语言，完全无法提升运行效率。对于IO密集型任务，最合适的语言就是开发效率最高（代码量最少）的语言，脚本语言是首选，C语言最差。
+异步IO
+考虑到CPU和IO之间巨大的速度差异，一个任务在执行的过程中大部分时间都在等待IO操作，单进程单线程模型会导致别的任务无法并行执行，因此，我们才需要多进程模型或者多线程模型来支持多任务并发执行。
+现代操作系统对IO操作已经做了巨大的改进，最大的特点就是支持异步IO。如果充分利用操作系统提供的异步IO支持，就可以用单进程单线程模型来执行多任务，这种全新的模型称为事件驱动模型，Nginx就是支持异步IO的Web服务器，它在单核CPU上采用单进程模型就可以高效地支持多任务。在多核CPU上，可以运行多个进程（数量与CPU核心数相同），充分利用多核CPU。由于系统总的进程数量十分有限，因此操作系统调度非常高效。用异步IO编程模型来实现多任务是一个主要的趋势。
+对应到Python语言，单线程的异步编程模型称为协程，有了协程的支持，就可以基于事件驱动编写高效的多任务程序。我们会在后面讨论如何编写协程。
+
+###分布式进程
+在Thread和Process中，应当优选Process，因为Process更稳定，而且，Process可以分布到多台机器上，而Thread最多只能分布到同一台机器的多个CPU上。
+Python的multiprocessing模块不但支持多进程，其中managers子模块还支持把多进程分布到多台机器上。一个服务进程可以作为调度者，将任务分布到其他多个进程中，依靠网络通信。由于managers模块封装很好，不必了解网络通信的细节，就可以很容易地编写分布式多进程程序。
+举个例子：如果我们已经有一个通过Queue通信的多进程程序在同一台机器上运行，现在，由于处理任务的进程任务繁重，希望把发送任务的进程和处理任务的进程分布到两台机器上。怎么用分布式进程实现？
+原有的Queue可以继续使用，但是，通过managers模块把Queue通过网络暴露出去，就可以让其他机器的进程访问Queue了。
+我们先看服务进程，服务进程负责启动Queue，把Queue注册到网络上，然后往Queue里面写入任务：
+# task_master.py
+import random, time, queue
+from multiprocessing.managers import BaseManager
+# 发送任务的队列:
+task_queue = queue.Queue()
+# 接收结果的队列:
+result_queue = queue.Queue()
+# 从BaseManager继承的QueueManager:
+class QueueManager(BaseManager):
+    pass
+# 把两个Queue都注册到网络上, callable参数关联了Queue对象:
+QueueManager.register('get_task_queue', callable=lambda: task_queue)
+QueueManager.register('get_result_queue', callable=lambda: result_queue)
+# 绑定端口5000, 设置验证码'abc':
+manager = QueueManager(address=('', 5000), authkey=b'abc')
+# 启动Queue:
+manager.start()
+# 获得通过网络访问的Queue对象:
+task = manager.get_task_queue()
+result = manager.get_result_queue()
+# 放几个任务进去:
+for i in range(10):
+    n = random.randint(0, 10000)
+    print('Put task %d...' % n)
+    task.put(n)
+# 从result队列读取结果:
+print('Try get results...')
+for i in range(10):
+    r = result.get(timeout=10)
+    print('Result: %s' % r)
+# 关闭:
+manager.shutdown()
+print('master exit.')
+请注意，当我们在一台机器上写多进程程序时，创建的Queue可以直接拿来用，但是，在分布式多进程环境下，添加任务到Queue不可以直接对原始的task_queue进行操作，那样就绕过了QueueManager的封装，必须通过manager.get_task_queue()获得的Queue接口添加。
+然后，在另一台机器上启动任务进程（本机上启动也可以）：
+# task_worker.py
+import time, sys, queue
+from multiprocessing.managers import BaseManager
+# 创建类似的QueueManager:
+class QueueManager(BaseManager):
+    pass
+# 由于这个QueueManager只从网络上获取Queue，所以注册时只提供名字:
+QueueManager.register('get_task_queue')
+QueueManager.register('get_result_queue')
+# 连接到服务器，也就是运行task_master.py的机器:
+server_addr = '127.0.0.1'
+print('Connect to server %s...' % server_addr)
+# 端口和验证码注意保持与task_master.py设置的完全一致:
+m = QueueManager(address=(server_addr, 5000), authkey=b'abc')
+# 从网络连接:
+m.connect()
+# 获取Queue的对象:
+task = m.get_task_queue()
+result = m.get_result_queue()
+# 从task队列取任务,并把结果写入result队列:
+for i in range(10):
+    try:
+        n = task.get(timeout=1)
+        print('run task %d * %d...' % (n, n))
+        r = '%d * %d = %d' % (n, n, n*n)
+        time.sleep(1)
+        result.put(r)
+    except Queue.Empty:
+        print('task queue is empty.')
+# 处理结束:
+print('worker exit.')
+任务进程要通过网络连接到服务进程，所以要指定服务进程的IP。
+现在，可以试试分布式进程的工作效果了。先启动task_master.py服务进程：
+$ python3 task_master.py 
+Put task 3411...
+Put task 1605...
+Put task 1398...
+Put task 4729...
+Put task 5300...
+Put task 7471...
+Put task 68...
+Put task 4219...
+Put task 339...
+Put task 7866...
+Try get results...
+task_master.py进程发送完任务后，开始等待result队列的结果。现在启动task_worker.py进程：
+$ python3 task_worker.py
+Connect to server 127.0.0.1...
+run task 3411 * 3411...
+run task 1605 * 1605...
+run task 1398 * 1398...
+run task 4729 * 4729...
+run task 5300 * 5300...
+run task 7471 * 7471...
+run task 68 * 68...
+run task 4219 * 4219...
+run task 339 * 339...
+run task 7866 * 7866...
+worker exit.
+task_worker.py进程结束，在task_master.py进程中会继续打印出结果：
+Result: 3411 * 3411 = 11634921
+Result: 1605 * 1605 = 2576025
+Result: 1398 * 1398 = 1954404
+Result: 4729 * 4729 = 22363441
+Result: 5300 * 5300 = 28090000
+Result: 7471 * 7471 = 55815841
+Result: 68 * 68 = 4624
+Result: 4219 * 4219 = 17799961
+Result: 339 * 339 = 114921
+Result: 7866 * 7866 = 61873956
+这个简单的Master/Worker模型有什么用？其实这就是一个简单但真正的分布式计算，把代码稍加改造，启动多个worker，就可以把任务分布到几台甚至几十台机器上，比如把计算n*n的代码换成发送邮件，就实现了邮件队列的异步发送。
+Queue对象存储在哪？注意到task_worker.py中根本没有创建Queue的代码，所以，Queue对象存储在task_master.py进程中：
+
+                                             │
+┌─────────────────────────────────────────┐     ┌──────────────────────────────────────┐
+│task_master.py                           │  │  │task_worker.py                        │
+│                                         │     │                                      │
+│  task = manager.get_task_queue()        │  │  │  task = manager.get_task_queue()     │
+│  result = manager.get_result_queue()    │     │  result = manager.get_result_queue() │
+│              │                          │  │  │              │                       │
+│              │                          │     │              │                       │
+│              ▼                          │  │  │              │                       │
+│  ┌─────────────────────────────────┐    │     │              │                       │
+│  │QueueManager                     │    │  │  │              │                       │
+│  │ ┌────────────┐ ┌──────────────┐ │    │     │              │                       │
+│  │ │ task_queue │ │ result_queue │ │<───┼──┼──┼──────────────┘                       │
+│  │ └────────────┘ └──────────────┘ │    │     │                                      │
+│  └─────────────────────────────────┘    │  │  │                                      │
+└─────────────────────────────────────────┘     └──────────────────────────────────────┘
+                                             │
+
+                                          Network
+而Queue之所以能通过网络访问，就是通过QueueManager实现的。由于QueueManager管理的不止一个Queue，所以，要给每个Queue的网络调用接口起个名字，比如get_task_queue。
+authkey有什么用？这是为了保证两台机器正常通信，不被其他机器恶意干扰。如果task_worker.py的authkey和task_master.py的authkey不一致，肯定连接不上。
+小结
+Python的分布式进程接口简单，封装良好，适合需要把繁重任务分布到多台机器的环境下。
+注意Queue的作用是用来传递任务和接收结果，每个任务的描述数据量要尽量小。比如发送一个处理日志文件的任务，就不要发送几百兆的日志文件本身，而是发送日志文件存放的完整路径，由Worker进程再去共享的磁盘上读取文件。
+
+###正则表达式
+字符串是编程时涉及到的最多的一种数据结构，对字符串进行操作的需求几乎无处不在。比如判断一个字符串是否是合法的Email地址，虽然可以编程提取@前后的子串，再分别判断是否是单词和域名，但这样做不但麻烦，而且代码难以复用。
+正则表达式是一种用来匹配字符串的强有力的武器。它的设计思想是用一种描述性的语言来给字符串定义一个规则，凡是符合规则的字符串，我们就认为它“匹配”了，否则，该字符串就是不合法的。
+所以我们判断一个字符串是否是合法的Email的方法是：
+创建一个匹配Email的正则表达式；
+用该正则表达式去匹配用户的输入来判断是否合法。
+因为正则表达式也是用字符串表示的，所以，我们要首先了解如何用字符来描述字符。
+在正则表达式中，如果直接给出字符，就是精确匹配。用\d可以匹配一个数字，\w可以匹配一个字母或数字，所以：
+'00\d'可以匹配'007'，但无法匹配'00A'；
+'\d\d\d'可以匹配'010'；
+'\w\w\d'可以匹配'py3'；
+.可以匹配任意字符，所以：
+'py.'可以匹配'pyc'、'pyo'、'py!'等等。
+要匹配变长的字符，在正则表达式中，用*表示任意个字符（包括0个），用+表示至少一个字符，用?表示0个或1个字符，用{n}表示n个字符，用{n,m}表示n-m个字符：
+来看一个复杂的例子：\d{3}\s+\d{3,8}。
+我们来从左到右解读一下：
+\d{3}表示匹配3个数字，例如'010'；
+\s可以匹配一个空格（也包括Tab等空白符），所以\s+表示至少有一个空格，例如匹配' '，' '等；
+\d{3,8}表示3-8个数字，例如'1234567'。
+综合起来，上面的正则表达式可以匹配以任意个空格隔开的带区号的电话号码。
+如果要匹配'010-12345'这样的号码呢？由于'-'是特殊字符，在正则表达式中，要用'\'转义，所以，上面的正则是\d{3}\-\d{3,8}。
+但是，仍然无法匹配'010 - 12345'，因为带有空格。所以我们需要更复杂的匹配方式。
+进阶
+要做更精确地匹配，可以用[]表示范围，比如：
+[0-9a-zA-Z\_]可以匹配一个数字、字母或者下划线；
+[0-9a-zA-Z\_]+可以匹配至少由一个数字、字母或者下划线组成的字符串，比如'a100'，'0_Z'，'Py3000'等等；
+[a-zA-Z\_][0-9a-zA-Z\_]*可以匹配由字母或下划线开头，后接任意个由一个数字、字母或者下划线组成的字符串，也就是Python合法的变量；
+[a-zA-Z\_][0-9a-zA-Z\_]{0, 19}更精确地限制了变量的长度是1-20个字符（前面1个字符+后面最多19个字符）。
+A|B可以匹配A或B，所以(P|p)ython可以匹配'Python'或者'python'。
+^表示行的开头，^\d表示必须以数字开头。
+$表示行的结束，\d$表示必须以数字结束。
+你可能注意到了，py也可以匹配'python'，但是加上^py$就变成了整行匹配，就只能匹配'py'了。
+re模块
+有了准备知识，我们就可以在Python中使用正则表达式了。Python提供re模块，包含所有正则表达式的功能。由于Python的字符串本身也用\转义，所以要特别注意：
+s = 'ABC\\-001' # Python的字符串
+# 对应的正则表达式字符串变成：
+# 'ABC\-001'
+因此我们强烈建议使用Python的r前缀，就不用考虑转义的问题了：
+s = r'ABC\-001' # Python的字符串
+# 对应的正则表达式字符串不变：
+# 'ABC\-001'
+先看看如何判断正则表达式是否匹配：
+>>> import re
+>>> re.match(r'^\d{3}\-\d{3,8}$', '010-12345')
+<_sre.SRE_Match object; span=(0, 9), match='010-12345'>
+>>> re.match(r'^\d{3}\-\d{3,8}$', '010 12345')
+>>>
+match()方法判断是否匹配，如果匹配成功，返回一个Match对象，否则返回None。常见的判断方法就是：
+test = '用户输入的字符串'
+if re.match(r'正则表达式', test):
+    print('ok')
+else:
+    print('failed')
+切分字符串
+用正则表达式切分字符串比用固定的字符更灵活，请看正常的切分代码：
+>>> 'a b   c'.split(' ')
+['a', 'b', '', '', 'c']
+嗯，无法识别连续的空格，用正则表达式试试：
+>>> re.split(r'\s+', 'a b   c')
+['a', 'b', 'c']
+无论多少个空格都可以正常分割。加入,试试：
+>>> re.split(r'[\s\,]+', 'a,b, c  d')
+['a', 'b', 'c', 'd']
+再加入;试试：
+>>> re.split(r'[\s\,\;]+', 'a,b;; c  d')
+['a', 'b', 'c', 'd']
+如果用户输入了一组标签，下次记得用正则表达式来把不规范的输入转化成正确的数组。
+分组
+除了简单地判断是否匹配之外，正则表达式还有提取子串的强大功能。用()表示的就是要提取的分组（Group）。比如：
+^(\d{3})-(\d{3,8})$分别定义了两个组，可以直接从匹配的字符串中提取出区号和本地号码：
+>>> m = re.match(r'^(\d{3})-(\d{3,8})$', '010-12345')
+>>> m
+<_sre.SRE_Match object; span=(0, 9), match='010-12345'>
+>>> m.group(0)
+'010-12345'
+>>> m.group(1)
+'010'
+>>> m.group(2)
+'12345'
+如果正则表达式中定义了组，就可以在Match对象上用group()方法提取出子串来。
+注意到group(0)永远是原始字符串，group(1)、group(2)……表示第1、2、……个子串。
+提取子串非常有用。来看一个更凶残的例子：
+>>> t = '19:05:30'
+>>> m = re.match(r'^(0[0-9]|1[0-9]|2[0-3]|[0-9])\:(0[0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9]|[0-9])\:(0[0-9]|1[0-9]|2[0-9]|3[0-9]|4[0-9]|5[0-9]|[0-9])$', t)
+>>> m.groups()
+('19', '05', '30')
+这个正则表达式可以直接识别合法的时间。但是有些时候，用正则表达式也无法做到完全验证，比如识别日期：
+'^(0[1-9]|1[0-2]|[0-9])-(0[1-9]|1[0-9]|2[0-9]|3[0-1]|[0-9])$'
+对于'2-30'，'4-31'这样的非法日期，用正则还是识别不了，或者说写出来非常困难，这时就需要程序配合识别了。
+贪婪匹配
+最后需要特别指出的是，正则匹配默认是贪婪匹配，也就是匹配尽可能多的字符。举例如下，匹配出数字后面的0：
+>>> re.match(r'^(\d+)(0*)$', '102300').groups()
+('102300', '')
+由于\d+采用贪婪匹配，直接把后面的0全部匹配了，结果0*只能匹配空字符串了。
+必须让\d+采用非贪婪匹配（也就是尽可能少匹配），才能把后面的0匹配出来，加个?就可以让\d+采用非贪婪匹配：
+>>> re.match(r'^(\d+?)(0*)$', '102300').groups()
+('1023', '00')
+编译
+当我们在Python中使用正则表达式时，re模块内部会干两件事情：
+编译正则表达式，如果正则表达式的字符串本身不合法，会报错；
+用编译后的正则表达式去匹配字符串。
+如果一个正则表达式要重复使用几千次，出于效率的考虑，我们可以预编译该正则表达式，接下来重复使用时就不需要编译这个步骤了，直接匹配：
+>>> import re
+# 编译:
+>>> re_telephone = re.compile(r'^(\d{3})-(\d{3,8})$')
+# 使用：
+>>> re_telephone.match('010-12345').groups()
+('010', '12345')
+>>> re_telephone.match('010-8086').groups()
+('010', '8086')
+编译后生成Regular Expression对象，由于该对象自己包含了正则表达式，所以调用对应的方法时不用给出正则字符串。
+小结
+正则表达式非常强大，要在短短的一节里讲完是不可能的。要讲清楚正则的所有内容，可以写一本厚厚的书了。如果你经常遇到正则表达式的问题，你可能需要一本正则表达式的参考书。
+
+###常用内建模块
+Python之所以自称“batteries included”，就是因为内置了许多非常有用的模块，无需额外安装和配置，即可直接使用。
+###datetime
+datetime是Python处理日期和时间的标准库。
+获取当前日期和时间
+我们先看如何获取当前日期和时间：
+>>> from datetime import datetime
+>>> now = datetime.now() # 获取当前datetime
+>>> print(now)
+2015-05-18 16:28:07.198690
+>>> print(type(now))
+<class 'datetime.datetime'>
+注意到datetime是模块，datetime模块还包含一个datetime类，通过from datetime import datetime导入的才是datetime这个类。
+如果仅导入import datetime，则必须引用全名datetime.datetime。
+datetime.now()返回当前日期和时间，其类型是datetime。
+获取指定日期和时间
+要指定某个日期和时间，我们直接用参数构造一个datetime：
+>>> from datetime import datetime
+>>> dt = datetime(2015, 4, 19, 12, 20) # 用指定日期时间创建datetime
+>>> print(dt)
+2015-04-19 12:20:00
+datetime转换为timestamp
+在计算机中，时间实际上是用数字表示的。我们把1970年1月1日 00:00:00 UTC+00:00时区的时刻称为epoch time，记为0（1970年以前的时间timestamp为负数），当前时间就是相对于epoch time的秒数，称为timestamp。
+你可以认为：
+timestamp = 0 = 1970-1-1 00:00:00 UTC+0:00
+对应的北京时间是：
+timestamp = 0 = 1970-1-1 08:00:00 UTC+8:00
+可见timestamp的值与时区毫无关系，因为timestamp一旦确定，其UTC时间就确定了，转换到任意时区的时间也是完全确定的，这就是为什么计算机存储的当前时间是以timestamp表示的，因为全球各地的计算机在任意时刻的timestamp都是完全相同的（假定时间已校准）。
+把一个datetime类型转换为timestamp只需要简单调用timestamp()方法：
+>>> from datetime import datetime
+>>> dt = datetime(2015, 4, 19, 12, 20) # 用指定日期时间创建datetime
+>>> dt.timestamp() # 把datetime转换为timestamp
+1429417200.0
+注意Python的timestamp是一个浮点数。如果有小数位，小数位表示毫秒数。
+某些编程语言（如Java和JavaScript）的timestamp使用整数表示毫秒数，这种情况下只需要把timestamp除以1000就得到Python的浮点表示方法。
+timestamp转换为datetime
+要把timestamp转换为datetime，使用datetime提供的fromtimestamp()方法：
+>>> from datetime import datetime
+>>> t = 1429417200.0
+>>> print(datetime.fromtimestamp(t))
+2015-04-19 12:20:00
+注意到timestamp是一个浮点数，它没有时区的概念，而datetime是有时区的。上述转换是在timestamp和本地时间做转换。
+本地时间是指当前操作系统设定的时区。例如北京时区是东8区，则本地时间：
+2015-04-19 12:20:00
+实际上就是UTC+8:00时区的时间：
+2015-04-19 12:20:00 UTC+8:00
+而此刻的格林威治标准时间与北京时间差了8小时，也就是UTC+0:00时区的时间应该是：
+2015-04-19 04:20:00 UTC+0:00
+timestamp也可以直接被转换到UTC标准时区的时间：
+>>> from datetime import datetime
+>>> t = 1429417200.0
+>>> print(datetime.fromtimestamp(t)) # 本地时间
+2015-04-19 12:20:00
+>>> print(datetime.utcfromtimestamp(t)) # UTC时间
+2015-04-19 04:20:00
+str转换为datetime
+很多时候，用户输入的日期和时间是字符串，要处理日期和时间，首先必须把str转换为datetime。转换方法是通过datetime.strptime()实现，需要一个日期和时间的格式化字符串：
+>>> from datetime import datetime
+>>> cday = datetime.strptime('2015-6-1 18:19:59', '%Y-%m-%d %H:%M:%S')
+>>> print(cday)
+2015-06-01 18:19:59
+字符串'%Y-%m-%d %H:%M:%S'规定了日期和时间部分的格式。详细的说明请参考Python文档。
+注意转换后的datetime是没有时区信息的。
+datetime转换为str
+如果已经有了datetime对象，要把它格式化为字符串显示给用户，就需要转换为str，转换方法是通过strftime()实现的，同样需要一个日期和时间的格式化字符串：
+>>> from datetime import datetime
+>>> now = datetime.now()
+>>> print(now.strftime('%a, %b %d %H:%M'))
+Mon, May 05 16:28
+datetime加减
+对日期和时间进行加减实际上就是把datetime往后或往前计算，得到新的datetime。加减可以直接用+和-运算符，不过需要导入timedelta这个类：
+>>> from datetime import datetime, timedelta
+>>> now = datetime.now()
+>>> now
+datetime.datetime(2015, 5, 18, 16, 57, 3, 540997)
+>>> now + timedelta(hours=10)
+datetime.datetime(2015, 5, 19, 2, 57, 3, 540997)
+>>> now - timedelta(days=1)
+datetime.datetime(2015, 5, 17, 16, 57, 3, 540997)
+>>> now + timedelta(days=2, hours=12)
+datetime.datetime(2015, 5, 21, 4, 57, 3, 540997)
+可见，使用timedelta你可以很容易地算出前几天和后几天的时刻。
+本地时间转换为UTC时间
+本地时间是指系统设定时区的时间，例如北京时间是UTC+8:00时区的时间，而UTC时间指UTC+0:00时区的时间。
+一个datetime类型有一个时区属性tzinfo，但是默认为None，所以无法区分这个datetime到底是哪个时区，除非强行给datetime设置一个时区：
+>>> from datetime import datetime, timedelta, timezone
+>>> tz_utc_8 = timezone(timedelta(hours=8)) # 创建时区UTC+8:00
+>>> now = datetime.now()
+>>> now
+datetime.datetime(2015, 5, 18, 17, 2, 10, 871012)
+>>> dt = now.replace(tzinfo=tz_utc_8) # 强制设置为UTC+8:00
+>>> dt
+datetime.datetime(2015, 5, 18, 17, 2, 10, 871012, tzinfo=datetime.timezone(datetime.timedelta(0, 28800)))
+如果系统时区恰好是UTC+8:00，那么上述代码就是正确的，否则，不能强制设置为UTC+8:00时区。
+时区转换
+我们可以先通过utcnow()拿到当前的UTC时间，再转换为任意时区的时间：
+# 拿到UTC时间，并强制设置时区为UTC+0:00:
+>>> utc_dt = datetime.utcnow().replace(tzinfo=timezone.utc)
+>>> print(utc_dt)
+2015-05-18 09:05:12.377316+00:00
+# astimezone()将转换时区为北京时间:
+>>> bj_dt = utc_dt.astimezone(timezone(timedelta(hours=8)))
+>>> print(bj_dt)
+2015-05-18 17:05:12.377316+08:00
+# astimezone()将转换时区为东京时间:
+>>> tokyo_dt = utc_dt.astimezone(timezone(timedelta(hours=9)))
+>>> print(tokyo_dt)
+2015-05-18 18:05:12.377316+09:00
+# astimezone()将bj_dt转换时区为东京时间:
+>>> tokyo_dt2 = bj_dt.astimezone(timezone(timedelta(hours=9)))
+>>> print(tokyo_dt2)
+2015-05-18 18:05:12.377316+09:00
+时区转换的关键在于，拿到一个datetime时，要获知其正确的时区，然后强制设置时区，作为基准时间。
+利用带时区的datetime，通过astimezone()方法，可以转换到任意时区。
+注：不是必须从UTC+0:00时区转换到其他时区，任何带时区的datetime都可以正确转换，例如上述bj_dt到tokyo_dt的转换。
+小结
+datetime表示的时间需要时区信息才能确定一个特定的时间，否则只能视为本地时间。
+如果要存储datetime，最佳方法是将其转换为timestamp再存储，因为timestamp的值与时区完全无关。
+###collections
+collections是Python内建的一个集合模块，提供了许多有用的集合类。
+namedtuple
+我们知道tuple可以表示不变集合，例如，一个点的二维坐标就可以表示成：
+>>> p = (1, 2)
+但是，看到(1, 2)，很难看出这个tuple是用来表示一个坐标的。
+定义一个class又小题大做了，这时，namedtuple就派上了用场：
+>>> from collections import namedtuple
+>>> Point = namedtuple('Point', ['x', 'y'])
+>>> p = Point(1, 2)
+>>> p.x
+1
+>>> p.y
+2
+namedtuple是一个函数，它用来创建一个自定义的tuple对象，并且规定了tuple元素的个数，并可以用属性而不是索引来引用tuple的某个元素。
+这样一来，我们用namedtuple可以很方便地定义一种数据类型，它具备tuple的不变性，又可以根据属性来引用，使用十分方便。
+可以验证创建的Point对象是tuple的一种子类：
+>>> isinstance(p, Point)
+True
+>>> isinstance(p, tuple)
+True
+类似的，如果要用坐标和半径表示一个圆，也可以用namedtuple定义：
+# namedtuple('名称', [属性list]):
+Circle = namedtuple('Circle', ['x', 'y', 'r'])
+deque
+使用list存储数据时，按索引访问元素很快，但是插入和删除元素就很慢了，因为list是线性存储，数据量大的时候，插入和删除效率很低。
+deque是为了高效实现插入和删除操作的双向列表，适合用于队列和栈：
+>>> from collections import deque
+>>> q = deque(['a', 'b', 'c'])
+>>> q.append('x')
+>>> q.appendleft('y')
+>>> q
+deque(['y', 'a', 'b', 'c', 'x'])
+deque除了实现list的append()和pop()外，还支持appendleft()和popleft()，这样就可以非常高效地往头部添加或删除元素。
+defaultdict
+使用dict时，如果引用的Key不存在，就会抛出KeyError。如果希望key不存在时，返回一个默认值，就可以用defaultdict：
+>>> from collections import defaultdict
+>>> dd = defaultdict(lambda: 'N/A')
+>>> dd['key1'] = 'abc'
+>>> dd['key1'] # key1存在
+'abc'
+>>> dd['key2'] # key2不存在，返回默认值
+'N/A'
+注意默认值是调用函数返回的，而函数在创建defaultdict对象时传入。
+除了在Key不存在时返回默认值，defaultdict的其他行为跟dict是完全一样的。
+OrderedDict
+使用dict时，Key是无序的。在对dict做迭代时，我们无法确定Key的顺序。
+如果要保持Key的顺序，可以用OrderedDict：
+>>> from collections import OrderedDict
+>>> d = dict([('a', 1), ('b', 2), ('c', 3)])
+>>> d # dict的Key是无序的
+{'a': 1, 'c': 3, 'b': 2}
+>>> od = OrderedDict([('a', 1), ('b', 2), ('c', 3)])
+>>> od # OrderedDict的Key是有序的
+OrderedDict([('a', 1), ('b', 2), ('c', 3)])
+注意，OrderedDict的Key会按照插入的顺序排列，不是Key本身排序：
+>>> od = OrderedDict()
+>>> od['z'] = 1
+>>> od['y'] = 2
+>>> od['x'] = 3
+>>> list(od.keys()) # 按照插入的Key的顺序返回
+['z', 'y', 'x']
+OrderedDict可以实现一个FIFO（先进先出）的dict，当容量超出限制时，先删除最早添加的Key：
+from collections import OrderedDict
+class LastUpdatedOrderedDict(OrderedDict):
+
+    def __init__(self, capacity):
+        super(LastUpdatedOrderedDict, self).__init__()
+        self._capacity = capacity
+
+    def __setitem__(self, key, value):
+        containsKey = 1 if key in self else 0
+        if len(self) - containsKey >= self._capacity:
+            last = self.popitem(last=False)
+            print('remove:', last)
+        if containsKey:
+            del self[key]
+            print('set:', (key, value))
+        else:
+            print('add:', (key, value))
+        OrderedDict.__setitem__(self, key, value)
+ChainMap
+ChainMap可以把一组dict串起来并组成一个逻辑上的dict。ChainMap本身也是一个dict，但是查找的时候，会按照顺序在内部的dict依次查找。
+什么时候使用ChainMap最合适？举个例子：应用程序往往都需要传入参数，参数可以通过命令行传入，可以通过环境变量传入，还可以有默认参数。我们可以用ChainMap实现参数的优先级查找，即先查命令行参数，如果没有传入，再查环境变量，如果没有，就使用默认参数。
+下面的代码演示了如何查找user和color这两个参数：
+from collections import ChainMap
+import os, argparse
+# 构造缺省参数:
+defaults = {
+    'color': 'red',
+    'user': 'guest'
+}
+# 构造命令行参数:
+parser = argparse.ArgumentParser()
+parser.add_argument('-u', '--user')
+parser.add_argument('-c', '--color')
+namespace = parser.parse_args()
+command_line_args = { k: v for k, v in vars(namespace).items() if v }
+# 组合成ChainMap:
+combined = ChainMap(command_line_args, os.environ, defaults)
+# 打印参数:
+print('color=%s' % combined['color'])
+print('user=%s' % combined['user'])
+没有任何参数时，打印出默认参数：
+$ python3 use_chainmap.py 
+color=red
+user=guest
+当传入命令行参数时，优先使用命令行参数：
+$ python3 use_chainmap.py -u bob
+color=red
+user=bob
+同时传入命令行参数和环境变量，命令行参数的优先级较高：
+$ user=admin color=green python3 use_chainmap.py -u bob
+color=green
+user=bob
+Counter
+Counter是一个简单的计数器，例如，统计字符出现的个数：
+>>> from collections import Counter
+>>> c = Counter()
+>>> for ch in 'programming':
+...     c[ch] = c[ch] + 1
+...
+>>> c
+Counter({'g': 2, 'm': 2, 'r': 2, 'a': 1, 'i': 1, 'o': 1, 'n': 1, 'p': 1})
+>>> c.update('hello') # 也可以一次性update
+>>> c
+Counter({'r': 2, 'o': 2, 'g': 2, 'm': 2, 'l': 2, 'p': 1, 'a': 1, 'i': 1, 'n': 1, 'h': 1, 'e': 1})
+Counter实际上也是dict的一个子类，上面的结果可以看出每个字符出现的次数。
+小结
+collections模块提供了一些有用的集合类，可以根据需要选用。
+###base64
+Base64是一种用64个字符来表示任意二进制数据的方法。
+用记事本打开exe、jpg、pdf这些文件时，我们都会看到一大堆乱码，因为二进制文件包含很多无法显示和打印的字符，所以，如果要让记事本这样的文本处理软件能处理二进制数据，就需要一个二进制到字符串的转换方法。Base64是一种最常见的二进制编码方法。
+Base64的原理很简单，首先，准备一个包含64个字符的数组：
+['A', 'B', 'C', ... 'a', 'b', 'c', ... '0', '1', ... '+', '/']
+然后，对二进制数据进行处理，每3个字节一组，一共是3x8=24bit，划为4组，每组正好6个bit：
+base64-encode
+这样我们得到4个数字作为索引，然后查表，获得相应的4个字符，就是编码后的字符串。
+所以，Base64编码会把3字节的二进制数据编码为4字节的文本数据，长度增加33%，好处是编码后的文本数据可以在邮件正文、网页等直接显示。
+如果要编码的二进制数据不是3的倍数，最后会剩下1个或2个字节怎么办？Base64用\x00字节在末尾补足后，再在编码的末尾加上1个或2个=号，表示补了多少字节，解码的时候，会自动去掉。
+Python内置的base64可以直接进行base64的编解码：
+>>> import base64
+>>> base64.b64encode(b'binary\x00string')
+b'YmluYXJ5AHN0cmluZw=='
+>>> base64.b64decode(b'YmluYXJ5AHN0cmluZw==')
+b'binary\x00string'
+由于标准的Base64编码后可能出现字符+和/，在URL中就不能直接作为参数，所以又有一种"url safe"的base64编码，其实就是把字符+和/分别变成-和_：
+>>> base64.b64encode(b'i\xb7\x1d\xfb\xef\xff')
+b'abcd++//'
+>>> base64.urlsafe_b64encode(b'i\xb7\x1d\xfb\xef\xff')
+b'abcd--__'
+>>> base64.urlsafe_b64decode('abcd--__')
+b'i\xb7\x1d\xfb\xef\xff'
+还可以自己定义64个字符的排列顺序，这样就可以自定义Base64编码，不过，通常情况下完全没有必要。
+Base64是一种通过查表的编码方法，不能用于加密，即使使用自定义的编码表也不行。
+Base64适用于小段内容的编码，比如数字证书签名、Cookie的内容等。
+由于=字符也可能出现在Base64编码中，但=用在URL、Cookie里面会造成歧义，所以，很多Base64编码后会把=去掉：
+# 标准Base64:
+'abcd' -> 'YWJjZA=='
+# 自动去掉=:
+'abcd' -> 'YWJjZA'
+去掉=后怎么解码呢？因为Base64是把3个字节变为4个字节，所以，Base64编码的长度永远是4的倍数，因此，需要加上=把Base64字符串的长度变为4的倍数，就可以正常解码了。
+小结
+Base64是一种任意二进制到文本字符串的编码方法，常用于在URL、Cookie、网页中传输少量二进制数据。
+###struct
+准确地讲，Python没有专门处理字节的数据类型。但由于b'str'可以表示字节，所以，字节数组＝二进制str。而在C语言中，我们可以很方便地用struct、union来处理字节，以及字节和int，float的转换。
+在Python中，比方说要把一个32位无符号整数变成字节，也就是4个长度的bytes，你得配合位运算符这么写：
+>>> n = 10240099
+>>> b1 = (n & 0xff000000) >> 24
+>>> b2 = (n & 0xff0000) >> 16
+>>> b3 = (n & 0xff00) >> 8
+>>> b4 = n & 0xff
+>>> bs = bytes([b1, b2, b3, b4])
+>>> bs
+b'\x00\x9c@c'
+非常麻烦。如果换成浮点数就无能为力了。
+好在Python提供了一个struct模块来解决bytes和其他二进制数据类型的转换。
+struct的pack函数把任意数据类型变成bytes：
+>>> import struct
+>>> struct.pack('>I', 10240099)
+b'\x00\x9c@c'
+pack的第一个参数是处理指令，'>I'的意思是：
+>表示字节顺序是big-endian，也就是网络序，I表示4字节无符号整数。
+后面的参数个数要和处理指令一致。
+unpack把bytes变成相应的数据类型：
+>>> struct.unpack('>IH', b'\xf0\xf0\xf0\xf0\x80\x80')
+(4042322160, 32896)
+根据>IH的说明，后面的bytes依次变为I：4字节无符号整数和H：2字节无符号整数。
+所以，尽管Python不适合编写底层操作字节流的代码，但在对性能要求不高的地方，利用struct就方便多了。
+struct模块定义的数据类型可以参考Python官方文档：
+https://docs.python.org/3/library/struct.html#format-characters
+Windows的位图文件（.bmp）是一种非常简单的文件格式，我们来用struct分析一下。
+首先找一个bmp文件，没有的话用“画图”画一个。
+读入前30个字节来分析：
+>>> s = b'\x42\x4d\x38\x8c\x0a\x00\x00\x00\x00\x00\x36\x00\x00\x00\x28\x00\x00\x00\x80\x02\x00\x00\x68\x01\x00\x00\x01\x00\x18\x00'
+BMP格式采用小端方式存储数据，文件头的结构按顺序如下：
+两个字节：'BM'表示Windows位图，'BA'表示OS/2位图； 一个4字节整数：表示位图大小； 一个4字节整数：保留位，始终为0； 一个4字节整数：实际图像的偏移量； 一个4字节整数：Header的字节数； 一个4字节整数：图像宽度； 一个4字节整数：图像高度； 一个2字节整数：始终为1； 一个2字节整数：颜色数。
+所以，组合起来用unpack读取：
+>>> struct.unpack('<ccIIIIIIHH', s)
+(b'B', b'M', 691256, 0, 54, 40, 640, 360, 1, 24)
+结果显示，b'B'、b'M'说明是Windows位图，位图大小为640x360，颜色数为24。
+###hashlib  hash、sha1哈希或值算法
+摘要算法简介
+Python的hashlib提供了常见的摘要算法，如MD5，SHA1等等。
+什么是摘要算法呢？摘要算法又称哈希算法、散列算法。它通过一个函数，把任意长度的数据转换为一个长度固定的数据串（通常用16进制的字符串表示）。
+举个例子，你写了一篇文章，内容是一个字符串'how to use python hashlib - by Michael'，并附上这篇文章的摘要是'2d73d4f15c0db7f5ecb321b6a65e5d6d'。如果有人篡改了你的文章，并发表为'how to use python hashlib - by Bob'，你可以一下子指出Bob篡改了你的文章，因为根据'how to use python hashlib - by Bob'计算出的摘要不同于原始文章的摘要。
+可见，摘要算法就是通过摘要函数f()对任意长度的数据data计算出固定长度的摘要digest，目的是为了发现原始数据是否被人篡改过。
+摘要算法之所以能指出数据是否被篡改过，就是因为摘要函数是一个单向函数，计算f(data)很容易，但通过digest反推data却非常困难。而且，对原始数据做一个bit的修改，都会导致计算出的摘要完全不同。
+我们以常见的摘要算法MD5为例，计算出一个字符串的MD5值：
+import hashlib
+md5 = hashlib.md5()
+md5.update('how to use md5 in python hashlib?'.encode('utf-8'))
+print(md5.hexdigest())
+计算结果如下：
+d26a53750bc40b38b65a520292f69306
+如果数据量很大，可以分块多次调用update()，最后计算的结果是一样的：
+import hashlib
+md5 = hashlib.md5()
+md5.update('how to use md5 in '.encode('utf-8'))
+md5.update('python hashlib?'.encode('utf-8'))
+print(md5.hexdigest())
+试试改动一个字母，看看计算的结果是否完全不同。
+MD5是最常见的摘要算法，速度很快，生成结果是固定的128 bit字节，通常用一个32位的16进制字符串表示。
+另一种常见的摘要算法是SHA1，调用SHA1和调用MD5完全类似：
+import hashlib
+sha1 = hashlib.sha1()
+sha1.update('how to use sha1 in '.encode('utf-8'))
+sha1.update('python hashlib?'.encode('utf-8'))
+print(sha1.hexdigest())
+SHA1的结果是160 bit字节，通常用一个40位的16进制字符串表示。
+比SHA1更安全的算法是SHA256和SHA512，不过越安全的算法不仅越慢，而且摘要长度更长。
+有没有可能两个不同的数据通过某个摘要算法得到了相同的摘要？完全有可能，因为任何摘要算法都是把无限多的数据集合映射到一个有限的集合中。这种情况称为碰撞，比如Bob试图根据你的摘要反推出一篇文章'how to learn hashlib in python - by Bob'，并且这篇文章的摘要恰好和你的文章完全一致，这种情况也并非不可能出现，但是非常非常困难。
+摘要算法应用
+摘要算法能应用到什么地方？举个常用例子：
+任何允许用户登录的网站都会存储用户登录的用户名和口令。如何存储用户名和口令呢？方法是存到数据库表中：
+name	password
+michael	123456
+bob	abc999
+alice	alice2008
+如果以明文保存用户口令，如果数据库泄露，所有用户的口令就落入黑客的手里。此外，网站运维人员是可以访问数据库的，也就是能获取到所有用户的口令。
+正确的保存口令的方式是不存储用户的明文口令，而是存储用户口令的摘要，比如MD5：
+username	password
+michael	e10adc3949ba59abbe56e057f20f883e
+bob	878ef96e86145580c38c87f0410ad153
+alice	99b1c2188db85afee403b1536010c2c9
+当用户登录时，首先计算用户输入的明文口令的MD5，然后和数据库存储的MD5对比，如果一致，说明口令输入正确，如果不一致，口令肯定错误。
+采用MD5存储口令是否就一定安全呢？也不一定。假设你是一个黑客，已经拿到了存储MD5口令的数据库，如何通过MD5反推用户的明文口令呢？暴力破解费事费力，真正的黑客不会这么干。
+考虑这么个情况，很多用户喜欢用123456，888888，password这些简单的口令，于是，黑客可以事先计算出这些常用口令的MD5值，得到一个反推表：
+'e10adc3949ba59abbe56e057f20f883e': '123456'
+'21218cca77804d2ba1922c33e0151105': '888888'
+'5f4dcc3b5aa765d61d8327deb882cf99': 'password'
+这样，无需破解，只需要对比数据库的MD5，黑客就获得了使用常用口令的用户账号。
+对于用户来讲，当然不要使用过于简单的口令。但是，我们能否在程序设计上对简单口令加强保护呢？
+由于常用口令的MD5值很容易被计算出来，所以，要确保存储的用户口令不是那些已经被计算出来的常用口令的MD5，这一方法通过对原始口令加一个复杂字符串来实现，俗称“加盐”：
+def calc_md5(password):
+    return get_md5(password + 'the-Salt')
+经过Salt处理的MD5口令，只要Salt不被黑客知道，即使用户输入简单口令，也很难通过MD5反推明文口令。
+但是如果有两个用户都使用了相同的简单口令比如123456，在数据库中，将存储两条相同的MD5值，这说明这两个用户的口令是一样的。有没有办法让使用相同口令的用户存储不同的MD5呢？
+如果假定用户无法修改登录名，就可以通过把登录名作为Salt的一部分来计算MD5，从而实现相同口令的用户也存储不同的MD5。
+小结
+摘要算法在很多地方都有广泛的应用。要注意摘要算法不是加密算法，不能用于加密（因为无法通过摘要反推明文），只能用于防篡改，但是它的单向计算特性决定了可以在不存储明文口令的情况下验证用户口令。
+###hmac 加盐
+通过哈希算法，我们可以验证一段数据是否有效，方法就是对比该数据的哈希值，例如，判断用户口令是否正确，我们用保存在数据库中的password_md5对比计算md5(password)的结果，如果一致，用户输入的口令就是正确的。
+为了防止黑客通过彩虹表根据哈希值反推原始口令，在计算哈希的时候，不能仅针对原始输入计算，需要增加一个salt来使得相同的输入也能得到不同的哈希，这样，大大增加了黑客破解的难度。
+如果salt是我们自己随机生成的，通常我们计算MD5时采用md5(message + salt)。但实际上，把salt看做一个“口令”，加salt的哈希就是：计算一段message的哈希时，根据不通口令计算出不同的哈希。要验证哈希值，必须同时提供正确的口令。
+这实际上就是Hmac算法：Keyed-Hashing for Message Authentication。它通过一个标准算法，在计算哈希的过程中，把key混入计算过程中。
+和我们自定义的加salt算法不同，Hmac算法针对所有哈希算法都通用，无论是MD5还是SHA-1。采用Hmac替代我们自己的salt算法，可以使程序算法更标准化，也更安全。
+Python自带的hmac模块实现了标准的Hmac算法。我们来看看如何使用hmac实现带key的哈希。
+我们首先需要准备待计算的原始消息message，随机key，哈希算法，这里采用MD5，使用hmac的代码如下：
+>>> import hmac
+>>> message = b'Hello, world!'
+>>> key = b'secret'
+>>> h = hmac.new(key, message, digestmod='MD5')
+>>> # 如果消息很长，可以多次调用h.update(msg)
+>>> h.hexdigest()
+'fa4ee7d173f2d97ee79022d1a7355bcf'
+可见使用hmac和普通hash算法非常类似。hmac输出的长度和原始哈希算法的长度一致。需要注意传入的key和message都是bytes类型，str类型需要首先编码为bytes。
+小结
+Python内置的hmac模块实现了标准的Hmac算法，它利用一个key对message计算“杂凑”后的hash，使用hmac算法比标准hash算法更安全，因为针对相同的message，不同的key会产生不同的hash。
+###itertools
+Python的内建模块itertools提供了非常有用的用于操作迭代对象的函数。
+首先，我们看看itertools提供的几个“无限”迭代器：
+>>> import itertools
+>>> natuals = itertools.count(1)
+>>> for n in natuals:
+...     print(n)
+...
+1
+2
+3
+...
+因为count()会创建一个无限的迭代器，所以上述代码会打印出自然数序列，根本停不下来，只能按Ctrl+C退出。
+cycle()会把传入的一个序列无限重复下去：
+>>> import itertools
+>>> cs = itertools.cycle('ABC') # 注意字符串也是序列的一种
+>>> for c in cs:
+...     print(c)
+...
+'A'
+'B'
+'C'
+'A'
+'B'
+'C'
+...
+同样停不下来。
+repeat()负责把一个元素无限重复下去，不过如果提供第二个参数就可以限定重复次数：
+>>> ns = itertools.repeat('A', 3)
+>>> for n in ns:
+...     print(n)
+...
+A
+A
+A
+无限序列只有在for迭代时才会无限地迭代下去，如果只是创建了一个迭代对象，它不会事先把无限个元素生成出来，事实上也不可能在内存中创建无限多个元素。
+无限序列虽然可以无限迭代下去，但是通常我们会通过takewhile()等函数根据条件判断来截取出一个有限的序列：
+>>> natuals = itertools.count(1)
+>>> ns = itertools.takewhile(lambda x: x <= 10, natuals)
+>>> list(ns)
+[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+itertools提供的几个迭代器操作函数更加有用：
+chain()
+chain()可以把一组迭代对象串联起来，形成一个更大的迭代器：
+>>> for c in itertools.chain('ABC', 'XYZ'):
+...     print(c)
+# 迭代效果：'A' 'B' 'C' 'X' 'Y' 'Z'
+groupby()
+groupby()把迭代器中相邻的重复元素挑出来放在一起：
+>>> for key, group in itertools.groupby('AAABBBCCAAA'):
+...     print(key, list(group))
+...
+A ['A', 'A', 'A']
+B ['B', 'B', 'B']
+C ['C', 'C']
+A ['A', 'A', 'A']
+实际上挑选规则是通过函数完成的，只要作用于函数的两个元素返回的值相等，这两个元素就被认为是在一组的，而函数返回值作为组的key。如果我们要忽略大小写分组，就可以让元素'A'和'a'都返回相同的key：
+>>> for key, group in itertools.groupby('AaaBBbcCAAa', lambda c: c.upper()):
+...     print(key, list(group))
+...
+A ['A', 'a', 'a']
+B ['B', 'B', 'b']
+C ['c', 'C']
+A ['A', 'A', 'a']
+小结
+itertools模块提供的全部是处理迭代功能的函数，它们的返回值不是list，而是Iterator，只有用for循环迭代的时候才真正计算。
+###contextlib
+在Python中，读写文件这样的资源要特别注意，必须在使用完毕后正确关闭它们。正确关闭文件资源的一个方法是使用try...finally：
+try:
+    f = open('/path/to/file', 'r')
+    f.read()
+finally:
+    if f:
+        f.close()
+写try...finally非常繁琐。Python的with语句允许我们非常方便地使用资源，而不必担心资源没有关闭，所以上面的代码可以简化为：
+with open('/path/to/file', 'r') as f:
+    f.read()
+并不是只有open()函数返回的fp对象才能使用with语句。实际上，任何对象，只要正确实现了上下文管理，就可以用于with语句。
+实现上下文管理是通过__enter__和__exit__这两个方法实现的。例如，下面的class实现了这两个方法：
+class Query(object):
+    def __init__(self, name):
+        self.name = name
+
+    def __enter__(self):
+        print('Begin')
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type:
+            print('Error')
+        else:
+            print('End')
+    
+    def query(self):
+        print('Query info about %s...' % self.name)
+这样我们就可以把自己写的资源对象用于with语句：
+with Query('Bob') as q:
+    q.query()
+@contextmanager
+编写__enter__和__exit__仍然很繁琐，因此Python的标准库contextlib提供了更简单的写法，上面的代码可以改写如下：
+from contextlib import contextmanager
+class Query(object):
+    def __init__(self, name):
+        self.name = name
+    def query(self):
+        print('Query info about %s...' % self.name)
+@contextmanager
+def create_query(name):
+    print('Begin')
+    q = Query(name)
+    yield q
+    print('End')
+@contextmanager这个decorator接受一个generator，用yield语句把with ... as var把变量输出出去，然后，with语句就可以正常地工作了：
+with create_query('Bob') as q:
+    q.query()
+很多时候，我们希望在某段代码执行前后自动执行特定代码，也可以用@contextmanager实现。例如：
+@contextmanager
+def tag(name):
+    print("<%s>" % name)
+    yield
+    print("</%s>" % name)
+with tag("h1"):
+    print("hello")
+    print("world")
+上述代码执行结果为：
+<h1>
+hello
+world
+</h1>
+代码的执行顺序是：
+with语句首先执行yield之前的语句，因此打印出<h1>；
+yield调用会执行with语句内部的所有语句，因此打印出hello和world；
+最后执行yield之后的语句，打印出</h1>。
+因此，@contextmanager让我们通过编写generator来简化上下文管理。
+@closing
+如果一个对象没有实现上下文，我们就不能把它用于with语句。这个时候，可以用closing()来把该对象变为上下文对象。例如，用with语句使用urlopen()：
+from contextlib import closing
+from urllib.request import urlopen
+with closing(urlopen('https://www.python.org')) as page:
+    for line in page:
+        print(line)
+closing也是一个经过@contextmanager装饰的generator，这个generator编写起来其实非常简单：
+@contextmanager
+def closing(thing):
+    try:
+        yield thing
+    finally:
+        thing.close()
+它的作用就是把任意对象变为上下文对象，并支持with语句。
+@contextlib还有一些其他decorator，便于我们编写更简洁的代码。
+###urllib
+urllib提供了一系列用于操作URL的功能。
+Get
+urllib的request模块可以非常方便地抓取URL内容，也就是发送一个GET请求到指定的页面，然后返回HTTP的响应：
+例如，对豆瓣的一个URLhttps://api.douban.com/v2/book/2129650进行抓取，并返回响应：
+from urllib import request
+with request.urlopen('https://api.douban.com/v2/book/2129650') as f:
+    data = f.read()
+    print('Status:', f.status, f.reason)
+    for k, v in f.getheaders():
+        print('%s: %s' % (k, v))
+    print('Data:', data.decode('utf-8'))
+可以看到HTTP响应的头和JSON数据：
+Status: 200 OK
+Server: nginx
+Date: Tue, 26 May 2015 10:02:27 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 2049
+Connection: close
+Expires: Sun, 1 Jan 2006 01:00:00 GMT
+Pragma: no-cache
+Cache-Control: must-revalidate, no-cache, private
+X-DAE-Node: pidl1
+Data: {"rating":{"max":10,"numRaters":16,"average":"7.4","min":0},"subtitle":"","author":["廖雪峰编著"],"pubdate":"2007-6",...}
+如果我们要想模拟浏览器发送GET请求，就需要使用Request对象，通过往Request对象添加HTTP头，我们就可以把请求伪装成浏览器。例如，模拟iPhone 6去请求豆瓣首页：
+from urllib import request
+req = request.Request('http://www.douban.com/')
+req.add_header('User-Agent', 'Mozilla/6.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/8.0 Mobile/10A5376e Safari/8536.25')
+with request.urlopen(req) as f:
+    print('Status:', f.status, f.reason)
+    for k, v in f.getheaders():
+        print('%s: %s' % (k, v))
+    print('Data:', f.read().decode('utf-8'))
+这样豆瓣会返回适合iPhone的移动版网页：
+...
+    <meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0">
+    <meta name="format-detection" content="telephone=no">
+    <link rel="apple-touch-icon" sizes="57x57" href="http://img4.douban.com/pics/cardkit/launcher/57.png" />
+...
+Post
+如果要以POST发送一个请求，只需要把参数data以bytes形式传入。
+我们模拟一个微博登录，先读取登录的邮箱和口令，然后按照weibo.cn的登录页的格式以username=xxx&password=xxx的编码传入：
+from urllib import request, parse
+print('Login to weibo.cn...')
+email = input('Email: ')
+passwd = input('Password: ')
+login_data = parse.urlencode([
+    ('username', email),
+    ('password', passwd),
+    ('entry', 'mweibo'),
+    ('client_id', ''),
+    ('savestate', '1'),
+    ('ec', ''),
+    ('pagerefer', 'https://passport.weibo.cn/signin/welcome?entry=mweibo&r=http%3A%2F%2Fm.weibo.cn%2F')
+])
+req = request.Request('https://passport.weibo.cn/sso/login')
+req.add_header('Origin', 'https://passport.weibo.cn')
+req.add_header('User-Agent', 'Mozilla/6.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/536.26 (KHTML, like Gecko) Version/8.0 Mobile/10A5376e Safari/8536.25')
+req.add_header('Referer', 'https://passport.weibo.cn/signin/login?entry=mweibo&res=wel&wm=3349&r=http%3A%2F%2Fm.weibo.cn%2F')
+with request.urlopen(req, data=login_data.encode('utf-8')) as f:
+    print('Status:', f.status, f.reason)
+    for k, v in f.getheaders():
+        print('%s: %s' % (k, v))
+    print('Data:', f.read().decode('utf-8'))
+如果登录成功，我们获得的响应如下：
+Status: 200 OK
+Server: nginx/1.2.0
+...
+Set-Cookie: SSOLoginState=1432620126; path=/; domain=weibo.cn
+...
+Data: {"retcode":20000000,"msg":"","data":{...,"uid":"1658384301"}}
+如果登录失败，我们获得的响应如下：
+...
+Data: {"retcode":50011015,"msg":"\u7528\u6237\u540d\u6216\u5bc6\u7801\u9519\u8bef","data":{"username":"example@python.org","errline":536}}
+Handler
+如果还需要更复杂的控制，比如通过一个Proxy去访问网站，我们需要利用ProxyHandler来处理，示例代码如下：
+proxy_handler = urllib.request.ProxyHandler({'http': 'http://www.example.com:3128/'})
+proxy_auth_handler = urllib.request.ProxyBasicAuthHandler()
+proxy_auth_handler.add_password('realm', 'host', 'username', 'password')
+opener = urllib.request.build_opener(proxy_handler, proxy_auth_handler)
+with opener.open('http://www.example.com/login.html') as f:
+    pass
+小结
+urllib提供的功能就是利用程序去执行各种HTTP请求。如果要模拟浏览器完成特定功能，需要把请求伪装成浏览器。伪装的方法是先监控浏览器发出的请求，再根据浏览器的请求头来伪装，User-Agent头就是用来标识浏览器的。
+###XML
+XML虽然比JSON复杂，在Web中应用也不如以前多了，不过仍有很多地方在用，所以，有必要了解如何操作XML。
+DOM vs SAX
+操作XML有两种方法：DOM和SAX。DOM会把整个XML读入内存，解析为树，因此占用内存大，解析慢，优点是可以任意遍历树的节点。SAX是流模式，边读边解析，占用内存小，解析快，缺点是我们需要自己处理事件。
+正常情况下，优先考虑SAX，因为DOM实在太占内存。
+在Python中使用SAX解析XML非常简洁，通常我们关心的事件是start_element，end_element和char_data，准备好这3个函数，然后就可以解析xml了。
+举个例子，当SAX解析器读到一个节点时：
+<a href="/">python</a>
+会产生3个事件：
+start_element事件，在读取<a href="/">时；
+char_data事件，在读取python时；
+end_element事件，在读取</a>时。
+用代码实验一下：
+from xml.parsers.expat import ParserCreate
+class DefaultSaxHandler(object):
+    def start_element(self, name, attrs):
+        print('sax:start_element: %s, attrs: %s' % (name, str(attrs)))
+
+    def end_element(self, name):
+        print('sax:end_element: %s' % name)
+
+    def char_data(self, text):
+        print('sax:char_data: %s' % text)
+xml = r'''<?xml version="1.0"?>
+<ol>
+    <li><a href="/python">Python</a></li>
+    <li><a href="/ruby">Ruby</a></li>
+</ol>
+'''
+handler = DefaultSaxHandler()
+parser = ParserCreate()
+parser.StartElementHandler = handler.start_element
+parser.EndElementHandler = handler.end_element
+parser.CharacterDataHandler = handler.char_data
+parser.Parse(xml)
+需要注意的是读取一大段字符串时，CharacterDataHandler可能被多次调用，所以需要自己保存起来，在EndElementHandler里面再合并。
+除了解析XML外，如何生成XML呢？99%的情况下需要生成的XML结构都是非常简单的，因此，最简单也是最有效的生成XML的方法是拼接字符串：
+L = []
+L.append(r'<?xml version="1.0"?>')
+L.append(r'<root>')
+L.append(encode('some & data'))
+L.append(r'</root>')
+return ''.join(L)
+如果要生成复杂的XML呢？建议你不要用XML，改成JSON。
+小结
+解析XML时，注意找出自己感兴趣的节点，响应事件时，把节点数据保存起来。解析完毕后，就可以处理数据。
+###HTMLParser  解析HTML
+如果我们要编写一个搜索引擎，第一步是用爬虫把目标网站的页面抓下来，第二步就是解析该HTML页面，看看里面的内容到底是新闻、图片还是视频。
+假设第一步已经完成了，第二步应该如何解析HTML呢？
+HTML本质上是XML的子集，但是HTML的语法没有XML那么严格，所以不能用标准的DOM或SAX来解析HTML。
+好在Python提供了HTMLParser来非常方便地解析HTML，只需简单几行代码：
+from html.parser import HTMLParser
+from html.entities import name2codepoint
+class MyHTMLParser(HTMLParser):
+    def handle_starttag(self, tag, attrs):
+        print('<%s>' % tag)
+
+    def handle_endtag(self, tag):
+        print('</%s>' % tag)
+
+    def handle_startendtag(self, tag, attrs):
+        print('<%s/>' % tag)
+
+    def handle_data(self, data):
+        print(data)
+
+    def handle_comment(self, data):
+        print('<!--', data, '-->')
+
+    def handle_entityref(self, name):
+        print('&%s;' % name)
+
+    def handle_charref(self, name):
+        print('&#%s;' % name)
+parser = MyHTMLParser()
+parser.feed('''<html>
+<head></head>
+<body>
+<!-- test html parser -->
+    <p>Some <a href=\"#\">html</a> HTML&nbsp;tutorial...<br>END</p>
+</body></html>''')
+feed()方法可以多次调用，也就是不一定一次把整个HTML字符串都塞进去，可以一部分一部分塞进去。
+特殊字符有两种，一种是英文表示的&nbsp;，一种是数字表示的&#1234;，这两种字符都可以通过Parser解析出来。
+小结
+利用HTMLParser，可以把网页中的文本、图像等解析出来。
+练习
+找一个网页，例如https://www.python.org/events/python-events/，用浏览器查看源码并复制，然后尝试解析一下HTML，输出Python官网发布的会议时间、名称和地点。
+
+###常用第三方模块
+除了内建的模块外，Python还有大量的第三方模块。
+基本上，所有的第三方模块都会在PyPI - the Python Package Index上注册，只要找到对应的模块名字，即可用pip安装。
+此外，在安装第三方模块一节中，我们强烈推荐安装Anaconda，安装后，数十个常用的第三方模块就已经就绪，不用pip手动安装。
+本章介绍常用的第三方模块。
+
+###Pillow
+PIL：Python Imaging Library，已经是Python平台事实上的图像处理标准库了。PIL功能非常强大，但API却非常简单易用。
+由于PIL仅支持到Python 2.7，加上年久失修，于是一群志愿者在PIL的基础上创建了兼容的版本，名字叫Pillow，支持最新Python 3.x，又加入了许多新特性，因此，我们可以直接安装使用Pillow。
+安装Pillow
+如果安装了Anaconda，Pillow就已经可用了。否则，需要在命令行下通过pip安装：
+$ pip install pillow
+如果遇到Permission denied安装失败，请加上sudo重试。
+操作图像
+来看看最常见的图像缩放操作，只需三四行代码：
+from PIL import Image
+# 打开一个jpg图像文件，注意是当前路径:
+im = Image.open('test.jpg')
+# 获得图像尺寸:
+w, h = im.size
+print('Original image size: %sx%s' % (w, h))
+# 缩放到50%:
+im.thumbnail((w//2, h//2))
+print('Resize image to: %sx%s' % (w//2, h//2))
+# 把缩放后的图像用jpeg格式保存:
+im.save('thumbnail.jpg', 'jpeg')
+其他功能如切片、旋转、滤镜、输出文字、调色板等一应俱全。
+比如，模糊效果也只需几行代码：
+from PIL import Image, ImageFilter
+# 打开一个jpg图像文件，注意是当前路径:
+im = Image.open('test.jpg')
+# 应用模糊滤镜:
+im2 = im.filter(ImageFilter.BLUR)
+im2.save('blur.jpg', 'jpeg')
+效果如下：
+PIL-blur
+PIL的ImageDraw提供了一系列绘图方法，让我们可以直接绘图。比如要生成字母验证码图片：
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
+import random
+# 随机字母:
+def rndChar():
+    return chr(random.randint(65, 90))
+# 随机颜色1:
+def rndColor():
+    return (random.randint(64, 255), random.randint(64, 255), random.randint(64, 255))
+# 随机颜色2:
+def rndColor2():
+    return (random.randint(32, 127), random.randint(32, 127), random.randint(32, 127))
+# 240 x 60:
+width = 60 * 4
+height = 60
+image = Image.new('RGB', (width, height), (255, 255, 255))
+# 创建Font对象:
+font = ImageFont.truetype('Arial.ttf', 36)
+# 创建Draw对象:
+draw = ImageDraw.Draw(image)
+# 填充每个像素:
+for x in range(width):
+    for y in range(height):
+        draw.point((x, y), fill=rndColor())
+# 输出文字:
+for t in range(4):
+    draw.text((60 * t + 10, 10), rndChar(), font=font, fill=rndColor2())
+# 模糊:
+image = image.filter(ImageFilter.BLUR)
+image.save('code.jpg', 'jpeg')
+我们用随机颜色填充背景，再画上文字，最后对图像进行模糊，得到验证码图片如下：
+验证码
+如果运行的时候报错：
+IOError: cannot open resource
+这是因为PIL无法定位到字体文件的位置，可以根据操作系统提供绝对路径，比如：
+'/Library/Fonts/Arial.ttf'
+要详细了解PIL的强大功能，请请参考Pillow官方文档：
+https://pillow.readthedocs.org/
+小结
+PIL提供了操作图像的强大功能，可以通过简单的代码完成复杂的图像处理。
+
+###requests
+我们已经讲解了Python内置的urllib模块，用于访问网络资源。但是，它用起来比较麻烦，而且，缺少很多实用的高级功能。
+更好的方案是使用requests。它是一个Python第三方库，处理URL资源特别方便。
+安装requests
+如果安装了Anaconda，requests就已经可用了。否则，需要在命令行下通过pip安装：
+$ pip install requests
+如果遇到Permission denied安装失败，请加上sudo重试。
+使用requests
+要通过GET访问一个页面，只需要几行代码：
+>>> import requests
+>>> r = requests.get('https://www.douban.com/') # 豆瓣首页
+>>> r.status_code
+200
+>>> r.text
+r.text
+'<!DOCTYPE HTML>\n<html>\n<head>\n<meta name="description" content="提供图书、电影、音乐唱片的推荐、评论和...'
+对于带参数的URL，传入一个dict作为params参数：
+>>> r = requests.get('https://www.douban.com/search', params={'q': 'python', 'cat': '1001'})
+>>> r.url # 实际请求的URL
+'https://www.douban.com/search?q=python&cat=1001'
+requests自动检测编码，可以使用encoding属性查看：
+>>> r.encoding
+'utf-8'
+无论响应是文本还是二进制内容，我们都可以用content属性获得bytes对象：
+>>> r.content
+b'<!DOCTYPE html>\n<html>\n<head>\n<meta http-equiv="Content-Type" content="text/html; charset=utf-8">\n...'
+requests的方便之处还在于，对于特定类型的响应，例如JSON，可以直接获取：
+>>> r = requests.get('https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20weather.forecast%20where%20woeid%20%3D%202151330&format=json')
+>>> r.json()
+{'query': {'count': 1, 'created': '2017-11-17T07:14:12Z', ...
+需要传入HTTP Header时，我们传入一个dict作为headers参数：
+>>> r = requests.get('https://www.douban.com/', headers={'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 11_0 like Mac OS X) AppleWebKit'})
+>>> r.text
+'<!DOCTYPE html>\n<html>\n<head>\n<meta charset="UTF-8">\n <title>豆瓣(手机版)</title>...'
+要发送POST请求，只需要把get()方法变成post()，然后传入data参数作为POST请求的数据：
+>>> r = requests.post('https://accounts.douban.com/login', data={'form_email': 'abc@example.com', 'form_password': '123456'})
+requests默认使用application/x-www-form-urlencoded对POST数据编码。如果要传递JSON数据，可以直接传入json参数：
+params = {'key': 'value'}
+r = requests.post(url, json=params) # 内部自动序列化为JSON
+类似的，上传文件需要更复杂的编码格式，但是requests把它简化成files参数：
+>>> upload_files = {'file': open('report.xls', 'rb')}
+>>> r = requests.post(url, files=upload_files)
+在读取文件时，注意务必使用'rb'即二进制模式读取，这样获取的bytes长度才是文件的长度。
+把post()方法替换为put()，delete()等，就可以以PUT或DELETE方式请求资源。
+除了能轻松获取响应内容外，requests对获取HTTP响应的其他信息也非常简单。例如，获取响应头：
+>>> r.headers
+{Content-Type': 'text/html; charset=utf-8', 'Transfer-Encoding': 'chunked', 'Content-Encoding': 'gzip', ...}
+>>> r.headers['Content-Type']
+'text/html; charset=utf-8'
+requests对Cookie做了特殊处理，使得我们不必解析Cookie就可以轻松获取指定的Cookie：
+>>> r.cookies['ts']
+'example_cookie_12345'
+要在请求中传入Cookie，只需准备一个dict传入cookies参数：
+>>> cs = {'token': '12345', 'status': 'working'}
+>>> r = requests.get(url, cookies=cs)
+最后，要指定超时，传入以秒为单位的timeout参数：
+>>> r = requests.get(url, timeout=2.5) # 2.5秒后超时
+小结
+用requests获取URL资源，就是这么简单！
+
+###chardet 检测编码
+字符串编码一直是令人非常头疼的问题，尤其是我们在处理一些不规范的第三方网页的时候。虽然Python提供了Unicode表示的str和bytes两种数据类型，并且可以通过encode()和decode()方法转换，但是，在不知道编码的情况下，对bytes做decode()不好做。
+对于未知编码的bytes，要把它转换成str，需要先“猜测”编码。猜测的方式是先收集各种编码的特征字符，根据特征字符判断，就能有很大概率“猜对”。
+当然，我们肯定不能从头自己写这个检测编码的功能，这样做费时费力。chardet这个第三方库正好就派上了用场。用它来检测编码，简单易用。
+安装chardet
+如果安装了Anaconda，chardet就已经可用了。否则，需要在命令行下通过pip安装：
+$ pip install chardet
+如果遇到Permission denied安装失败，请加上sudo重试。
+使用chardet
+当我们拿到一个bytes时，就可以对其检测编码。用chardet检测编码，只需要一行代码：
+>>> chardet.detect(b'Hello, world!')
+{'encoding': 'ascii', 'confidence': 1.0, 'language': ''}
+检测出的编码是ascii，注意到还有个confidence字段，表示检测的概率是1.0（即100%）。
+我们来试试检测GBK编码的中文：
+>>> data = '离离原上草，一岁一枯荣'.encode('gbk')
+>>> chardet.detect(data)
+{'encoding': 'GB2312', 'confidence': 0.7407407407407407, 'language': 'Chinese'}
+检测的编码是GB2312，注意到GBK是GB2312的超集，两者是同一种编码，检测正确的概率是74%，language字段指出的语言是'Chinese'。
+对UTF-8编码进行检测：
+>>> data = '离离原上草，一岁一枯荣'.encode('utf-8')
+>>> chardet.detect(data)
+{'encoding': 'utf-8', 'confidence': 0.99, 'language': ''}
+我们再试试对日文进行检测：
+>>> data = '最新の主要ニュース'.encode('euc-jp')
+>>> chardet.detect(data)
+{'encoding': 'EUC-JP', 'confidence': 0.99, 'language': 'Japanese'}
+可见，用chardet检测编码，使用简单。获取到编码后，再转换为str，就可以方便后续处理。
+chardet支持检测的编码列表请参考官方文档Supported encodings。
+小结
+使用chardet检测编码非常容易，chardet支持检测中文、日文、韩文等多种语言。
+
+###psutil Python运维工具
+用Python来编写脚本简化日常的运维工作是Python的一个重要用途。在Linux下，有许多系统命令可以让我们时刻监控系统运行的状态，如ps，top，free等等。要获取这些系统信息，Python可以通过subprocess模块调用并获取结果。但这样做显得很麻烦，尤其是要写很多解析代码。
+在Python中获取系统信息的另一个好办法是使用psutil这个第三方模块。顾名思义，psutil = process and system utilities，它不仅可以通过一两行代码实现系统监控，还可以跨平台使用，支持Linux／UNIX／OSX／Windows等，是系统管理员和运维小伙伴不可或缺的必备模块。
+安装psutil
+如果安装了Anaconda，psutil就已经可用了。否则，需要在命令行下通过pip安装：
+$ pip install psutil
+如果遇到Permission denied安装失败，请加上sudo重试。
+获取CPU信息
+我们先来获取CPU的信息：
+>>> import psutil
+>>> psutil.cpu_count() # CPU逻辑数量
+4
+>>> psutil.cpu_count(logical=False) # CPU物理核心
+2
+# 2说明是双核超线程, 4则是4核非超线程
+统计CPU的用户／系统／空闲时间：
+>>> psutil.cpu_times()
+scputimes(user=10963.31, nice=0.0, system=5138.67, idle=356102.45)
+再实现类似top命令的CPU使用率，每秒刷新一次，累计10次：
+>>> for x in range(10):
+...     psutil.cpu_percent(interval=1, percpu=True)
+... 
+[14.0, 4.0, 4.0, 4.0]
+[12.0, 3.0, 4.0, 3.0]
+[8.0, 4.0, 3.0, 4.0]
+[12.0, 3.0, 3.0, 3.0]
+[18.8, 5.1, 5.9, 5.0]
+[10.9, 5.0, 4.0, 3.0]
+[12.0, 5.0, 4.0, 5.0]
+[15.0, 5.0, 4.0, 4.0]
+[19.0, 5.0, 5.0, 4.0]
+[9.0, 3.0, 2.0, 3.0]
+获取内存信息
+使用psutil获取物理内存和交换内存信息，分别使用：
+
+>>> psutil.virtual_memory()
+svmem(total=8589934592, available=2866520064, percent=66.6, used=7201386496, free=216178688, active=3342192640, inactive=2650341376, wired=1208852480)
+>>> psutil.swap_memory()
+sswap(total=1073741824, used=150732800, free=923009024, percent=14.0, sin=10705981440, sout=40353792)
+返回的是字节为单位的整数，可以看到，总内存大小是8589934592 = 8 GB，已用7201386496 = 6.7 GB，使用了66.6%。
+而交换区大小是1073741824 = 1 GB。
+获取磁盘信息
+可以通过psutil获取磁盘分区、磁盘使用率和磁盘IO信息：
+>>> psutil.disk_partitions() # 磁盘分区信息
+[sdiskpart(device='/dev/disk1', mountpoint='/', fstype='hfs', opts='rw,local,rootfs,dovolfs,journaled,multilabel')]
+>>> psutil.disk_usage('/') # 磁盘使用情况
+sdiskusage(total=998982549504, used=390880133120, free=607840272384, percent=39.1)
+>>> psutil.disk_io_counters() # 磁盘IO
+sdiskio(read_count=988513, write_count=274457, read_bytes=14856830464, write_bytes=17509420032, read_time=2228966, write_time=1618405)
+可以看到，磁盘'/'的总容量是998982549504 = 930 GB，使用了39.1%。文件格式是HFS，opts中包含rw表示可读写，journaled表示支持日志。
+获取网络信息
+psutil可以获取网络接口和网络连接信息：
+>>> psutil.net_io_counters() # 获取网络读写字节／包的个数
+snetio(bytes_sent=3885744870, bytes_recv=10357676702, packets_sent=10613069, packets_recv=10423357, errin=0, errout=0, dropin=0, dropout=0)
+>>> psutil.net_if_addrs() # 获取网络接口信息
+{
+  'lo0': [snic(family=<AddressFamily.AF_INET: 2>, address='127.0.0.1', netmask='255.0.0.0'), ...],
+  'en1': [snic(family=<AddressFamily.AF_INET: 2>, address='10.0.1.80', netmask='255.255.255.0'), ...],
+  'en0': [...],
+  'en2': [...],
+  'bridge0': [...]
+}
+>>> psutil.net_if_stats() # 获取网络接口状态
+{
+  'lo0': snicstats(isup=True, duplex=<NicDuplex.NIC_DUPLEX_UNKNOWN: 0>, speed=0, mtu=16384),
+  'en0': snicstats(isup=True, duplex=<NicDuplex.NIC_DUPLEX_UNKNOWN: 0>, speed=0, mtu=1500),
+  'en1': snicstats(...),
+  'en2': snicstats(...),
+  'bridge0': snicstats(...)
+}
+要获取当前网络连接信息，使用net_connections()：
+>>> psutil.net_connections()
+Traceback (most recent call last):
+  ...
+PermissionError: [Errno 1] Operation not permitted
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  ...
+psutil.AccessDenied: psutil.AccessDenied (pid=3847)
+你可能会得到一个AccessDenied错误，原因是psutil获取信息也是要走系统接口，而获取网络连接信息需要root权限，这种情况下，可以退出Python交互环境，用sudo重新启动：
+$ sudo python3
+Password: ******
+Python 3.6.3 ... on darwin
+Type "help", ... for more information.
+>>> import psutil
+>>> psutil.net_connections()
+[
+    sconn(fd=83, family=<AddressFamily.AF_INET6: 30>, type=1, laddr=addr(ip='::127.0.0.1', port=62911), raddr=addr(ip='::127.0.0.1', port=3306), status='ESTABLISHED', pid=3725),
+    sconn(fd=84, family=<AddressFamily.AF_INET6: 30>, type=1, laddr=addr(ip='::127.0.0.1', port=62905), raddr=addr(ip='::127.0.0.1', port=3306), status='ESTABLISHED', pid=3725),
+    sconn(fd=93, family=<AddressFamily.AF_INET6: 30>, type=1, laddr=addr(ip='::', port=8080), raddr=(), status='LISTEN', pid=3725),
+    sconn(fd=103, family=<AddressFamily.AF_INET6: 30>, type=1, laddr=addr(ip='::127.0.0.1', port=62918), raddr=addr(ip='::127.0.0.1', port=3306), status='ESTABLISHED', pid=3725),
+    sconn(fd=105, family=<AddressFamily.AF_INET6: 30>, type=1, ..., pid=3725),
+    sconn(fd=106, family=<AddressFamily.AF_INET6: 30>, type=1, ..., pid=3725),
+    sconn(fd=107, family=<AddressFamily.AF_INET6: 30>, type=1, ..., pid=3725),
+    ...
+    sconn(fd=27, family=<AddressFamily.AF_INET: 2>, type=2, ..., pid=1)
+]
+获取进程信息
+通过psutil可以获取到所有进程的详细信息：
+>>> psutil.pids() # 所有进程ID
+[3865, 3864, 3863, 3856, 3855, 3853, 3776, ..., 45, 44, 1, 0]
+>>> p = psutil.Process(3776) # 获取指定进程ID=3776，其实就是当前Python交互环境
+>>> p.name() # 进程名称
+'python3.6'
+>>> p.exe() # 进程exe路径
+'/Users/michael/anaconda3/bin/python3.6'
+>>> p.cwd() # 进程工作目录
+'/Users/michael'
+>>> p.cmdline() # 进程启动的命令行
+['python3']
+>>> p.ppid() # 父进程ID
+3765
+>>> p.parent() # 父进程
+<psutil.Process(pid=3765, name='bash') at 4503144040>
+>>> p.children() # 子进程列表
+[]
+>>> p.status() # 进程状态
+'running'
+>>> p.username() # 进程用户名
+'michael'
+>>> p.create_time() # 进程创建时间
+1511052731.120333
+>>> p.terminal() # 进程终端
+'/dev/ttys002'
+>>> p.cpu_times() # 进程使用的CPU时间
+pcputimes(user=0.081150144, system=0.053269812, children_user=0.0, children_system=0.0)
+>>> p.memory_info() # 进程使用的内存
+pmem(rss=8310784, vms=2481725440, pfaults=3207, pageins=18)
+>>> p.open_files() # 进程打开的文件
+[]
+>>> p.connections() # 进程相关网络连接
+[]
+>>> p.num_threads() # 进程的线程数量
+1
+>>> p.threads() # 所有线程信息
+[pthread(id=1, user_time=0.090318, system_time=0.062736)]
+>>> p.environ() # 进程环境变量
+{'SHELL': '/bin/bash', 'PATH': '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:...', 'PWD': '/Users/michael', 'LANG': 'zh_CN.UTF-8', ...}
+>>> p.terminate() # 结束进程
+Terminated: 15 <-- 自己把自己结束了
+和获取网络连接类似，获取一个root用户的进程需要root权限，启动Python交互环境或者.py文件时，需要sudo权限。
+psutil还提供了一个test()函数，可以模拟出ps命令的效果：
+$ sudo python3
+Password: ******
+Python 3.6.3 ... on darwin
+Type "help", ... for more information.
+>>> import psutil
+>>> psutil.test()
+USER         PID %MEM     VSZ     RSS TTY           START    TIME  COMMAND
+root           0 24.0 74270628 2016380 ?             Nov18   40:51  kernel_task
+root           1  0.1 2494140    9484 ?             Nov18   01:39  launchd
+root          44  0.4 2519872   36404 ?             Nov18   02:02  UserEventAgent
+root          45    ? 2474032    1516 ?             Nov18   00:14  syslogd
+root          47  0.1 2504768    8912 ?             Nov18   00:03  kextd
+root          48  0.1 2505544    4720 ?             Nov18   00:19  fseventsd
+_appleeven    52  0.1 2499748    5024 ?             Nov18   00:00  appleeventsd
+root          53  0.1 2500592    6132 ?             Nov18   00:02  configd
+...
+小结
+psutil使得Python程序获取系统信息变得易如反掌。
+psutil还可以获取用户信息、Windows服务等很多有用的系统信息，具体请参考psutil的官网：https://github.com/giampaolo/psutil
+
+###virtualenv
+在开发Python应用程序的时候，系统安装的Python3只有一个版本：3.4。所有第三方的包都会被pip安装到Python3的site-packages目录下。
+如果我们要同时开发多个应用程序，那这些应用程序都会共用一个Python，就是安装在系统的Python 3。如果应用A需要jinja 2.7，而应用B需要jinja 2.6怎么办？
+这种情况下，每个应用可能需要各自拥有一套“独立”的Python运行环境。virtualenv就是用来为一个应用创建一套“隔离”的Python运行环境。
+首先，我们用pip安装virtualenv：
+$ pip3 install virtualenv
+然后，假定我们要开发一个新的项目，需要一套独立的Python运行环境，可以这么做：
+第一步，创建目录：
+Mac:~ michael$ mkdir myproject
+Mac:~ michael$ cd myproject/
+Mac:myproject michael$
+第二步，创建一个独立的Python运行环境，命名为venv：
+Mac:myproject michael$ virtualenv --no-site-packages venv
+Using base prefix '/usr/local/.../Python.framework/Versions/3.4'
+New python executable in venv/bin/python3.4
+Also creating executable in venv/bin/python
+Installing setuptools, pip, wheel...done.
+命令virtualenv就可以创建一个独立的Python运行环境，我们还加上了参数--no-site-packages，这样，已经安装到系统Python环境中的所有第三方包都不会复制过来，这样，我们就得到了一个不带任何第三方包的“干净”的Python运行环境。
+新建的Python环境被放到当前目录下的venv目录。有了venv这个Python环境，可以用source进入该环境：
+Mac:myproject michael$ source venv/bin/activate
+(venv)Mac:myproject michael$
+注意到命令提示符变了，有个(venv)前缀，表示当前环境是一个名为venv的Python环境。
+下面正常安装各种第三方包，并运行python命令：
+(venv)Mac:myproject michael$ pip install jinja2
+...
+Successfully installed jinja2-2.7.3 markupsafe-0.23
+(venv)Mac:myproject michael$ python myapp.py
+...
+在venv环境下，用pip安装的包都被安装到venv这个环境下，系统Python环境不受任何影响。也就是说，venv环境是专门针对myproject这个应用创建的。
+退出当前的venv环境，使用deactivate命令：
+(venv)Mac:myproject michael$ deactivate 
+Mac:myproject michael$ 
+此时就回到了正常的环境，现在pip或python均是在系统Python环境下执行。
+完全可以针对每个应用创建独立的Python运行环境，这样就可以对每个应用的Python环境进行隔离。
+virtualenv是如何创建“独立”的Python运行环境的呢？原理很简单，就是把系统Python复制一份到virtualenv的环境，用命令source venv/bin/activate进入一个virtualenv环境时，virtualenv会修改相关环境变量，让命令python和pip均指向当前的virtualenv环境。
+小结
+virtualenv为应用提供了隔离的Python运行环境，解决了不同应用间多版本的冲突问题。
+
+###
+
+
 </pre>
