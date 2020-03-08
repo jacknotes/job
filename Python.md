@@ -1,4 +1,4 @@
-﻿#Python
+﻿#Python for LiaoXueFeng
 比如，完成同一个任务，C语言要写1000行代码，Java只需要写100行，而Python可能只要20行。
 所以Python是一种相当高级的语言。
 
@@ -8997,4 +8997,260 @@ awesomepy-iphone-app-xcode
 由于我们的教程是Python，关于如何开发iOS，请移步Develop Apps for iOS。（https://developer.apple.com/technologies/ios/）
 点击下载iOS App源码。（https://github.com/michaelliao/awesome-python3-webapp/tree/day-16/ios）
 如何编写Android App？这个当成作业了。
+</pre>
+
+
+#Python for 51zxw
+<pre>
+#反爬虫机制1：判断用户是否是浏览器访问
+#应对机制：可以通过伪装浏览器进行访问
+#反爬虫机制2： 判断请求来源的ip地址
+#应对机制：使用代理ip地址
+#找代理ip，例如：百度搜索代理Ip
+
+##第一个爬虫
+-----------
+import urllib.request
+#from urllib import request
+import re
+import random
+
+url = r'http://www.baidu.com/'
+Agent1='Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36'
+Agent2='Mozilla/5.0 (Linux; U; Android 8.1.0; zh-cn; BLA-AL00 Build/HUAWEIBLA-AL00) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/57.0.2987.132 MQQBrowser/8.9 Mobile Safari/537.36'
+Agent3='Mozilla/5.0 (Linux; Android 6.0.1; OPPO A57 Build/MMB29M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/63.0.3239.83 Mobile Safari/537.36 T7/10.13 baiduboxapp/10.13.0.10 (Baidu; P1 6.0.1)'
+Agent4='Mozilla/5.0 (Linux; Android 8.1; EML-AL00 Build/HUAWEIEML-AL00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.143 Crosswalk/24.53.595.0 XWEB/358 MMWEBSDK/23 Mobile Safari/537.36 MicroMessenger/6.7.2.1340(0x2607023A) NetType/4G Language/zh_CN'
+Agent5='Mozilla/5.0 (Linux; U; Android 4.1.2; zh-cn; HUAWEI MT1-U06 Build/HuaweiMT1-U06) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30 baiduboxapp/042_2.7.3_diordna_8021_027/IEWAUH_61_2.1.4_60U-1TM+IEWAUH/7300001a/91E050E40679F078E51FD06CD5BF0A43%7C544176010472968/1'
+
+List1=[Agent1,Agent2,Agent3,Agent4,Agent5]
+#随机选择一个User-Agent
+Agent = random.choice(List1) 
+print(Agent)
+header={
+	"User-Agent": Agent 
+}
+#创建自定义请求对象，可以传入Cooking,User-Agent等信息，可以对抗反爬机制
+#反爬虫机制1：判断用户是否是浏览器访问
+#应对机制：可以通过伪装浏览器进行访问
+req = urllib.request.Request(url,headers=header)
+
+#发送请求,读取响应信息,解码
+response = urllib.request.urlopen(req).read().decode('utf-8')  
+#正则匹配
+pat = r'<title>(.*?)</title>'
+#使用正则查找解码的响应信息
+data = re.findall(pat,response)
+print(data[0])
+-----------
+
+##自定义opener
+-----------
+#基本的urlopen()方法不支持代理、cookie等其它的HTTP/HTTPS高级功能，
+#所以要支持就需要通过request.build_opener()方法创建自定义opener对象，
+#使用自定义的opener对象，调用open()方法发送请求。
+#如果程序所有请求都使用自定义opener，可以使用request.install_opener()
+#将自定义的opener对象定义为全局opener，表示之后凡是调用urlopen,都将使用
+#这个opener(根据需求需要选择)
+
+from urllib import request
+
+
+#构建HTTP处理器对象（专门处理HTTP请求的对象）
+http_handler = request.HTTPHandler()
+
+#创建自定义opener
+opener = request.build_opener(http_handler)
+
+#创建自定义请求对象
+req = request.Request(r'http://www.baidu.com')
+
+#发送请求，获取响应
+#response = opener.open(req).read().decode('utf-8')
+
+#把自定义opener设置为全局
+request.install_opener(opener)
+
+response = request.urlopen(req).read().decode('utf-8')
+
+print(response)
+-----------
+
+##使用代理IP
+-----------
+#反爬虫机制2： 判断请求来源的ip地址
+#应对机制：使用代理ip地址
+#找代理ip，例如：百度搜索代理Ip
+
+#ip:118.81.45.29:9797	
+
+from urllib import request
+import random
+
+#构建代理ip列表
+proxyList = [
+	{"http": "118.81.45.29:9797"},
+	{"http": "118.81.45.29:9797"}
+]
+#随机选择一个代理ip
+proxy = random.choice(proxyList)
+
+#构建代理处理器对象
+proxy_handler = request.ProxyHandler(proxy)
+#创建自定义opener(可以传入proxy处理器对象/http处理器对象)
+opener = request.build_opener(proxy_handler)
+
+req = request.Request("http://www.baidu.com/")
+#设置全局opener
+request.install_opener(opener)
+
+response = request.urlopen(req).read().decode('utf-8')
+
+print(response)
+-----------
+##处理GET请求
+-----------
+#URL编码
+from urllib import request
+import urllib
+
+#https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC
+
+wd = {"wd": "北京"}
+url="https://www.baidu.com/s?"
+#对wd进行url编码
+wdd = urllib.parse.urlencode(wd)
+url = url+wdd
+req = request.Request(url)
+
+http_handler = request.HTTPHandler()
+opener = request.build_opener(http_handler)
+request.install_opener(opener)
+response = request.urlopen(req).read().decode('utf-8')
+print(response)
+-----------
+
+##贴吧爬电虫
+-----------
+#https://tieba.baidu.com/f?kw=python&ie=utf-8&pn=0 第一页 (0-1)*50
+#https://tieba.baidu.com/f?kw=python&ie=utf-8&pn=50 第二页 (2-1)*50
+#https://tieba.baidu.com/f?kw=python&ie=utf-8&pn=100 第三页 (3-1)*50
+from urllib import request
+import urllib 
+import time
+
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+
+def loadPage(fullurl,filename):
+	print("now download", filename)
+	req = request.Request(fullurl,headers=headers)
+	response = request.urlopen(req).read()
+	return response
+
+def writePage(html,filename):
+	print("now save", filename)
+	with open(filename,'wb') as f:
+		f.write(html)
+	print("-------------------")
+
+def tiebaSpider(url,startPage,endPage,kw):
+	for i in range(startPage,endPage+1):
+		pn = (i-1)*50
+		fullurl = url + "&pn=" + str(pn)
+		filename = "d:/" + kw + "第" + str(i) + "页.html"
+		html = loadPage(fullurl,filename)
+		writePage(html,filename)
+
+if __name__ == "__main__":
+	kw = input('请输入贴吧名称:')
+	startPage = int(input('请输入起始页:'))
+	endPage = int(input('请输入结束页:'))
+	url = r"https://tieba.baidu.com/f?"
+	key = urllib.parse.urlencode({"kw": kw})
+	url = url+key
+
+	tiebaSpider(url,startPage,endPage,kw)
+-----------
+
+##处理POST请求
+-----------
+#处理POST请求，如果Request()方法里面有data参数，那么这个请求是POST，否则是GET
+from urllib import request
+import urllib
+import re
+#把有道翻译示例拿来做post方法爬虫
+#http://fanyi.youdao.com/translate_o?smartresult=dict&smartresult=rule
+
+key = "你好"
+url = "http://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule"
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+
+formdata={
+	"i": key,
+	"from": "AUTO",
+	"to": "AUTO",
+	"smartresult": "dict",
+	"client": "fanyideskweb",
+	"salt": "15836715282289",
+	"sign": "d931eac21fb068b7eb0e0e624dbedfa4",
+	"ts": "1583671528228",
+	"bv": "04578d470e7a887288dc80a9420e88ec",
+	"doctype": "json",
+	"version": "2.1",
+	"keyfrom": "fanyi.web",
+	"action": "FY_BY_REALTlME"
+}
+
+data = urllib.parse.urlencode(formdata).encode('utf-8')
+req = request.Request(url,data=data,headers=headers)
+response = request.urlopen(req).read().decode('utf-8')
+pat = r'"tgt":"(.*?)"}]]'
+result = re.findall(pat,response)
+print(result[0])
+-----------
+
+##爬虫异常处理
+-----------
+#spider的异常处理
+from urllib import request
+list1 = [
+	"http://www.baidu.com/",
+	"http://www.baidu.com/",
+	"http://www.bajackliskldfidu.com/",
+	"http://www.baidu.com/",
+	"http://www.baidu.com/",
+]
+i = 0
+for url in list1:
+	i=i+1
+	try:
+		request.urlopen(url)
+	except Exception as e:
+		print(e)
+	finally:
+		print("第"+str(i)+"次请求")
+-----------
+
+##cookie模拟登录
+-----------
+#模拟cookie登录
+from urllib import request
+
+url = r"http://i.baidu.com/"
+
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
+	"Cookie": "BIDUPSID=0B9C0ACB93F14AA261FC6CAE3A46F556; PSTM=1563323774; BAIDUID=2FB9EBDF8390E8C4000C8E86FB9ADDCB:FG=1; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; MCITY=-362%3A; BDUSS=2hrclJWOXZZYjNUVTVyYWNndldDcERzV05ncGNSWUprUmI2WDJMMmdoUlZBSXRlRVFBQUFBJCQAAAAAAAAAAAEAAAD1rhISsNnA7rHqtsgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVzY15Vc2Nec; H_PS_PSSID=30969_1450_21091_30999_30824_30717; BDSFRCVID=9xPOJeC624_iwzcujB1s26wBxOEE-sOTH6aofPqRQK3wiaFjKhiKEG0Pof8g0KubZS6EogKKLgOTHULF_2uxOjjg8UtVJeC6EG0Ptf8g0f5; H_BDCLCKID_SF=tJKJoCLytI-3fnjk-4rHh4FQqxby26P8MNR9aJ5nJD_M_nT624bhMxjLKNKq-MjOB2T4s4OvQpP-HJ7I0bQC0fny5UrK0tTi2I5iKl0MLn7tbb0xynoDWlJBQfnMBMnr52OnaU513fAKftnOM46JehL3346-35543bRTLnLy5KJtMDcnK4-XDTJbDa3P; delPer=0; PSINO=1; PHPSESSID=gatnc9kbiiskmrclgttgmoo7r3; Hm_lvt_4010fd5075fcfe46a16ec4cb65e02f04=1583675435,1583675448,1583675594; Hm_lpvt_4010fd5075fcfe46a16ec4cb65e02f04=1583675594"
+}
+
+req = request.Request(url,headers=headers)
+http_handler = request.HTTPHandler()
+opener = request.build_opener(http_handler)
+request.install_opener(opener)
+response = request.urlopen(req).read().decode('utf-8')
+print(response)
+-----------
 </pre>
