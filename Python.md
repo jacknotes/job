@@ -9253,4 +9253,256 @@ request.install_opener(opener)
 response = request.urlopen(req).read().decode('utf-8')
 print(response)
 -----------
+
+##requests模块
+第三方模块，需要使用pip install pip进行安装使用
+-----------
+#requests GET方法
+import requests
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 \
+	(KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+wd = {"wd":"中国"}
+#get方法获取url,.text是返回一个字符串形式(unicode)的数据,.content是返回一个二进制形式的数据
+#params参数可以直接使用不用编码，但在urllib.request中则需要编码拼凑
+response = requests.get("https://www.baidu.com/s?",params=wd,headers=headers)\
+print(response.content.decode())
+-----------
+#requests POST方法
+import requests
+import re
+key = "你好"
+url = "http://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule"
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+formdata={
+	"i": key,
+	"from": "AUTO",
+	"to": "AUTO",
+	"smartresult": "dict",
+	"client": "fanyideskweb",
+	"salt": "15836715282289",
+	"sign": "d931eac21fb068b7eb0e0e624dbedfa4",
+	"ts": "1583671528228",
+	"bv": "04578d470e7a887288dc80a9420e88ec",
+	"doctype": "json",
+	"version": "2.1",
+	"keyfrom": "fanyi.web",
+	"action": "FY_BY_REALTlME"
+}
+response = requests.request("post",url,headers=headers,data=formdata)
+pat = r'"tgt":"(.*?)"}]]}'
+result = re.findall(pat,response.text)
+print(result)
+------------
+#requests模块使用代理IP
+import requests
+#注意：urllib.request模块中代理ip变量是个数组，requests模块则是个字典
+proxyList = {
+	"http": "118.81.45.29:9797",
+	"http": "118.81.45.29:9797"
+}
+response = requests.request("get","http://www.baidu.com",proxies=proxyList)
+print(response.content.decode())
+---------
+#requests模块获取cookiejar
+import requests
+response = requests.get("http://www.baidu.com")
+
+#1.获取返回的cookiejar对象，包含了cookie信息，打印出来不对直接使用
+cookiejar = response.cookies
+#2.将cookiejar转换成字典形式
+cookiedict = requests.utils.dict_from_cookiejar(cookiejar)
+print(cookiejar)
+print(cookiedict)  #获取响应的信息
+---------
+#实现会话登录
+import requests
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+#创建session对象
+ses = requests.session()
+#建立form_data数据
+data = {"loginName":"jackli_RN", "password": "testpassword"}
+#红网论坛
+ses.post("https://passport.rednet.cn/passport/login?client_id=99039d48f5b9457d8a2a0194e5694689&redirect_uri=https%3A%2F%2Fbbs.rednet.cn%2F",headers=headers,data=data)
+#获取登录后才能获取的链接
+response = ses.get("https://bbs.rednet.cn/home.php?mod=space&uid=5973434")
+print(response.text)
+---------
+#musicSpider for requests METHOD
+import requests
+import re
+import time
+#第一页    
+#http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20
+#第二页
+#http://www.htqyy.com/top/musicList/hot?pageIndex=1&pageSize=20
+#第三页
+#http://www.htqyy.com/top/musicList/hot?pageIndex=2&pageSize=20
+#歌曲URL
+#http://www.htqyy.com/play/33
+#http://f2.htqyy.com/play7/33/mp3/3
+#正则匹配URL： target="play" title="牧羊曲" sid="108">
+#临时url
+#http://www.htqyy.com/genre/musicList/5?pageIndex=1&pageSize=20&order=hot
+pageurl1= "http://www.htqyy.com/genre/musicList/5?pageIndex="
+pageurl2= "&pageSize=20&order=hot"
+downurl1="http://f2.htqyy.com/play7/"
+downurl2="/mp3/3"
+songName = []
+songID = []
+spage = int(input("开始爬取的页数："))
+page = int(input("最终爬取的页数："))
+for i in range(spage-1,page):
+	url = pageurl1 + str(i) + pageurl2
+	#print(url)
+	strr = requests.get(url).text
+	pat1 = r'target="play" title="(.*?)" sid='
+	pat2 = r'" sid="(.*?)"'
+	titlelist = re.findall(pat1,strr)
+	sidlist = re.findall(pat2,strr)
+	songName.extend(titlelist)
+	songID.extend(sidlist)
+#print(songName,songID)
+for i in range(0,len(songID)):
+	songurl = downurl1+str(i)+downurl2
+	songmingzi = songName[i]
+	data = requests.get(songurl).content
+	if (i+1) % 50 == 0:
+		print("睡眠5秒")
+		time.sleep(5)
+	print("正在下载第"+str(i+1)+"首",songmingzi+".mp3")
+	with open("d:/python/music/china_music/{}.mp3".format(songmingzi),"wb") as f:
+		f.write(data)
+	#time.sleep(0.5)
+print("全部下载完成")
+---------
+#musicSpider for requests METHOD --use proxy
+import requests
+import re
+import time
+import random
+#第一页    
+#http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20
+#第二页
+#http://www.htqyy.com/top/musicList/hot?pageIndex=1&pageSize=20
+#第三页
+#http://www.htqyy.com/top/musicList/hot?pageIndex=2&pageSize=20
+#歌曲URL
+#http://www.htqyy.com/play/33
+#http://f2.htqyy.com/play7/33/mp3/3
+#正则匹配URL： target="play" title="牧羊曲" sid="108">
+#临时url
+#http://www.htqyy.com/genre/musicList/5?pageIndex=1&pageSize=20&order=hot
+pageurl1= "http://www.htqyy.com/genre/musicList/5?pageIndex="
+pageurl2= "&pageSize=20&order=hot"
+downurl1="http://f2.htqyy.com/play7/"
+downurl2="/mp3/3"
+songName = []
+songID = []
+proxyList = {
+	"http": "116.196.85.166:3128",
+	# "http": "119.237.73.133:3128"
+}
+spage = int(input("开始爬取的页数："))
+page = int(input("最终爬取的页数："))
+for i in range(spage-1,page):
+	url = pageurl1 + str(i) + pageurl2
+	#print(url)
+	strr = requests.request("get",url,proxies=proxyList).text
+	pat1 = r'target="play" title="(.*?)" sid='
+	pat2 = r'" sid="(.*?)"'
+	titlelist = re.findall(pat1,strr)
+	sidlist = re.findall(pat2,strr)
+	songName.extend(titlelist)
+	songID.extend(sidlist)
+#print(songName,songID)
+for i in range(0,len(songID)):
+	songurl = downurl1+str(i)+downurl2
+	songmingzi = songName[i]
+	data = requests.request("get",songurl,proxies=proxyList).content
+	if (i+1) % 50 == 0:
+		print("睡眠5秒")
+		time.sleep(5)
+	print("正在下载第"+str(i+1)+"首",songmingzi+".mp3")
+	with open("d:/python/music/china_music/{}.mp3".format(songmingzi),"wb") as f:
+		f.write(data)
+	#time.sleep(0.5)
+print("全部下载完成")
+---------
+#正则表达式
+#re.I忽略大小写
+strr="PYTHON2324"
+pat = re.compile(r'python',re.I)  
+#match函数和search函数
+strr = "PYTHON2sdfdjava324"
+pat = re.compile(r'java')
+print(re.match(par,strr))  #不能匹配java,match函数是从头开始匹配
+pat = re.compile(r'java')
+print(re.search(par,strr))  #能匹配java,search函数是任意匹配，只匹配先出现的
+#findall函数和finditer函数
+#findall函数把所有查找结果返回是列表
+#finditer函数把所有查找结果返回是迭代器
+strr='''hello---------hello
+... hhsdf--
+... hello
+... '''
+pat = re.compile(r'hello')
+data = pat.finditer(strr)
+list1 = []
+for i in data:
+  list1.append(i.group())
+#split函数和sub函数
+#split函数：按照能够匹配的子串将字符串分割后返回列表
+#sub方法：用于替换
+strr1="张三,,李四,,,王五"
+pat1=re.compile(r",+")
+print(pat1.split(strr1))  #返回结果是列表
+strr2="htllo 234,hello 789"
+pat2=re.compile(r"\d+")
+print(pat2.sub("world",strr2))  #返回的是str
+---------
+#爬取电话号码
+import requests
+import re
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+response = requests.get("https://changyongdianhuahaoma.51240.com/",headers=headers).text
+pat1 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>(.*?)</td>[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?</tr>'
+pat2 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?<td>(.*?)</td>[\s\S]*?</tr>'
+pattern1 = re.compile(pat1)
+pattern2 = re.compile(pat2)
+data1 = pattern1.findall(response)
+data2 = pattern2.findall(response)
+resultList = []
+for i in range(0,len(data1)):
+	resultList.append(data1[i]+data2[i])
+print(resultList)
+---------
+#爬取豆瓣电影排行榜
+import urllib.request
+import re
+headers = {
+	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+}
+url = "https://movie.douban.com/j/chart/top_list?type=11&interval_id=100%3A90&action=&start=0&limit=20"
+req = urllib.request.Request(url,headers=headers)
+response = urllib.request.urlopen(req).read().decode()
+#"rating":["9.7","50"]
+#"title":"肖申克的救赎"
+pat1 = r'"rating":\["(.*?)","\d+"\]'
+pat2 = r'"title":"(.*?)"'
+pettern1 = re.compile(pat1,re.I)
+pettern2 = re.compile(pat2,re.I)
+data1 = pettern1.findall(response)
+data2 = pettern2.findall(response)
+for i in range(0,len(data2)):
+	print("排名:",i+1,"电影名:",data2[i],"豆瓣评分:",data1[i])
+---------
+---------
 </pre>
