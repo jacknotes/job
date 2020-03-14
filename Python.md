@@ -9551,7 +9551,7 @@ print(result[0].text) #结果是个list
 #通过标签获取属性信息
 from lxml import etree
 html = etree.parse(r"d:\file\hello.html")
-result = etree.xpath("//li/a/@href")  #攻取li标签中属性是class的值
+result = html.xpath("//li/a/@href")  #攻取li标签中属性是class的值
 for i in result:   #通过for循环来获取所有a标签中链接的内容
 	requests.get(i)
 -----------
@@ -9951,6 +9951,107 @@ data=str(client.basicGeneral(image)).replace(" ","")
 pat=re.compile(r"{'words':'(.*?)'}")
 result=pat.findall(data)[0]
 print(result)
+-------------scrapy框架介绍和安装-------------
+#scrapy框架介绍和安装
+#scrapy框架专门用来实现爬虫的。为了爬取网站数据、提取结构性数据而编写的应用框架，
+#用途非常广泛，框架的优势在于，用户只需要定制开发几个模块就可以轻松的实现一个爬虫。
+#用来抓取网页内容以及各种图片，非常之方便。
+#安装：pip install scrapy
+# 制作 Scrapy 爬虫 一共需要4步：
+# 新建项目 (scrapy startproject xxx)：新建一个新的爬虫项目
+# 明确目标 （编写items.py）：明确你想要抓取的目标
+# 制作爬虫 （spiders/xxspider.py）：制作爬虫开始爬取网页
+# 存储内容 （pipelines.py）：设计管道存储爬取内容
+##创建项目
+# PS D:\Python\scrapy_project> scrapy startproject mySpider
+# New Scrapy project 'mySpider', using template directory 'd:\programdata\anaconda3\lib\site-packages\scrapy\templates\project', created in:
+#     D:\Python\scrapy_project\mySpider
+
+# You can start your first spider with:
+#     cd mySpider
+#     scrapy genspider example example.com
+# PS D:\Python\scrapy_project>
+##下面来简单介绍一下各个主要文件的作用：
+# scrapy.cfg ：项目的配置文件
+# mySpider/ ：项目的Python模块，将会从这里引用代码
+# mySpider/items.py ：项目的目标文件
+# mySpider/pipelines.py ：项目的管道文件
+# mySpider/settings.py ：项目的设置文件
+# mySpider/spiders/ ：存储爬虫代码目录
+
+##入门案例
+#爬取url:http://www.htqyy.com/top/hot
+#1. 把要爬取的目标确定下来并写到新建项目下的mySpider\mySpider\items.py中，例：
+# import scrapy
+# #定义目标数据的字段
+# class MyspiderItem(scrapy.Item):
+# 	title = scrapy.Field()  #歌曲名
+# 	artist = scrapy.Field()  #艺术家
+#2. 要项目根目录下执行命令生成爬虫文件，就是我们要写爬虫的地方，目录在：mySpider\mySpider\spiders\musicSpider.py
+#PS D:\Python\scrapy_project\mySpider> scrapy genspider musicSpider 'http://www.htqyy.com/'
+# Created spider 'musicSpider' using template 'basic' in module:
+#   mySpider.spiders.musicSpider
+##mySpider\mySpider\spiders\musicSpider.py文件内容
+# -*- coding: utf-8 -*-
+# import scrapy
+# class MusicspiderSpider(scrapy.Spider):
+#     name = 'musicSpider'  #表示爬虫识别的名称,运行爬虫是需要指定这个名称
+#     allowed_domains = ['http://www.htqyy.com/']  #表示能够爬取的范围,只允许爬取这个URL下的资源
+#	  start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
+
+#     def parse(self, response):  #这个response就是scrapy框架帮我们拿到的数据，我们只在编写爬虫在这个函数即可
+#         pass
+##入门案例2
+###编写parse函数
+## -*- coding: utf-8 -*-
+# import scrapy
+# class MusicspiderSpider(scrapy.Spider):
+#     name = 'musicSpider'  #表示爬虫识别的名称
+#     allowed_domains = ['http://www.htqyy.com/']  #表示能够爬取的范围
+#     start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
+
+#     def parse(self, response):
+#         filename = 'music.html'  #不写根路径，文件是建立在项目的根路径下
+#         data = response.body  #获取响应内容
+#         open(filename,'wb').write(data)  #写入文件
+#然后在mySpider项目的根目录下执行命令进行执行爬虫，例：
+#cd scrapy_Project\mySpider;
+#PS D:\Python\scrapy_project\mySpider> scrapy crawl musicSpider  #运行一个爬虫
+#然后可以打开scrapy_Project\music.html了
+##入门案例3:数据清洗
+# -*- coding: utf-8 -*-
+# import scrapy
+# import re
+# from lxml import etree
+# from mySpider.items import MyspiderItem
+
+# class MusicspiderSpider(scrapy.Spider):
+#     name = 'musicSpider'  #表示爬虫识别的名称
+#     allowed_domains = ['http://www.htqyy.com/']  #表示能够爬取的范围
+#     start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
+
+#     def parse(self, response):
+#         data = response.body.decode()  #获取响应内容并解码
+#         items = []  #存放音乐信息的列表
+#         titles = re.findall(r'target="play" title="(.*?)" sid=',data)  #获取所有歌曲名
+#         html = etree.HTML(data)  #获取所有艺术家
+#         artists = html.xpath('//span[@class="artistName"]/a')
+#         for i in range(0,len(titles)):
+#         	item = MyspiderItem()  #item对象是dict类型
+#         	item["title"] = titles[i]
+#         	item["artist"] = artists[i].text
+#         	items.append(item)
+#         return items
+###执行spider并输出为json格式文件
+###PS D:\Python\scrapy_project\mySpider> scrapy crawl musicSpider -o my.json
+#####最后新建解析json的python脚本进行解析
+# import json
+
+# with open(r"D:\Python\scrapy_project\mySpider\my.json","rb") as f:
+# 	data = json.load(f)
+# print(data)
+-------------
+
 -------------
 
 </pre>
