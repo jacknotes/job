@@ -1361,8 +1361,6 @@ StopIteration
 64
 81
 所以，我们创建了一个generator后，基本上永远不会调用next()，而是通过for循环来迭代它，并且不需要关心StopIteration的错误。
-
-所以，我们创建了一个generator后，基本上永远不会调用next()，而是通过for循环来迭代它，并且不需要关心StopIteration的错误。
 generator非常强大。如果推算的算法比较复杂，用类似列表生成式的for循环无法实现的时候，还可以用函数来实现。
 比如，著名的斐波拉契数列（Fibonacci），除第一个和第二个数外，任意一个数都可由前两个数相加得到：
 1, 1, 2, 3, 5, 8, 13, 21, 34, ...
@@ -10032,7 +10030,7 @@ print(result)
 
 #     def parse(self, response):
 #         data = response.body.decode()  #获取响应内容并解码
-#         items = []  #存放音乐信息的列表
+#        # items = []  #存放音乐信息的列表
 #         titles = re.findall(r'target="play" title="(.*?)" sid=',data)  #获取所有歌曲名
 #         html = etree.HTML(data)  #获取所有艺术家
 #         artists = html.xpath('//span[@class="artistName"]/a')
@@ -10040,8 +10038,9 @@ print(result)
 #         	item = MyspiderItem()  #item对象是dict类型
 #         	item["title"] = titles[i]
 #         	item["artist"] = artists[i].text
-#         	items.append(item)
-#         return items
+#			yield item
+#         #	items.append(item)
+#        # return items
 ###执行spider并输出为json格式文件
 ###PS D:\Python\scrapy_project\mySpider> scrapy crawl musicSpider -o my.json
 #####最后新建解析json的python脚本进行解析
@@ -10051,7 +10050,72 @@ print(result)
 # 	data = json.load(f)
 # print(data)
 -------------
+###入门案例4：pipelines管道
+#mySpider\mySpider\pipelines.py文件
+#管理文件，负责item的后期处理或保存，yield item的对象会返回到这个类中
+# class MyspiderPipeline(object):
+# 	def __init__(self):  #定义一些需要初始化的参数(可以省略)
+# 		self.file = open('music.txt','w')
+		
+#     def process_item(self, item, spider): #管理每次接收到item后执行的方法
+#         return item
 
+#     def close_spider(self,spider): #当爬取结束时执行的方法
+#     	self.spider.close()
 -------------
+####入门案例5:管道的具体实现
+#更改项目设置文件：mySpider\mySpider\settings.py
+# #设置管道的优先级，0-1000，需要去除注释，这样才能使文件写入本地
+# ITEM_PIPELINES = {
+#    'mySpider.pipelines.MyspiderPipeline': 300,
+# }
+#管理文件，负责item的后期处理或保存，yield item的对象会返回到这个类中
+# class MyspiderPipeline(object):
+# 	def __init__(self):  #定义一些需要初始化的参数(可以省略)
+# 		self.file = open('music.txt','a') #因为yield item不是一次性传完，所以使用追加
+
+# 	def process_item(self, item, spider): #管理每次接收到item后执行的方法(必须实现)
+# 		content = str(item)+"\n"
+# 		self.file.write(content)  #写入数据到本地
+# 		return item   #return item必须要有
+
+# 	def close_spider(self,spider): #当爬取结束时执行的方法(可以省略)
+# 		self.spider.close()
+----------
+######6：利用scrapy自动翻页
+# # -*- coding: utf-8 -*-
+# import scrapy
+# import re
+# from lxml import etree
+# from mySpider.items import MyspiderItem
+
+# class MusicspiderSpider(scrapy.Spider):
+#     name = 'musicSpider'  #表示爬虫识别的名称
+#     allowed_domains = ['www.htqyy.com']  #表示能够爬取的范围，不需要http://前缀，和/URI路径
+#     start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
+#     def parse(self, response):
+#         data = response.body.decode()  #获取响应内容并解码
+#         # items = []  #存放音乐信息的列表
+#         titles = re.findall(r'target="play" title="(.*?)" sid=',data)  #获取所有歌曲名
+#         html = etree.HTML(data)  #获取所有艺术家
+#         artists = html.xpath('//span[@class="artistName"]/a')
+#         for i in range(0,len(titles)):
+#             item = MyspiderItem()  #item对象是dict类型
+#             item["title"] = titles[i]
+#             item["artist"] = artists[i].text
+#             yield item  #使用生成器去返回每一个对象dict,比使用列表返回所有dict更快速
+#             # items.append(item)
+#         # return items
+#         #1.获取当前请求的url,提取出页码信息
+#         beforeurl = response.url
+#         pat = r"pageIndex=(\d)"
+#         page = re.search(pat,beforeurl).group(1)
+#         page = int(page)+1
+#         #2.构造下一页url
+#         if page < 5:
+#             nexturl = "http://www.htqyy.com/top/musicList/hot?pageIndex="+str(page)+"&pageSize=20"
+#             #yield关键字表示是一个生成器，使用回调函数调用parse(),并传入下一页url
+#             yield scrapy.Request(nexturl,callback=self.parse) 
+------------
 
 </pre>
