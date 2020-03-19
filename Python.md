@@ -10117,5 +10117,154 @@ print(result)
 #             #yield关键字表示是一个生成器，使用回调函数调用parse(),并传入下一页url
 #             yield scrapy.Request(nexturl,callback=self.parse) 
 ------------
+###7：scrapy 发送POST请求
+# # -*- coding: utf-8 -*-
+# import scrapy
+# class YoudaoSpider(scrapy.Spider):
+#     name = 'youdao'
+#     allowed_domains = ['fanyi.youdao.com']
+#     def start_requests(self): #start_urls变成start_requests请求了，因为这里是POST请求
+#         url = "http://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule"
+#         yield scrapy.FormRequest( #执行POST请求对象方法
+#         	url = url,
+#         	formdata = {
+# 		        "i": "你好",
+# 				"from": "AUTO",
+# 				"to": "AUTO",
+# 				"smartresult": "dict",
+# 				"client": "fanyideskweb",
+# 				"salt": "15836715282289",
+# 				"sign": "d931eac21fb068b7eb0e0e624dbedfa4",
+# 				"ts": "1583671528228",
+# 				"bv": "04578d470e7a887288dc80a9420e88ec",
+# 				"doctype": "json",
+# 				"version": "2.1",
+# 				"keyfrom": "fanyi.web",
+# 				"action": "FY_BY_REALTlME"
+#             },
+#             callback = self.parse #执行回调函数，回调函数中的response参数就是url和formdata POST请求所获取的响应
+#         )
+
+#     def parse(self, response):
+#         print('---------------')
+#         print(response.body)
+##mySpider\settings.py
+# Obey robots.txt rules
+#ROBOTSTXT_OBEY = True #ROBOTSTXT_OBEY要设为false，注释就是false
+-----------
+###8：scrapy框架添加请求头
+# # -*- coding: utf-8 -*-
+# import scrapy
+# import random
+# class YoudaoSpider(scrapy.Spider):
+#     name = 'youdao'
+#     allowed_domains = ['fanyi.youdao.com']
+#     def start_requests(self): #start_urls变成start_requests请求了，因为这里是POST请求
+#         url = "http://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule" #变量必须要定义在里面
+#         UserAgents = [
+#             "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
+#             "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
+#             "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+#         ]
+#         UserAgent = random.choice(UserAgents)
+#         headers = { "User-Agent": UserAgent }
+#         yield scrapy.FormRequest( #执行POST请求对象方法
+#             url = url,
+#             headers = headers,
+#             formdata = {
+# 		        "i": "你好",
+# 				"from": "AUTO",
+# 				"to": "AUTO",
+# 				"smartresult": "dict",
+# 				"client": "fanyideskweb",
+# 				"salt": "15836715282289",
+# 				"sign": "d931eac21fb068b7eb0e0e624dbedfa4",
+# 				"ts": "1583671528228",
+# 				"bv": "04578d470e7a887288dc80a9420e88ec",
+# 				"doctype": "json",
+# 				"version": "2.1",
+# 				"keyfrom": "fanyi.web",
+# 				"action": "FY_BY_REALTlME"
+#             },
+#             callback = self.parse #执行回调函数，回调函数中的response参数就是url和formdata POST请求所获取的响应
+#         )
+
+#     def parse(self, response):
+#         print('---------------')
+#         print(response.body)
+---------
+# #往excel插入数据
+# #安装相关模块：pip install xlsxwriter
+# import xlsxwriter
+# #创建文件，并添加一个工作表
+# workbook = xlsxwriter.Workbook('C:/Users/Jackli/desktop/demo.xlsx') #创建表
+# worksheet = workbook.add_worksheet() #增加sheet 
+# worksheet.write('A1','我要自学网')
+# worksheet.write('A2','python爬虫')
+# #关闭表格文件
+# workbook.close()
+#------------------
+###爬虫写入EXCEL
+# #爬取电话号码
+# import requests
+# import re
+# import xlsxwriter
+# headers = {
+# 	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+# }
+# response = requests.get("https://changyongdianhuahaoma.51240.com/",headers=headers).text
+# pat1 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>(.*?)</td>[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?</tr>'
+# pat2 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?<td>(.*?)</td>[\s\S]*?</tr>'
+# pattern1 = re.compile(pat1)
+# pattern2 = re.compile(pat2)
+# data1 = pattern1.findall(response)
+# data2 = pattern2.findall(response)
+# resultList = []
+# workbook = xlsxwriter.Workbook('C:/Users/Jackli/desktop/demo2.xlsx')
+# worksheet = workbook.add_worksheet()
+# for i in range(0,len(data1)):
+#     resultList.append(data1[i]+data2[i])
+#     worksheet.write('A' + str(i+1),data1[i])
+#     worksheet.write('B'+str(i+1),data2[i])
+# print(resultList)
+# workbook.close()
+-------------
+#往mysql插数据
+# #插入数据库
+# #pip install pymysql
+# import pymysql
+# db = pymysql.Connect(host="localhost",port=3306,user="root",passwd='root@password',db='spider',charset='utf8')
+# cursor = db.cursor() #新建游标对象
+# sql = "insert into tel (name,phone) values ('单位','000')"
+# cursor.execute(sql)  #用游标对象执行sql语句
+# db.commit() #提交事务
+# db.close() #关闭连接资源
+#-----------
+# import pymysql
+# import requests
+# import re
+# db = pymysql.Connect(host="localhost",port=3306,user="root",passwd='root@password',db='spider',charset='utf8')
+# cursor = db.cursor() #新建游标对象
+# headers = {
+# 	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
+# }
+# response = requests.get("https://changyongdianhuahaoma.51240.com/",headers=headers).text
+# pat1 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>(.*?)</td>[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?</tr>'
+# pat2 = r'<tr bgcolor="#EFF7F0">[\s\S]*?<td>[\s\S]*?</td>[\s\S]*?<td>(.*?)</td>[\s\S]*?</tr>'
+# pattern1 = re.compile(pat1)
+# pattern2 = re.compile(pat2)
+# data1 = pattern1.findall(response)
+# data2 = pattern2.findall(response)
+# sql1 = 'delete from tel'  #清空表
+# cursor.execute(sql1)
+# db.commit()
+# resultList = []
+# for i in range(0,len(data1)):
+#     resultList.append(data1[i]+data2[i])
+#     sql = "insert into tel (name,phone) values ('"+data1[i]+"','"+str(data2[i])+"')"
+#     cursor.execute(sql)  #用游标对象执行sql语句
+# print(resultList)
+# db.commit() #提交事务
+# db.close() #关闭连接资源
 
 </pre>
