@@ -9005,7 +9005,6 @@ awesomepy-iphone-app-xcode
 #反爬虫机制2： 判断请求来源的ip地址
 #应对机制：使用代理ip地址
 #找代理ip，例如：百度搜索代理Ip
-
 ##第一个爬虫
 -----------
 import urllib.request
@@ -9019,7 +9018,6 @@ Agent2='Mozilla/5.0 (Linux; U; Android 8.1.0; zh-cn; BLA-AL00 Build/HUAWEIBLA-AL
 Agent3='Mozilla/5.0 (Linux; Android 6.0.1; OPPO A57 Build/MMB29M; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/63.0.3239.83 Mobile Safari/537.36 T7/10.13 baiduboxapp/10.13.0.10 (Baidu; P1 6.0.1)'
 Agent4='Mozilla/5.0 (Linux; Android 8.1; EML-AL00 Build/HUAWEIEML-AL00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/53.0.2785.143 Crosswalk/24.53.595.0 XWEB/358 MMWEBSDK/23 Mobile Safari/537.36 MicroMessenger/6.7.2.1340(0x2607023A) NetType/4G Language/zh_CN'
 Agent5='Mozilla/5.0 (Linux; U; Android 4.1.2; zh-cn; HUAWEI MT1-U06 Build/HuaweiMT1-U06) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30 baiduboxapp/042_2.7.3_diordna_8021_027/IEWAUH_61_2.1.4_60U-1TM+IEWAUH/7300001a/91E050E40679F078E51FD06CD5BF0A43%7C544176010472968/1'
-
 List1=[Agent1,Agent2,Agent3,Agent4,Agent5]
 #随机选择一个User-Agent
 Agent = random.choice(List1) 
@@ -9031,7 +9029,6 @@ header={
 #反爬虫机制1：判断用户是否是浏览器访问
 #应对机制：可以通过伪装浏览器进行访问
 req = urllib.request.Request(url,headers=header)
-
 #发送请求,读取响应信息,解码
 response = urllib.request.urlopen(req).read().decode('utf-8')  
 #正则匹配
@@ -9040,7 +9037,6 @@ pat = r'<title>(.*?)</title>'
 data = re.findall(pat,response)
 print(data[0])
 -----------
-
 ##自定义opener
 -----------
 #基本的urlopen()方法不支持代理、cookie等其它的HTTP/HTTPS高级功能，
@@ -9049,36 +9045,26 @@ print(data[0])
 #如果程序所有请求都使用自定义opener，可以使用request.install_opener()
 #将自定义的opener对象定义为全局opener，表示之后凡是调用urlopen,都将使用
 #这个opener(根据需求需要选择)
-
 from urllib import request
-
 
 #构建HTTP处理器对象（专门处理HTTP请求的对象）
 http_handler = request.HTTPHandler()
-
 #创建自定义opener
 opener = request.build_opener(http_handler)
-
 #创建自定义请求对象
 req = request.Request(r'http://www.baidu.com')
-
 #发送请求，获取响应
 #response = opener.open(req).read().decode('utf-8')
-
 #把自定义opener设置为全局
 request.install_opener(opener)
-
 response = request.urlopen(req).read().decode('utf-8')
-
 print(response)
 -----------
-
 ##使用代理IP
 -----------
 #反爬虫机制2： 判断请求来源的ip地址
 #应对机制：使用代理ip地址
 #找代理ip，例如：百度搜索代理Ip
-
 #ip:118.81.45.29:9797	
 
 from urllib import request
@@ -9091,18 +9077,14 @@ proxyList = [
 ]
 #随机选择一个代理ip
 proxy = random.choice(proxyList)
-
 #构建代理处理器对象
 proxy_handler = request.ProxyHandler(proxy)
 #创建自定义opener(可以传入proxy处理器对象/http处理器对象)
 opener = request.build_opener(proxy_handler)
-
 req = request.Request("http://www.baidu.com/")
 #设置全局opener
 request.install_opener(opener)
-
 response = request.urlopen(req).read().decode('utf-8')
-
 print(response)
 -----------
 ##处理GET请求
@@ -9112,21 +9094,18 @@ from urllib import request
 import urllib
 
 #https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC
-
 wd = {"wd": "北京"}
 url="https://www.baidu.com/s?"
 #对wd进行url编码
 wdd = urllib.parse.urlencode(wd)
 url = url+wdd
 req = request.Request(url)
-
 http_handler = request.HTTPHandler()
 opener = request.build_opener(http_handler)
 request.install_opener(opener)
 response = request.urlopen(req).read().decode('utf-8')
 print(response)
 -----------
-
 ##贴吧爬电虫
 -----------
 #https://tieba.baidu.com/f?kw=python&ie=utf-8&pn=0 第一页 (0-1)*50
@@ -9139,7 +9118,6 @@ import time
 headers = {
 	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36"
 }
-
 def loadPage(fullurl,filename):
 	print("now download", filename)
 	req = request.Request(fullurl,headers=headers)
@@ -9167,10 +9145,8 @@ if __name__ == "__main__":
 	url = r"https://tieba.baidu.com/f?"
 	key = urllib.parse.urlencode({"kw": kw})
 	url = url+key
-
 	tiebaSpider(url,startPage,endPage,kw)
 -----------
-
 ##处理POST请求
 -----------
 #处理POST请求，如果Request()方法里面有data参数，那么这个请求是POST，否则是GET
@@ -9179,7 +9155,6 @@ import urllib
 import re
 #把有道翻译示例拿来做post方法爬虫
 #http://fanyi.youdao.com/translate_o?smartresult=dict&smartresult=rule
-
 key = "你好"
 url = "http://fanyi.youdao.com/translate?smartresult=dict&smartresult=rule"
 headers = {
@@ -9209,7 +9184,6 @@ pat = r'"tgt":"(.*?)"}]]'
 result = re.findall(pat,response)
 print(result[0])
 -----------
-
 ##爬虫异常处理
 -----------
 #spider的异常处理
@@ -9231,19 +9205,15 @@ for url in list1:
 	finally:
 		print("第"+str(i)+"次请求")
 -----------
-
 ##cookie模拟登录
 -----------
 #模拟cookie登录
 from urllib import request
-
 url = r"http://i.baidu.com/"
-
 headers = {
 	"User-Agent": "Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36",
 	"Cookie": "BIDUPSID=0B9C0ACB93F14AA261FC6CAE3A46F556; PSTM=1563323774; BAIDUID=2FB9EBDF8390E8C4000C8E86FB9ADDCB:FG=1; BDORZ=B490B5EBF6F3CD402E515D22BCDA1598; MCITY=-362%3A; BDUSS=2hrclJWOXZZYjNUVTVyYWNndldDcERzV05ncGNSWUprUmI2WDJMMmdoUlZBSXRlRVFBQUFBJCQAAAAAAAAAAAEAAAD1rhISsNnA7rHqtsgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFVzY15Vc2Nec; H_PS_PSSID=30969_1450_21091_30999_30824_30717; BDSFRCVID=9xPOJeC624_iwzcujB1s26wBxOEE-sOTH6aofPqRQK3wiaFjKhiKEG0Pof8g0KubZS6EogKKLgOTHULF_2uxOjjg8UtVJeC6EG0Ptf8g0f5; H_BDCLCKID_SF=tJKJoCLytI-3fnjk-4rHh4FQqxby26P8MNR9aJ5nJD_M_nT624bhMxjLKNKq-MjOB2T4s4OvQpP-HJ7I0bQC0fny5UrK0tTi2I5iKl0MLn7tbb0xynoDWlJBQfnMBMnr52OnaU513fAKftnOM46JehL3346-35543bRTLnLy5KJtMDcnK4-XDTJbDa3P; delPer=0; PSINO=1; PHPSESSID=gatnc9kbiiskmrclgttgmoo7r3; Hm_lvt_4010fd5075fcfe46a16ec4cb65e02f04=1583675435,1583675448,1583675594; Hm_lpvt_4010fd5075fcfe46a16ec4cb65e02f04=1583675594"
 }
-
 req = request.Request(url,headers=headers)
 http_handler = request.HTTPHandler()
 opener = request.build_opener(http_handler)
@@ -9251,9 +9221,8 @@ request.install_opener(opener)
 response = request.urlopen(req).read().decode('utf-8')
 print(response)
 -----------
-
 ##requests模块
-第三方模块，需要使用pip install pip进行安装使用
+第三方模块，需要使用pip install requests进行安装使用
 -----------
 #requests GET方法
 import requests
@@ -9308,8 +9277,7 @@ print(response.content.decode())
 #requests模块获取cookiejar
 import requests
 response = requests.get("http://www.baidu.com")
-
-#1.获取返回的cookiejar对象，包含了cookie信息，打印出来不对直接使用
+#1.获取返回的cookiejar对象，包含了cookie信息，打印出来不ce 直接使用
 cookiejar = response.cookies
 #2.将cookiejar转换成字典形式
 cookiedict = requests.utils.dict_from_cookiejar(cookiejar)
@@ -9323,7 +9291,7 @@ headers = {
 }
 #创建session对象
 ses = requests.session()
-#建立form_data数据
+#建立form_data数据,"loginName"和"password"通过开发工具元素选择知道的
 data = {"loginName":"jackli_RN", "password": "testpassword"}
 #红网论坛
 ses.post("https://passport.rednet.cn/passport/login?client_id=99039d48f5b9457d8a2a0194e5694689&redirect_uri=https%3A%2F%2Fbbs.rednet.cn%2F",headers=headers,data=data)
@@ -9439,7 +9407,7 @@ pat = re.compile(r'python',re.I)
 #match函数和search函数
 strr = "PYTHON2sdfdjava324"
 pat = re.compile(r'java')
-print(re.match(par,strr))  #不能匹配java,match函数是从头开始匹配
+print(re.match(pat,strr))  #不能匹配java,match函数是从头开始匹配
 pat = re.compile(r'java')
 print(re.search(par,strr))  #能匹配java,search函数是任意匹配，只匹配先出现的
 #findall函数和finditer函数
@@ -9501,10 +9469,9 @@ data1 = pettern1.findall(response)
 data2 = pettern2.findall(response)
 for i in range(0,len(data2)):
 	print("排名:",i+1,"电影名:",data2[i],"豆瓣评分:",data1[i])
----------
 -----------
 #xpath介绍和lxml安装 
-#xpath只能处理html,处理起来很简单。正则表达式什么文字都可以处理。较复杂。
+#xpath只能处理html,处理起来很简单。正则表达式是什么文字都可以处理，较复杂。
 #xpath:先将HTML文件转换成XML文档。然后用xpath查找HTML节点或元素。
 #我们需要安装lxml模块来支持xPath的操作
 #pip install lxml  #安装lxml以支持xpath
@@ -9549,7 +9516,7 @@ print(result[0].text) #结果是个list
 #通过标签获取属性信息
 from lxml import etree
 html = etree.parse(r"d:\file\hello.html")
-result = html.xpath("//li/a/@href")  #攻取li标签中属性是class的值
+result = html.xpath("//li/a/@href")  #获取li标签中a标签中属性是href的值
 for i in result:   #通过for循环来获取所有a标签中链接的内容
 	requests.get(i)
 -----------
@@ -9561,18 +9528,18 @@ result1 = html.xpath("//li/a")  #获取li标签下一组长a标签所有的内�
 result2 = html.xpath("//li//span") #获取li标签中所有(包括多级子标签)span标签的内容
 print(result2)
 result3 = html.xpath("//li/a/@class") #获取li标签的下一级a标签的所有（不包括多级子标签）class属性的值
-result4 = html.xpath("//li/a//@class") #获取li标签下一组a标签中所有（包括多级子标签）class属性的值
+result4 = html.xpath("//li/a//@class") #获取li标签的下一组a标签中所有（包括多级子标签）class属性的值
 print(result4)
 -----------
 #获取标签内容和标签名
 from lxml import etree
 html = etree.parse(r"d:\file\hello.html")
-# result = html.xpath("//li[last()-1]/a")  #[last()-1] 倒数第二个li标签a标签的值
+# result = html.xpath("//li[last()-1]/a")  #[last()-1] 倒数第二个li标签a标签的值，text()表示获取内容
 # print(result[0].text)
 result1 = html.xpath("//li/a")  
 print(result1[-2].text) #倒数第二个值
 #获取class值为bold的标签名
-result2 = html.xpath("//*[@class='bold']")
+result2 = html.xpath("//*[@class='bold']") #表示获取所有标签属性是class='bold'的值
 print(result2[0].tag)  #.tag表示获取标签名，.text表示获取标签内容
 -----------
 #爬取网络段子
@@ -9683,7 +9650,6 @@ if __name__ == '__main__':
 #BeautifulSoup模块简介和安装
 #功能和lxml的xpath()用法一样，用来解析html和xml数据,css样式表，重点关注html
 #pip install beautifulsoup4
-
 from bs4 import BeautifulSoup
 import re
 
@@ -9710,8 +9676,8 @@ and they lived at the bottom of a well.</p>
 # print(soup.title) #获取soup对象的整个title
 # print(soup.title.string)  #获取soup对象的title内容
 # print(soup.title.name)  #通过标签名获取标签名，比较鸡肋
-# print(soup.p.attrs['name']) #获取第一个p标签内所有属性，属性为name的
-# print(soup.head.contents) #获取指定标签的所有内容，以标签分隔为list
+# print(soup.p.attrs['name']) #获取第一个p标签内属性为name的属性值
+# print(soup.head.contents) #获取指定标签的所有内容，以标签分隔，为list类型
 # print(soup.head.children)  #返回的是一个迭代器对象,以标签为一组数据
 # for i in soup.head.children:
 # 	print(i)
@@ -9756,7 +9722,7 @@ soup = BeautifulSoup(html,'lxml')
 # for i in data:
 # 	print(i)
 #id选择器
-# data = soup.select('p#link1') #查找p标签相id=link1的结果
+# data = soup.select('p#link1') #查找p标签id=link1的结果
 # for i in data:
 # 	print(i)
 #通过其他属性查找
@@ -9782,13 +9748,13 @@ for x in range(0,20):
 	req=urllib.request.Request(url,headers=headers)
 	data=urllib.request.urlopen(req).read().decode()
 	soup=BeautifulSoup(data,"lxml")
-	urllist=soup.select('td a[target="_blank"]')
+	urllist=soup.select('td a[target="_blank"]')  #标签以空格分隔
 	for x in urllist:
-		myurl="https://hr.tencent.com/"+x.attrs["href"]
+		myurl="https://hr.tencent.com/"+x.attrs["href"] #获取标签中属性的值
 		req2=urllib.request.Request(myurl,headers=headers)
 		data2=urllib.request.urlopen(req2).read().decode()
 		soup=BeautifulSoup(data2,"lxml")
-		name=soup.select('tr td[id="sharetitle"]')[0].get_text()
+		name=soup.select('tr td[id="sharetitle"]')[0].get_text() #获取第一行的文本值
 		textlist=soup.select('ul[class="squareli"] li')
 		text=""
 		for i in textlist:
@@ -9860,11 +9826,11 @@ flag2=False #用来判断数据队列中是否为空
 
 def main():
     #页码队列
-    pageQueue=queue.Queue(10)
+    pageQueue=queue.Queue(10) #队列长度
     for i in range(1,11):
         pageQueue.put(i)
     #存放采集结果的数据队列
-    dataQueue=queue.Queue()
+    dataQueue=queue.Queue() #队列没有长度
     #保存到本地的文件
     filename=open(r"d:\python\test\dianzi.txt","a")
     #启动线程
@@ -9986,7 +9952,7 @@ print(result)
 # 	title = scrapy.Field()  #歌曲名
 # 	artist = scrapy.Field()  #艺术家
 #2. 要项目根目录下执行命令生成爬虫文件，就是我们要写爬虫的地方，目录在：mySpider\mySpider\spiders\musicSpider.py
-#PS D:\Python\scrapy_project\mySpider> scrapy genspider musicSpider 'http://www.htqyy.com/'
+#PS D:\Python\scrapy_project\mySpider> scrapy genspider musicSpider 'www.htqyy.com'
 # Created spider 'musicSpider' using template 'basic' in module:
 #   mySpider.spiders.musicSpider
 ##mySpider\mySpider\spiders\musicSpider.py文件内容
@@ -9994,7 +9960,7 @@ print(result)
 # import scrapy
 # class MusicspiderSpider(scrapy.Spider):
 #     name = 'musicSpider'  #表示爬虫识别的名称,运行爬虫是需要指定这个名称
-#     allowed_domains = ['http://www.htqyy.com/']  #表示能够爬取的范围,只允许爬取这个URL下的资源
+#     allowed_domains = ['www.htqyy.com']  #表示能够爬取的范围,只允许爬取这个URL下的资源
 #	  start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
 
 #     def parse(self, response):  #这个response就是scrapy框架帮我们拿到的数据，我们只在编写爬虫在这个函数即可
@@ -10005,7 +9971,7 @@ print(result)
 # import scrapy
 # class MusicspiderSpider(scrapy.Spider):
 #     name = 'musicSpider'  #表示爬虫识别的名称
-#     allowed_domains = ['http://www.htqyy.com/']  #表示能够爬取的范围
+#     allowed_domains = ['www.htqyy.com']  #表示能够爬取的范围
 #     start_urls = ['http://www.htqyy.com/top/musicList/hot?pageIndex=0&pageSize=20']  #表示爬取的起始URL
 
 #     def parse(self, response):
@@ -10065,7 +10031,7 @@ print(result)
 -------------
 ####入门案例5:管道的具体实现
 #更改项目设置文件：mySpider\mySpider\settings.py
-# #设置管道的优先级，0-1000，需要去除注释，这样才能使文件写入本地
+# #设置管道的优先级，0-1000，需要去除注释，这样才能使文件写入本地，才能正常运行pipeline
 # ITEM_PIPELINES = {
 #    'mySpider.pipelines.MyspiderPipeline': 300,
 # }
