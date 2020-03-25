@@ -68,9 +68,13 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
                     with open(singer_name[i] + '/%s.mp3' % down_musicTITLE.replace('/','_'),'wb') as f:
                         f.write(data)
                 except OSError as e:
-                    print(e)
-                    print("磁盘空间不足")
-                    exit(1)
+                    result = re.findall(r'Errno (.*?)]',e)
+                    if result == 28:
+                        print(e)
+                        print("磁盘空间不足")
+                        exit(1)
+                    else:
+                        print(e)
             print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),singer_name[i] + '全部音乐下载完成' + '\n')
         else:
             print("此目录已存在", singer_name[i],'\n')
