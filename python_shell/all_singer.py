@@ -62,14 +62,17 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
                     res = requests.get(json_URL,headers=head).text
                     str_to_json = json.loads(res[1:-1]) #裁剪json
                     down_musicURL = str_to_json["wma"]
-                    data = requests.get(down_musicURL,head).content
-                    num += 1
-                    print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),"开始下载第"+ str(num) +"首:", down_musicTITLE + ".mp3")
-                    with open(singer_name[i] + '/%s.mp3' % down_musicTITLE.replace('/','_'),'wb') as f:
-                        f.write(data)
+                    if re.findall(r'^http.*',down_musicURL):
+                        data = requests.get(down_musicURL,head).content
+                        num += 1
+                        print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),"开始下载第"+ str(num) +"首:", down_musicTITLE + ".mp3")
+                        with open(singer_name[i] + '/%s.mp3' % down_musicTITLE.replace('/','_'),'wb') as f:
+                            f.write(data)
+                    else:
+                        print(down_musicTITLE, '歌曲的URL不是合法的,非法URL是：' + down_musicURL)
                 except OSError as e:
                     result = re.findall(r'Errno (.*?)]',e)
-                    if result == 28:
+                    if result == str(28):
                         print(e)
                         print("磁盘空间不足")
                         exit(1)
