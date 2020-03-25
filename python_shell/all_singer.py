@@ -7,7 +7,7 @@ import re
 import json
 import os 
 import random
-import time
+import datetime
 
 headers = [
     "Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_3_3 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8J2 Safari/6533.18.5",
@@ -50,7 +50,7 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
     for i in range(0,len(singer_name)):
         if not os.path.isdir(singer_name[i]):
             os.mkdir(singer_name[i])
-            print("开始下载歌手", singer_name[i], "的歌曲到" + path + '/' + singer_name[i], '\n')
+            print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),"开始下载歌手", singer_name[i], "的歌曲到" + path + '/' + singer_name[i], '\n')
             for j in range(0,len(singer_music_name[i])):
                 try:
                     down_musicTITLE = singer_music_name[i][j]
@@ -64,14 +64,14 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
                     down_musicURL = str_to_json["wma"]
                     data = requests.get(down_musicURL,head).content
                     num += 1
-                    print("开始下载第"+ str(num) +"首:", down_musicTITLE + ".mp3")
+                    print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),"开始下载第"+ str(num) +"首:", down_musicTITLE + ".mp3")
                     with open(singer_name[i] + '/%s.mp3' % down_musicTITLE.replace('/','_'),'wb') as f:
                         f.write(data)
                 except OSError as e:
                     print(e)
                     print("磁盘空间不足")
                     exit(1)
-            print(singer_name[i] + '全部音乐下载完成' + '\n')
+            print(datetime.datetime.now().strftime('%Y-%m-%d %H-%M-%S'),singer_name[i] + '全部音乐下载完成' + '\n')
         else:
             print("此目录已存在", singer_name[i],'\n')
 
