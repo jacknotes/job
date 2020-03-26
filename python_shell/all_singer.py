@@ -42,9 +42,8 @@ def get_singer_info(url): #返回歌手姓名和歌手详情页，类型都是li
     singer_url.extend( [ 'http://www.9ku.com' + i for i in html.xpath('//li/a[@class="t-t"]/@href') ] )
     return singer_name, singer_url
 
-def download_music(singer_music_name,singer_music_url,singer_name,path):
+def download_music(singer_music_name,singer_music_url,singer_name,path,num):
     pat = re.compile(r'/play/(.*?).htm')
-    num = 0  #歌曲序列
     down_url_q = 'http://www.9ku.com/html/playjs/'
     os.chdir(path)
     for i in range(0,len(singer_name)):
@@ -71,8 +70,8 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
                     else:
                         print(down_musicTITLE, '歌曲的URL不是合法的,非法URL是：' + down_musicURL)
                 except OSError as e:
-                    result = re.findall(r'Errno (.*?)]',e)
-                    if result == str(28):
+                    result = re.findall(r'Errno (.*?)]',str(e))
+                    if len(result) > 0 and result[0] == str(28):
                         print(e)
                         print("磁盘空间不足")
                         exit(1)
@@ -84,11 +83,12 @@ def download_music(singer_music_name,singer_music_url,singer_name,path):
 
 def main():
     path = 'd:/python/music/9ku_music/all_singer'
+    num = 0  #歌曲序列
     for i in range(0,2):
         url = "http://www.9ku.com/geshou/all-all-all/" + str(i+1) + ".htm"
         singer_name, singer_url = get_singer_info(url)
         singer_music_name, singer_music_url = get_singer_music_info(singer_url)
-        download_music(singer_music_name,singer_music_url,singer_name,path)
+        download_music(singer_music_name,singer_music_url,singer_name,path,num)
     print('全部音乐下载完成')
 
 if __name__ == "__main__":
