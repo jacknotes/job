@@ -1,0 +1,8 @@
+#ip		serverName		serverType   
+192.168.43.202   node2 			 docker-server      
+192.168.43.203   node3       		 windows_server      
+
+
+ 
+
+
