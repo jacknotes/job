@@ -67,6 +67,40 @@ Channels： 虚拟连接。它建立在上述的TCP连接中。数据流动都�
 那么，为什么使用Channel，而不是直接使用TCP连接？
 对于OS来说，建立和关闭TCP连接是有代价的，频繁的建立关闭TCP连接对于系统的性能有很大的影响，而且TCP的连接数也有限制，这也限制了系统处理高并发的能力。但是，在TCP连接中建立Channel是没有上述代价的。对于Producer或者Consumer来说，可以并发的使用多个Channel进行Publish或者Receive。有实验表明，1s的数据可以Publish10K的数据包。当然对于不同的硬件环境，不同的数据包大小这个数据肯定不一样，但是我只想说明，对于普通的Consumer或者Producer来说，这已经足够了。如果不够用，你考虑的应该是如何细化split你的设计。
 
+解耦：
+消息传输过程中保存消息的容器，
+队列的主要目的：是提供路由并保证消息的传递
+如果发送消息时接收者不可用，消息队列会保留消息，直到成功为止，当然，消息队列保存消息也是有期限的。
+PTP:点对点，一个消息只有一个消费者，消费者消费后会发送确认消息给队列。
+publish/subscribe:发布和订阅，消费者需要订阅主题，分持久订阅和非持久订阅，一个消息有多信订阅者，客户端只有订阅后才能接收到消息，
+持久订阅：订阅关系建立后，消息就不会消失，不管订阅者是否在线
+非持久订阅：订阅者为了接收消息，必须一直在线，否则消息会消失
+
+#简单模式（一对一）：
+①生产者发送消息给交换机
+②交换机接收消息，如果交换机没有绑定队列，消息扔进垃圾桶
+③队列接收消息，存储在内存，等待消费者连接监听获取消息，消费成功后，返回确认
+一些场景：短信，QQ
+#工作模式（一对多）：
+①生产者将消息发送给交换机
+②交换机发送给绑定的后端队列
+③一个队列被多个消费者同时监听，形成消息的争抢结构：根据消费者所在的系统的空闲、性能争抢队列中的消息
+一些场景：抢红包
+#发布订阅模式：
+①交换机定义类型为：fanout
+②交换机绑定多个队列
+③生产者将消息发送给交换机，交换机复制同步消息到后端所有的队列中
+一些场景：邮件群发
+#路由模式：
+①交换机定义类型为：direct
+②交换机绑定多个队列，队列绑定交换机时，给交换机提供了一个routingkey（路由key）
+③发布订阅时，所有fanout类型的交换机绑定后端队列用的路由key都是“”；在路由模式中需要绑定队列时提供当前队列的具体路由key
+一些场景：错误消息的接收和提示
+#主题模式：
+①交换机定义类型为：topic
+②交换机绑定多个队列，与路由模式非常相似，做到按类划分消息
+③路由key队列绑定的通配符如下：#表示任意字符串，*表示没有特殊符号（单词）的字符串
+
 
 #RabbitMQ部署
 RabbitMQ模式大概分为以下三种:
@@ -75,16 +109,318 @@ RabbitMQ模式大概分为以下三种:
 (3) 镜像模式(把需要的队列做成镜像队列，存在于多个节点，属于RabbiMQ的HA方案，在对业务可靠性要求较高的场合中比较适用)。
 要实现镜像模式，需要先搭建一个普通集群模式，在这个模式的基础上再配置镜像模式以实现高可用。
 
-官方文档地址：http://www.rabbitmq.com/install-rpm.html
-安装rabbitmq依赖erlang环境，所以我们要先安装erlang环境。
-rpm -Uvh https://download.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-[root@jack download]# yum install -y erlang
-[root@jack download]# rpm --import https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc
-[root@jack download]# vim /etc/yum.repos.d/rabbitMQ.repo
+#单一模式部署：
+注：安装erlang版本要大于21.6,因为rabbitmq-server3.8需要这样
+#安装Erlang:
+#创建Erlang的yum源：
+[root@node3 yum.repos.d]# cat rabbitmq-erlang.repo 
+[rabbitmq-erlang]
+name=rabbitmq-erlang
+baseurl=https://mirrors.tuna.tsinghua.edu.cn/erlang-solutions/centos/7
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
+gpgcheck=0
+#创建rabbitmq的yum源：
+[root@node3 yum.repos.d]# cat rabbitmq.repo 
 [bintray-rabbitmq-server]
 name=bintray-rabbitmq-rpm
 baseurl=https://dl.bintray.com/rabbitmq/rpm/rabbitmq-server/v3.8.x/el/7/
 gpgcheck=0
 repo_gpgcheck=0
 enabled=1
-[root@jack download]# yum repolist 
+[root@node2 yum.repos.d]# yum clean all 
+[root@node2 yum.repos.d]# yum makecache
+#安装Erlang：
+sudo yum install -y erlang 			##--disablerepo=epel
+#安装启动rabbitmq
+#导入密钥：
+rpm --import https://github.com/rabbitmq/signing-keys/releases/download/2.0/rabbitmq-release-signing-key.asc
+[root@node3 pki]# yum install -y rabbitmq-server 
+[root@node3 pki]# systemctl start rabbitmq-server.service
+#rabbit中配置文件夹会于/etc/rabbitmq/,下面没有配置文件，都需要新建配置文件。rabbitmq.conf是用sysctl新格式风格书写,rabbitmq.config是用erlang老格式书写。就是config后缀节尾是老格式，conf是新格式，rabbitmq-env.conf要在rabbitmq.conf之前被加载，它其实就是通过linux环境变量来影响程序的行为，比如可以通过rabbitmq-env.conf指定接下来要加载的rabbitmq.conf文件的位置。
+要覆盖RabbitMQ配置文件的主要位置，请使用RABBITMQ_CONFIG_FILE  环境变量。将.conf用作新样式配置格式的文件扩展名。
+某些配置设置不可能或难以使用sysctl格式进行配置。这样，可以使用Erlang术语格式的另一个配置文件（与rabbitmq.config相同）。该文件通常命名为advanced.config。它将与Rabbitmq.conf中提供的配置合并。要覆盖高级配置文件的位置，请使用RABBITMQ_ADVANCED_CONFIG_FILE 环境变量。
+#配置文件案例范本链接：https://github.com/rabbitmq/rabbitmq-server/tree/master/docs
+[root@node3 ~]# netstat -tunlp | egrep '5672|4369'
+tcp        0      0 0.0.0.0:25672           0.0.0.0:*               LISTEN      51619/beam.smp      
+tcp        0      0 0.0.0.0:4369            0.0.0.0:*               LISTEN      30064/epmd               
+tcp6       0      0 :::5672                 :::*                    LISTEN      51619/beam.smp      
+tcp6       0      0 :::4369                 :::*                    LISTEN      30064/epmd          
+注：端口解释：
+4369：RabbitMQ节点和CLI工具使用的对等发现服务端口
+5672：AMQP端口，用于API编程
+25672：集群端口
+#添加用户：
+[root@node3 download]# rabbitmqctl add_user admin password
+Adding user "admin" ...
+#设置用户角色：
+#tag（administrator，monitoring，policymaker，management）
+[root@node3 download]# rabbitmqctl set_user_tags admin administrator
+Setting tags for user "admin" to [administrator] ...
+#设置用户权限：
+#设置用户权限(接受来自所有Host的所有操作)
+[root@node3 download]# rabbitmqctl set_permissions -p '/' admin '.*' '.*' '.*'
+Setting permissions for user "admin" in vhost "/" ...
+#列出所有用户及所属角色
+[root@node3 download]# rabbitmqctl list_users
+Listing users ...
+user	tags
+admin	[administrator]
+guest	[administrator]
+#列出指定用户权限
+[root@node3 download]# rabbitmqctl list_user_permissions admin
+Listing permissions for user "admin" ...
+vhost	configure	write	read
+/	.*	.*	.*
+[root@node3 rabbit@node3]# rabbitmq-plugins enable rabbitmq_management #开启插件，此时会打开15652端口，可以通过web管理rabbitmq-server
+Enabling plugins on node rabbit@node3:
+rabbitmq_management
+The following plugins have been configured:
+  rabbitmq_management
+  rabbitmq_management_agent
+  rabbitmq_web_dispatch
+Applying plugin configuration to rabbit@node3...
+The following plugins have been enabled:
+  rabbitmq_management
+  rabbitmq_management_agent
+  rabbitmq_web_dispatch
+started 3 plugins.
+注：此时会打开15672端口，这个端口用于web-manager 
+
+# 添加用户
+sudo rabbitmqctl add_user <username> <password>  
+# 删除用户
+sudo rabbitmqctl delete_user <username>  
+# 修改用户密码
+sudo rabbitmqctl change_password <username> <newpassword>  
+# 清除用户密码（该用户将不能使用密码登陆，但是可以通过SASL登陆如果配置了SASL认证）
+sudo rabbitmqctl clear_password <username> 
+# 设置用户tags（相当于角色，包含administrator，monitoring，policymaker，management）
+sudo rabbitmqctl set_user_tags <username> <tag>
+# 列出所有用户
+sudo rabbitmqctl list_users  
+# 创建一个vhosts
+sudo rabbitmqctl add_vhost <vhostpath>  
+# 删除一个vhosts
+sudo rabbitmqctl delete_vhost <vhostpath>  
+# 列出vhosts
+sudo rabbitmqctl list_vhosts [<vhostinfoitem> ...]  
+# 针对一个vhosts给用户赋予相关权限；
+sudo rabbitmqctl set_permissions [-p <vhostpath>] <user> <conf> <write> <read>  
+# 清除一个用户对vhosts的权限；
+sudo rabbitmqctl clear_permissions [-p <vhostpath>] <username>  
+# 列出哪些用户可以访问该vhosts；
+sudo rabbitmqctl list_permissions [-p <vhostpath>]   
+# 列出用户访问权限；
+sudo rabbitmqctl list_user_permissions <username>
+
+
+
+###用python测试rabbitmq生产和消费：
+[root@node1 ~]# pip3 install pika
+[root@node3 ~]# cat rabbitmq-sent.py 
+#!/usr/bin/env python3
+import pika  
+import random  
+#input loginname and password 
+credentials = pika.PlainCredentials('admin', 'password')  
+#ip,port,vhost
+parameters = pika.ConnectionParameters('192.168.43.203',5672,'test',credentials)    
+connection = pika.BlockingConnection(parameters)    
+channel = connection.channel()    
+#create or declare queue,set name and durable
+channel.queue_declare(queue="homsom",durable=True)    
+#create or declare exchange,set name and durable
+channel.exchange_declare("homsom","direct",durable=True)    
+#1.queue name 2.exchange name
+channel.queue_bind("homsom","homsom",routing_key="hm")
+#'hm' name is routing key ,it already biding homsom queue  
+for i in range(0,1000):
+  number = random.randint(0,1000)  
+  body = 'hello world:%s' % number  
+  channel.basic_publish(exchange='homsom',
+                      routing_key='hm',    
+                      body=body,properties=pika.spec.BasicProperties(delivery_mode=2)) #delivery_mode=2 is persistent,equle 1 is transient
+  print(" [x] Sent %s" % body)
+connection.close()
+[root@node3 ~]# cat rabbitmq-receive.py 
+#!/usr/bin/env python3
+import pika  
+import random  
+        
+credentials = pika.PlainCredentials('admin', 'password')  
+parameters = pika.ConnectionParameters('192.168.43.203',5672,'test',credentials)    
+connection = pika.BlockingConnection(parameters)    
+channel = connection.channel()    
+#down 'homsom' is queue name  
+for method_frame, properties, body in channel.consume('homsom'):
+    # Display the message parts and acknowledge the message
+    print(method_frame, properties, body)
+    channel.basic_ack(method_frame.delivery_tag)
+    # Escape out of the loop after 10 messages
+    if method_frame.delivery_tag == 1000:
+        break
+# Cancel the consumer and return any pending messages
+requeued_messages = channel.cancel()
+print('Requeued %i messages' % requeued_messages)
+connection.close()
+
+#获取群集状态
+$ rabbitmqctl cluster_status
+Cluster status of node rabbit@computingforgeeks-centos7 ...
+[{nodes,[{disc,['rabbit@computingforgeeks-centos7']}]},
+{running_nodes,['rabbit@computingforgeeks-centos7']},
+{cluster_name,<<"rabbit@computingforgeeks-centos7">>},
+{partitions,[]},
+{alarms,[{'rabbit@computingforgeeks-centos7',[]}]}]
+#备份RabbitMQ配置
+请注意，此备份不包含消息，因为它们存储在单独的消息存储库中，它只会备份RabbitMQ用户、vhost、队列、交换和绑定，备份文件是RabbitMQ元数据的JSON表示，我们将使用rabbitmqadmin命令行工具进行备份。
+管理插件附带命令行工具rabbitmqadmin，你需要启用管理插件：
+rabbitmq-plugins enable rabbitmq_management
+此插件用于执行与基于Web的UI相同的一些操作，这对于自动化任务可能更方便。
+#下载rabbitmqadmin
+启用管理插件后，下载与HTTP API交互的rabbitmqadmin Python命令行工具，它可以从任何启用了管理插件的RabbitMQ节点下载：
+http://{node-hostname}:15672/cli/
+下载后，使文件可执行并将其移动到/usr/local/bin目录：
+chmod +x rabbitmqadmin
+sudo mv rabbitmqadmin /usr/local/bin
+要备份RabbitMQ配置，请使用以下命令：
+rabbitmqadmin export <backup-file-name>
+比如：
+$ rabbitmqadmin export rabbitmq-backup-config.json
+Exported definitions for localhost to "rabbitmq-backup-config.json"
+导出写入文件filerabbitmq-backup-config.json。
+#恢复RabbitMQ配置备份
+如果你想从备份中恢复RabbitMQ配置，请使用以下命令：
+rabbitmqadmin import <JSON backup file >
+比如：
+$ rabbitmqadmin import rabbitmq-backup.json 
+Imported definitions for localhost from "rabbitmq-backup.json"
+#备份RabbitMQ数据
+RabbitMQ定义和消息存储在位于节点数据目录中的内部数据库中，要获取目录路径，请针对正在运行的RabbitMQ节点运行以下命令：
+rabbitmqctl eval 'rabbit_mnesia:dir().'
+输出示例：
+"/var/lib/rabbitmq/mnesia/rabbit@computingforgeeks-server1"
+该目录包含许多文件：
+# ls /var/lib/rabbitmq/mnesia/rabbit@computingforgeeks-centos7
+在从3.7.0开始的RabbitMQ版本中，所有消息数据都组合在msg_stores/vhosts目录中，并存储在每个vhost的子目录中，每个vhost目录都使用散列命名，并包含带有vhost名称的.vhost文件，因此可以单独备份特定的vhost消息集。
+要做RabbitMQ定义和消息数据备份，复制或归档此目录及其内容，但先需要停止RabbitMQ服务：
+sudo systemctl stop rabbitmq-server.service
+以下示例将创建一个存档：
+tar cvf rabbitmq-backup.tgz /var/lib/rabbitmq/mnesia/rabbit@computingforgeeks-centos7
+#恢复RabbitMQ数据
+要从备份中还原，请将文件从备份提取到数据目录。
+内部节点数据库在某些记录中存储节点的名称，如果节点名称发生更改，则必须首先使用以下rabbitmqctl命令更新数据库以便更改：
+rabbitmqctl rename_cluster_node <oldnode> <newnode>
+当新节点以备份目录和匹配的节点名称启动时，它会根据需要执行升级步骤并继续引导。
+
+##单一节点备份恢复实例：
+备份RabbitMQ配置:
+[root@node2 ~]# rabbitmqadmin --host=192.168.43.203 --port=15672 --username=admin --password=password export backup.file
+注：我这不是在本机上备份配置，如果在本机上备份无需输入host,port,username,password
+恢复RabbitMQ配置：
+[root@node2 ~]# rabbitmqadmin --host=192.168.43.203 --port=15672 --username=admin --password=password import backup.file
+Uploaded definitions from "192.168.43.203" to backup.file. The import process may take some time. Consult server logs to track progress.
+注：我在恢复配置前删除了一个队列，当恢复配置后也已经恢复了。
+备份RabbitMQ数据：
+[root@node3 rabbitmq]# rabbitmqctl eval 'rabbit_mnesia:dir().'
+"/var/lib/rabbitmq/mnesia/rabbit@node3"
+[root@node3 rabbitmq]# systemctl stop rabbitmq-server.service
+[root@node3 rabbitmq]# tar cvf rabbitmq-backup.tgz /var/lib/rabbitmq/mnesia/rabbit@node3
+恢复RabbitMQ数据：
+模拟node3上的rabbitMQ已经故障，在node2上进行还原备份:
+1.yum安装erlang和rabbitmq,更改node2主机名为node3（并且在单节点中，主机名称要一样，也就是说node3复制的数据到node2中时，node2节点要把主机名改成node3，否则恢复不成功）（当恢复的是集群节点时需要重命名下新的节点名称。总体步骤和单一节点备份恢复步骤一样）
+2.[root@node2 rabbitmq]# cp enabled_plugins rabbitmq.conf /etc/rabbitmq/  #复制配置文件
+[root@node2 rabbitmq]# cat enabled_plugins  #这个配置可用rabbitmq-plugins enable rabbitmq_management命令代替
+[rabbitmq_management].
+[root@node2 rabbitmq]# egrep -v '#|^$' rabbitmq.conf 
+listeners.tcp.default = 5672
+3.[root@node2 rabbitmq]# mv var/lib/rabbitmq/mnesia/rabbit@node3 /var/lib/rabbitmq/mnesia/
+4.[root@node2 rabbitmq]# systemctl start rabbitmq-server.service
+5.[root@node2 rabbitmq]# netstat -tunlp | egrep '5672|4369'
+tcp        0      0 0.0.0.0:25672           0.0.0.0:*               LISTEN      11141/beam.smp      
+tcp        0      0 0.0.0.0:4369            0.0.0.0:*               LISTEN      11067/epmd          
+tcp        0      0 0.0.0.0:15672           0.0.0.0:*               LISTEN      11141/beam.smp      
+tcp6       0      0 :::5672                 :::*                    LISTEN      11141/beam.smp      
+tcp6       0      0 :::4369                 :::*                    LISTEN      11067/epmd  
+[root@node2 ~]# rabbitmqadmin import backup.file  #前提是guest用户和guest密码生效才能成功导入，rabbitmq默认就是这个
+Uploaded definitions from "localhost" to backup.file. The import process may take some time. Consult server logs to track progress.
+注：此时数据和元数据都成功恢复
+
+#集群部署：
+前提：node2和node3两个rabbitmq节点都已经安装好，上面有方法安装
+[root@node3 ~]# cd /etc/rabbitmq/
+[root@node3 rabbitmq]# cat rabbitmq-env.conf #不设置变量也可，rabbit默认是这个
+NODE_PORT=5672
+NODENAME=rabbit
+[root@node3 rabbitmq]# systemctl restart rabbitmq-server.service
+[root@node2 mnesia]# cd /etc/rabbitmq/
+[root@node2 rabbitmq]# cat rabbitmq-env.conf 
+NODE_PORT=5672
+NODENAME=rabbit
+[root@node3 rabbitmq]# cat .erlang.cookie 
+CWQUYERKZHUAGOEQMZZU
+[root@node2 rabbitmq]# cat .erlang.cookie 
+CWQUYERKZHUAGOEQMZZU
+注：node2和node3的cookie要保持一致，不一致修改即可，权限是400，然后重启服务
+[root@node2 rabbitmq]# ll -a
+total 8
+drwxr-xr-x   5 rabbitmq rabbitmq   70 Apr 22 17:15 .
+drwxr-xr-x. 37 root     root     4096 Apr 22 15:39 ..
+drwxr-x---   3 rabbitmq rabbitmq   23 Apr 22 17:27 config
+-r--------   1 rabbitmq rabbitmq   21 Apr 22 17:15 .erlang.cookie
+drwxr-x---   4 rabbitmq rabbitmq  119 Apr 22 17:27 mnesia
+drwxr-x---   2 rabbitmq rabbitmq  101 Apr 22 15:47 schema
+[root@node2 rabbitmq]# systemctl restart rabbitmq-server.service
+[root@node2 rabbitmq]# rabbitmqctl stop_app 
+Stopping rabbit application on node rabbit1@node2 ...
+[root@node2 rabbitmq]# rabbitmqctl join_cluster rabbit@node3
+Clustering node rabbit@node2 with rabbit@node3
+[root@node2 rabbitmq]# rabbitmqctl start_app
+Starting node rabbit@node2 ...
+ completed with 3 plugins.
+此时可以在web-managerment当中看到两个节点组成集群了
+集群模式仅仅是2个实例共享了信息，但是并没有实现queue队列存储的高可用，也就是没有产生副本。需要设定策略让交换机和队列都镜像，来保证数据的高可用
+
+###RabbitMQ 普通队列与镜像队列
+RabbitMQ中队列有两种模式：
+　　1.默认　　Default　#默认模式时，当主节点挂了，从节点也都会跟着挂掉。其它队列将不可用，特点：高吞吐量，非高可用 
+　　2.镜像　　Mirror　　【类似于mongoDB，从一直在通过主的操作日志来进行同步】，主节点挂掉时，有从节点顶着，此时仍然可以调用队列。特点：较低吞吐量，高可用 
+*如果将队列定义为镜像模式，那么这个队列也将区分主从，从而做到了队列高可用。【通过一个master（主）和多个slave（从）组成】，消息发布到队列中将被复制到所有从节点上。消费者连接到主节点上。
+如何配置镜像队列只能通过policy进行配置，可以从命令行也可以通过web UI实现。
+#这个策略当主节点挂掉后，从节点接管主节点，最后老的主节点在线了，老的主节点不会自动同步，只能手动同步。要想自动同步，需要加参数"ha-sync-mode":"automatic"
+[root@node2 rabbitmq]# rabbitmqctl set_policy --vhost / --priority 0 --apply-to queues ha-all "^test" '{"ha-mode":"all"}' 
+Setting policy "ha-all" for pattern "^test" to "{"ha-mode":"all"}" with priority "0" for vhost "/" ...
+#手动同步新主节点的数据到老的主节点（本节点）
+[root@node3 rabbitmq]# rabbitmqctl sync_queue test   
+Synchronising queue 'test' in vhost '/' ...
+#列出策略
+[root@node3 rabbitmq]# rabbitmqctl list_policies 
+Listing policies for vhost "/" ...
+vhost	name	pattern	apply-to	definition	priority
+/	ha-all	^test	queues	{"ha-mode":"all"}	0
+#删除策略
+[root@node3 rabbitmq]# rabbitmqctl clear_policy ha-all 
+Clearing policy "ha-all" on vhost "/" ...
+[root@node3 rabbitmq]# rabbitmqctl set_policy --vhost / --priority 0 --apply-to queues ha-all "^test" '{"ha-mode":"all","ha-sync-mode":"automatic"}'
+Setting policy "ha-all" for pattern "^test" to "{"ha-mode":"all","ha-sync-mode":"automatic"}" with priority "0" for vhost "/" ...
+#新建了一个针对任意交换机和队列的策略，他们都可以得到mirrors模式，是针对vhost:/的，优先级数字越大越优先应用。
+[root@node3 rabbitmq]# rabbitmqctl set_policy --vhost / --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+Setting policy "all" for pattern ".*" to "{"ha-mode":"all","ha-sync-mode":"automatic"}" with priority "10" for vhost "/" ...
+#主节点下线后再上线将会自动同步数据
+[root@node3 rabbitmq]# rabbitmqctl list_policies 
+Listing policies for vhost "/" ...
+vhost	name	pattern	apply-to	definition	priority
+/	ha-all	^test	queues	{"ha-mode":"all","ha-sync-mode":"automatic"}	0
+/	all	.*	all	{"ha-mode":"all","ha-sync-mode":"automatic"}	10
+###在RabbitMQ集群中的节点只有两种类型：内存节点/磁盘节点，单节点系统只运行磁盘类型的节点。而在集群中，可以选择配置部分节点为内存节点。内存节点将所有的队列，交换器，绑定关系，用户，权限，和vhost的元数据信息保存在内存中。磁盘节点将这些信息保存在磁盘中，但是内存节点的性能更高，为了保证集群的高可用性，必须保证集群中有两个以上的磁盘节点，来保证当有一个磁盘节点崩溃了，集群还能对外提供访问服务。
+#更改一个节点从disc（磁盘节点）到ram（内存节点），这里只是测试，生产环境只最少三个节点才能有一个内存节点
+[root@node2 rabbitmq]# rabbitmqctl stop_app
+Stopping rabbit application on node rabbit@node2 ...
+[root@node2 rabbitmq]# rabbitmqctl change_cluster_node_type ram
+Turning rabbit@node2 into a ram node
+[root@node2 rabbitmq]# rabbitmqctl start_app
+Starting node rabbit@node2 ...
+ completed with 3 plugins.
+
+
