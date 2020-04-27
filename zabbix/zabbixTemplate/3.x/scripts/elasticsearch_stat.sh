@@ -1,7 +1,7 @@
 #!/bin/bash
 CurlAPI(){
- RespStr=$(/usr/bin/curl --max-time 20 --no-keepalive --silent "http://127.0.0.1:9200/$1" | /etc/zabbix/JSON.sh -l 2>/dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/\"//g')
- [ $? != 0 ] && echo 0 && exit 1
+ RespStr=$(/usr/bin/curl --max-time 20 --no-keepalive --silent "http://127.0.0.1:9200/$1" | /etc/zabbix/JSON.sh -l 2> /dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/\"//g')
+ [ -n $RespStr ] 2>/dev/null && echo 0 && exit 1
 }
 
 CurlAPI '_cluster/health'
