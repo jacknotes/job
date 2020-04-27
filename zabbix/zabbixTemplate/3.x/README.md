@@ -1,6 +1,7 @@
 ﻿#use version: Zabbix3.4
-chmod 2770 /etc/zabbix/
-chown root:zabbit -R /etc/zabbix/
+#default: shell under /etc/zabbix/scripts,zabbix custom monitor configure file under /etc/zabbix/zabbix_agentd.d/
+chmod -R 774 /etc/zabbix/
+chown -R root:zabbit /etc/zabbix/
 #rabbitmq 
 #refrence https://github.com/jasonmcintosh/rabbitmq-zabbix
 您应该.rab.auth在scripts/rabbitmq目录中创建一个文件。该文件允许您更改默认参数。格式为VARIABLE=value，每行一种：默认值如下：
@@ -11,9 +12,9 @@ LOGLEVEL=INFO
 LOGFILE=/var/log/zabbix/zabbix_agentd.log
 PORT=15672
 #add rabbitmq monitor user
-rabbitmqctl add_user zabbix pass
-rabbitmqctl set_user_tags zabbix monitoring
-rabbitmqctl set_permissions -p / zabbix '.*' '.*' '.*'
+	rabbitmqctl add_user zabbix pass
+	rabbitmqctl set_user_tags zabbix monitoring
+	rabbitmqctl set_permissions -p / zabbix '.*' '.*' '.*'
 #最后不要忘记重启zabbix-agent service
 
 #mysql
@@ -32,5 +33,15 @@ install zabbix-sender plugin: zabbix-sender
 grant redis_stat.sh permission:
   chmod 750 redis_stat.sh
   chgrp zabbix redis_stat.sh
+service restart: systemctl restart redis-agent
+
+#elasticsearch
+#refrence https://github.com/RuslanMahotkin/zabbix
+#refrence https://github.com/dominictarr/JSON.sh
+install zabbix-sender plugin: zabbix-sender
+  chmod 750 elasticsearch_stat.sh
+  chgrp zabbix elasticsearch_stat.sh
+  chmod 750 JSON.sh   #JSON.sh AND elasticsearch_stat.sh will together
+  chgrp zabbix JSON_stat.sh
 service restart: systemctl restart redis-agent
 
