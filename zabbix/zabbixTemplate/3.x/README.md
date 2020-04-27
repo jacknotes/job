@@ -15,9 +15,9 @@ touch /var/log/zabbix/rabbitmq_zabbix.log
 chown root:zabbix /var/log/zabbix/rabbitmq_zabbix.log
 chmod 770 /var/log/zabbix/rabbitmq_zabbix.log
 #add rabbitmq monitor user
-[root@node2 zabbix_agentd.d]# rabbitmqctl add_user zabbix pass
-[root@node2 zabbix_agentd.d]# rabbitmqctl set_user_tags zabbix monitoring
-[root@node2 zabbix_agentd.d]# rabbitmqctl set_permissions -p / zabbix '^aliveness-test$' '^amq\.default$' '^aliveness-test$'
+rabbitmqctl add_user zabbix pass
+rabbitmqctl set_user_tags zabbix monitoring
+rabbitmqctl set_permissions -p / zabbix '.*' '.*' '.*'
 #最后不要忘记重启zabbix-agent service
 
 #mysql
