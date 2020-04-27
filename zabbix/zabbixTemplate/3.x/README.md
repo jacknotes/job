@@ -8,12 +8,8 @@ USERNAME=zabbix
 PASSWORD=pass
 CONF=/etc/zabbix/zabbix_agent.conf
 LOGLEVEL=INFO
-LOGFILE=/var/log/zabbix/rabbitmq_zabbix.log
+LOGFILE=/var/log/zabbix/zabbix_agentd.log
 PORT=15672
-设置rabbitmq_zabbix.log文件权限:
-touch /var/log/zabbix/rabbitmq_zabbix.log
-chown root:zabbix /var/log/zabbix/rabbitmq_zabbix.log
-chmod 770 /var/log/zabbix/rabbitmq_zabbix.log
 #add rabbitmq monitor user
 rabbitmqctl add_user zabbix pass
 rabbitmqctl set_user_tags zabbix monitoring
