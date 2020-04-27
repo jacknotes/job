@@ -1,4 +1,6 @@
 ﻿#use version: Zabbix3.4
+chmod 2770 /etc/zabbix/
+chown root:zabbit -R /etc/zabbix/
 #rabbitmq 
 #refrence https://github.com/jasonmcintosh/rabbitmq-zabbix
 您应该.rab.auth在scripts/rabbitmq目录中创建一个文件。该文件允许您更改默认参数。格式为VARIABLE=value，每行一种：默认值如下：
