@@ -1,0 +1,6 @@
+USERNAME=zabbix
+PASSWORD=pass
+CONF=/etc/zabbix/zabbix_agent.conf
+LOGLEVEL=INFO
+LOGFILE=/var/log/zabbix/rabbitmq_zabbix.log
+PORT=15672
