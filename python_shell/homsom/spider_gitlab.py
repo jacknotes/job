@@ -15,7 +15,7 @@ def get_authenticity_token():
 #建立form_data数据
 authenticity_token = get_authenticity_token()
 print(authenticity_token)
-data = {"user[login]":"0748", "user[password]": "homsom+4006","authenticity_token": authenticity_token,"utf8":"✓","user[remember_me]":"0"}
+data = {"user[login]":"0748", "user[password]": "homsom","authenticity_token": authenticity_token,"utf8":"✓","user[remember_me]":"0"}
 #创建session对象
 ses = requests.session()
 login = ses.post("http://gitlab.hs.com/users/sign_in",headers=headers,data=data)
