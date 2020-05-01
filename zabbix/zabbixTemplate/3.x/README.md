@@ -85,3 +85,14 @@ grant apache_stat.sh permission:
   chmod 750 apache_stat.sh
   chgrp zabbix apache_stat.sh
 service restart: systemctl restart zabbix-agent
+
+#linux IO status
+#### this monitor unfinished
+#because iostat use 5 sec running call,so zabbix-agent.conf args "Timeout		= 6"
+rm -f /etc/cron.d/sysstat  #clean info
+install sysstat Package,version > 9.0.4-27
+install zabbix-sender plugin: zabbix-sender
+grant io_stat.sh permission:
+  chmod 750 io_stat.sh
+  chgrp zabbix io_stat.sh
+service restart: systemctl restart zabbix-agent
