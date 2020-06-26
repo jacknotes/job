@@ -604,4 +604,12 @@ git pull origin release:master  #从远程仓库origin的release分支同步信�
 git push origin dev:release  #从本地当前分支dev推送信息到远程仓库的release分支
 #git有两种代码获取认证方式，一种是基于ssh的key，另一种是基于http的用户名和密码。
 
+
+#git设置代理
+[root@master /download]# git config --global https.proxy https://127.0.0.1:10080
+[root@master /download]# git config --global http.proxy http://127.0.0.1:10080
+[root@master /download]# git config --global -l
+https.proxy=https://127.0.0.1:10080
+http.proxy=http://127.0.0.1:10080
+
 </pre>
