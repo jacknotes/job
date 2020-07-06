@@ -70,7 +70,7 @@ echo '--------------' >> ${LOGFILE}
 while true;do 
 	if [ `find ${ORACLE_INSTALL_BASE}/oraInventory/logs/* -name 'installActions*' -exec grep 'Shutdown Oracle Database 11g Release 2 Installer' {} \; 2> /dev/null | wc -l` == 1 ] ;then
 		${ORACLE_INSTALL_BASE}/oraInventory/orainstRoot.sh
-                ${ORACLE_INSTALL_BASE}oracle/product/11.2.0/db_1/root.sh
+                ${ORACLE_INSTALL_BASE}/oracle/product/11.2.0/db_1/root.sh
 		[ $? == 0 ] && echo 'install program succeesful' >> ${LOGFILE} || echo 'install program failure' >> ${LOGFILE}
 		break
 	fi
