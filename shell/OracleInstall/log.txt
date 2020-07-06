@@ -1,0 +1,40 @@
+
+--------------
+"2020-07-06-05:50:57"
+current machine swap memory is enabled!
+--------------
+--------------
+"2020-07-06-05:50:57"
+hostname resolve config succeesful
+--------------
+--------------
+"2020-07-06-05:50:57"
+oracle user and user environment config succeesful
+--------------
+--------------
+"2020-07-06-05:50:57"
+oracle in linux system optimize file config succeesful
+--------------
+--------------
+"2020-07-06-05:50:57"
+oracle directory config succeesful
+--------------
+"2020-07-06-05:50:57"
+shell configuration succeesful
+--------------
+--------------
+"2020-07-06-05:50:57"
+dependency package install succeesful
+--------------
+--------------
+"2020-07-06-05:50:58"
+install program succeesful
+--------------
+--------------
+"2020-07-06-05:53:27"
+install config listening successful
+--------------
+--------------
+"2020-07-06-05:53:28"
+install oracle database instance successful
+--------------
