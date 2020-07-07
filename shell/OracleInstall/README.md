@@ -1,3 +1,13 @@
+DATETIME: 20200707
+AUTHOR: Jack LI
+Email: jacknotes@163.com
+Description: 把oracle linux上的安装写成脚本，使其自动化安装
+
+
+安装环境：
+Linux: CentOS Linux release 7.6.1810 (Core)   3.10.0-957.el7.x86_64
+Oracle Version: 11.2.0.1.0
+
 需要更改的地方：
 1. 需要更改mani.sh主脚本中的变量：UNZIP_ORACLE_SOURCE=/download/database。默认值是oracle程序解压后的目录，需要更改成自己的oracle程序解压目录。
 2. 需要更改mani.sh主脚本中的变量：HOSTNAME=node1。默认值是主机名node1，需要更改为自己安装oracle程序的主机名。

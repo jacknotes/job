@@ -1,5 +1,8 @@
 #!/bin/sh
-#
+#AUTHOR: jackli
+#DATETIME: 20200707
+#VERSION: v1
+
 #BASE ENVIRONMENTS
 CURRENT_DIR=$(/bin/pwd)
 LOGFILE=${CURRENT_DIR}/log.txt
