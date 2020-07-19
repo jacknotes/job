@@ -10244,3 +10244,130 @@ windows:
 index-url = https://pypi.tuna.tsinghua.edu.cn/simple
 
 </pre>
+
+<pre>
+#序列化
+---------
+import pickle
+lista=["a","b"]
+#将对象序列化到内存
+listb=pickle.dumps(lista)
+#将序列化对象从内存原样恢复
+listc=pickle.loads(listb)
+print(listc)
+---------
+import pickle
+lista=["a","b"]
+f1=open(r"E:\123.txt","wb")
+#将对象序列化并写入文件f1
+pickle.dump(lista,f1)
+f1.close()
+#将序列化对象从f2中原样恢复
+f2=open(r"E:\123.txt","rb")
+read=pickle.load(f2)
+print(read)
+f1.close()
+---------
+注：另外还有json序列化，json序列化可以跨平台，但pickle只能python用
+---------
+#文档字符串
+在函数中第一行用三引号进行描述的信息就叫文档字符串：
+1. 第一行抒写，首字母必须大写
+2. 第一行为标题，第二行必须为空，第三行开始写详细信息
+3. 必须以句号结尾
+---------
+#认识python模块
+--查看当前python导入的模块有哪些
+print(sys.modules.keys())
+--编辑模块为.pyc文件
+1. import直接导入即可编译
+2. cmd下：python -m compileall xmllib.py
+---------
+#python数据结构
+数据结构和算法是相辅相成的。没有数据结构(数据存储方式)算法就没有用
+1. 内置数据结构(list,tuple,dict)
+2. 数据结构-栈
+	栈就像一个立体的长方形，上面口子可以进出，下面没有口子(永远关闭的，称作栈底)。栈是先进后出的。
+class Stack():
+    def __init__(self,size):
+        self.stack=[]
+        self.size=size
+        self.top=-1
+    def push(self,content):
+        if self.Full():
+            print("Stack is Full")
+        else:
+            self.stack.append(content)
+            self.top=self.top+1
+    def pull(self):
+        if self.Empty:
+            print("Stack is Empty")
+        else:
+            self.stack.pop()
+            self.top=self.top-1
+    def Full(self):
+        if self.top==self.size:
+            return True
+        else:
+            return False
+    def Empty(self):
+        if self.top==-1:
+            return True
+        else:
+            return False
+
+if __name__ == "__main__":
+    q = Stack(7)
+    q.push('hello')
+3. 数据结构-队列
+	队列两边是开的，一边只能插入，一边只能删除。从队尾插入从队首删除。队列是先进先出的。
+	假如：队列是一个立体长方形，队尾和队首的值都是-1,看作立方体是一条直线，当数据放进来2(0,1)个是，队尾值是1(-1+2)，而此时队首没有取值，所以队首依旧是-1
+class  Queue():
+    def __init__(qu,size):
+        qu.queue=[]
+        qu.size=size
+        qu.head=-1
+        qu.tail=-1
+    def Empty(qu):
+        if qu.head==qu.tail:
+            return True
+        else:
+            return False
+    def Full(qu):
+        if qu.tail-qu.head+1==qu.size:
+            return True
+        else:
+            return False
+    def enQueue(qu,content):
+        if qu.Full():
+            print("Queue is Full")
+        else:
+            qu.queue.append(content)
+            qu.tail=qu.tail+1
+    def outQueue(qu):
+        if qu.Empty():
+            print("Queue is Empty!")
+        else:
+            qu.head=qu.head+1
+---------
+RESTful API开发
+--flask框架
+----------------app.py----------------
+# 导入Flask类
+from flask import Flask
+# 实例化，可视为固定格式
+app = Flask(__name__)
+# route()方法用于设定路由；类似spring路由配置
+@app.route('/helloworld/<user>',methods=['POST'])
+def hello_world(user):
+    return 'Hello, %s!' % user
+
+if __name__ == '__main__':
+    # app.run(host, port, debug, options)
+    # 默认值：host="127.0.0.1", port=5000, debug=False
+    app.run(host="0.0.0.0", port=5000,debug=True)
+--------------------------------------
+
+
+
+</pre>
