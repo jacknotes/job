@@ -1147,6 +1147,13 @@ fact(5)对应的fact_iter(5, 1)的调用如下：
 针对尾递归优化的语言可以通过尾递归防止栈溢出。尾递归事实上和循环是等价的，没有循环语句的编程语言只能通过尾递归实现循环。
 Python标准的解释器没有针对尾递归做优化，任何递归函数都存在栈溢出的问题。
 
+递归函数样例：
+def fech(base,day,rate):
+    if day == 0:
+        return base* 1
+    return fech((base*rate+base),(day - 1),rate)
+print(fech(10000,10,0.05))
+
 #切片
 取一个list或tuple的部分元素是非常常见的操作。比如，一个list如下：
 >>> L = ['Michael', 'Sarah', 'Tracy', 'Bob', 'Jack']
