@@ -3,7 +3,7 @@
 #install cobbler
 ## remove: yum remove -y httpd dhcp tftp cobbler cobbler-web pykickstart xinetd
 
-ip=192.168.15.199
+ip=192.168.13.236
 echo "1.安装启动"
 yum install -y https://mirrors.aliyun.com/epel/epel-release-latest-7.noarch.rpm
 yum install -y httpd dhcp tftp cobbler cobbler-web pykickstart xinetd 
@@ -33,11 +33,11 @@ full_passwd=${str1}${passwd}${str2}
 sed -i '/default_password_crypted/{d}' /etc/cobbler/settings  #先删除默认密码
 echo ${full_passwd} >> /etc/cobbler/settings  #再添加系统密码
 echo "7.更改dhcp模板"
-sed -i '/subnet 192/{s/192.168.1.0/192.168.15.0/}' /etc/cobbler/dhcp.template
-sed -i '/option routers/{s/192.168.1.5/192.168.15.1/}' /etc/cobbler/dhcp.template
-sed -i '/option domain-name-servers/{s/192.168.1.1/8.8.8.8/}' /etc/cobbler/dhcp.template
+sed -i '/subnet 192/{s/192.168.1.0/192.168.13.0/}' /etc/cobbler/dhcp.template
+sed -i '/option routers/{s/192.168.1.5/192.168.13.254/}' /etc/cobbler/dhcp.template
+sed -i '/option domain-name-servers/{s/192.168.1.1/192.168.13.250/}' /etc/cobbler/dhcp.template
 sed -i '/option subnet-mask/{s/255.255.0.0/255.255.255.0/}' /etc/cobbler/dhcp.template
-sed -i '/range dynamic-bootp/{s/192.168.1.100/192.168.15.50/;s/192.168.1.254/192.168.15.90/}' /etc/cobbler/dhcp.template
+sed -i '/range dynamic-bootp/{s/192.168.1.100/192.168.13.71/;s/192.168.1.254/192.168.13.79/}' /etc/cobbler/dhcp.template
 sleep 1
 echo "8.重载cobbler配置并启动dhcp"
 systemctl restart cobblerd   #在cobbler同步之前重新启动下cobbler服务，重载下配置，使其生效
