@@ -363,7 +363,7 @@ NODENAME=rabbit
 CWQUYERKZHUAGOEQMZZU
 [root@node2 rabbitmq]# cat .erlang.cookie 
 CWQUYERKZHUAGOEQMZZU
-注：node2和node3的cookie要保持一致，不一致修改即可，权限是400，然后重启服务
+注：node2和node3的cookie要保持一致，不一致修改即可，权限是600，然后重启服务
 [root@node2 rabbitmq]# ll -a
 total 8
 drwxr-xr-x   5 rabbitmq rabbitmq   70 Apr 22 17:15 .
@@ -423,5 +423,64 @@ Turning rabbit@node2 into a ram node
 [root@node2 rabbitmq]# rabbitmqctl start_app
 Starting node rabbit@node2 ...
  completed with 3 plugins.
+
+</pre>
+
+
+<pre>
+#rabbitMQ for docker Deploy Cluster
+rabbitmq集群是无主集群，任意节点可写入，一般集群都是无主集群。除主从集群外。
+
+#节点1
+----运行rabbitmq1:
+docker run -d --hostname rabbit1 --name myrabbit1 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management 
+注：第一个节点可以不用写入其它主机主机名，因为其它节点是加入此节点为集群的。也可写入，例如：--add-host rabbit1:192.168.15.201 --add-host rabbit2:192.168.15.203
+----设置集群配置：
+docker exec -it myrabbit1 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+exit
+
+
+#节点2
+----运行rabbitmq1:
+docker run -d --add-host rabbit1:192.168.15.201 --hostname rabbit2 --name myrabbit2 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management  
+----设置集群配置：
+docker exec -it myrabbit2 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster --ram rabbit@rabbit1
+rabbitmqctl start_app
+exit
+
+#节点3
+----运行rabbitmq1:
+docker run -d --add-host rabbit1:192.168.15.201 --add-host rabbit2:192.168.15.203 --hostname rabbit3 --name myrabbit3 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management  
+----设置集群配置：
+docker exec -it myrabbit3 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster rabbit@rabbit1
+rabbitmqctl start_app
+exit
+
+#任意节点设置集群为HA镜像模式：
+rabbitmqctl set_policy --vhost / --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+注：这条策略是针对vhost为'/'的。如果增加了一个vhost为'/test'，则需要再增加一条针对'/test'的策略，'/'不包含'/test'
+
+#用户配置
+--添加一个管理员设置密码、角色、权限
+rabbitmqctl add_user admin p@ss123.com
+rabbitmqctl set_user_tags admin administrator
+rabbitmqctl set_permissions -p '/' admin '.*' '.*' '.*'
+--查看所有用户、指定用户权限
+rabbitmqctl list_users
+rabbitmqctl list_user_permissions admin
+--清除用户密码并禁用此用户
+rabbitmqctl clear_password guest
+--设置用户密码并启用此用户
+rabbitmqctl change_password guest 123
+
 
 </pre>
