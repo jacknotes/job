@@ -429,12 +429,26 @@ Starting node rabbit@node2 ...
 
 <pre>
 #rabbitMQ for docker Deploy Cluster
-rabbitmq集群是无主集群，任意节点可写入，一般集群都是无主集群。除主从集群外。
+rabbitmq集群是无主集群，任意节点可写入，一般集群都是无主集群,但是会存在选举机制。除主从集群外。
 
 #节点1
 ----运行rabbitmq1:
-docker run -d --restart=always --hostname rabbit1 --name myrabbit1 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management 
-注：第一个节点可以不用写入其它主机主机名，因为其它节点是加入此节点为集群的。也可写入，例如：--add-host rabbit1:192.168.15.201 --add-host rabbit2:192.168.15.203
+docker run -d --restart=always \
+--hostname rabbit1 \
+--name myrabbit1 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbit2:192.168.15.202 \
+--add-host rabbit3:192.168.15.203 \
+rabbitmq:3.8.9-management
+
+注：第一个节点可以不用写入其它主机主机名，因为其它节点是加入此节点为集群的。也可写入，例如：--add-host rabbit2:192.168.15.202 --add-host rabbit3:192.168.15.203
 ----设置集群配置：
 docker exec -it myrabbit1 bash
 rabbitmqctl stop_app
@@ -444,8 +458,21 @@ exit
 
 
 #节点2
-----运行rabbitmq1:
-docker run -d --restart=always --add-host rabbit1:192.168.15.201 --hostname rabbit2 --name myrabbit2 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management  
+----运行rabbitmq2:
+docker run -d --restart=always \
+--hostname rabbit2 \
+--name myrabbit2 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbit1:192.168.15.201 \
+--add-host rabbit3:192.168.15.203 \
+rabbitmq:3.8.9-management
 ----设置集群配置：
 docker exec -it myrabbit2 bash
 rabbitmqctl stop_app
@@ -454,8 +481,23 @@ rabbitmqctl join_cluster --ram rabbit@rabbit1
 rabbitmqctl start_app
 exit
 
+
 #节点3
-----运行rabbitmq1:
+----运行rabbitmq3:
+docker run -d --restart=always \
+--hostname rabbit3 \
+--name myrabbit3 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbit1:192.168.15.201 \
+--add-host rabbit2:192.168.15.202 \
+rabbitmq:3.8.9-management
 docker run -d --restart=always --add-host rabbit1:192.168.15.201 --add-host rabbit2:192.168.15.203 --hostname rabbit3 --name myrabbit3 -p 25672:25672 -p 15672:15672 -p 5672:5672 -p 4369:4369 -e RABBITMQ_ERLANG_COOKIE='rabbitcookie' rabbitmq:3.8.9-management  
 ----设置集群配置：
 docker exec -it myrabbit3 bash
