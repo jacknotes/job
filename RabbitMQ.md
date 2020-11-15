@@ -525,4 +525,84 @@ rabbitmqctl clear_password guest
 rabbitmqctl change_password guest 123
 
 
+docker run -d --restart=always \
+--hostname rabbit_test1 \
+--name rabbit_test1 \
+-v /home/dockerdata/rabbitmq1:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie!@#' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+rabbitmq:3.8.9-management
+
+docker exec -it rabbit_test1 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+exit
+
+
+docker run -d --restart=always \
+--hostname rabbit_test2 \
+--name rabbit_test2 \
+-v /home/dockerdata/rabbitmq2:/var/lib/rabbitmq  \
+-p 25673:25672 \
+-p 15673:15672 \
+-p 5673:5672 \
+-p 4370:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie!@#' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--link rabbit_test1:rabbit_test1 \
+rabbitmq:3.8.9-management
+
+docker exec -it rabbit_test2 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster rabbit@rabbit_test1 
+rabbitmqctl start_app
+exit
+
+
+
+docker run -d --restart=always \
+--hostname rabbit_test3 \
+--name rabbit_test3 \
+-v /home/dockerdata/rabbitmq3:/var/lib/rabbitmq  \
+-p 25674:25672 \
+-p 15674:15672 \
+-p 5674:5672 \
+-p 4371:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie!@#' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--link rabbit_test1:rabbit_test1 \
+--link rabbit_test2:rabbit_test2 \
+rabbitmq:3.8.9-management
+
+docker exec -it rabbit_test3 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster --ram rabbit@rabbit_test2 
+rabbitmqctl start_app
+exit
+
+
+
+
+rabbitmqctl add_user rabbituser homsom
+----角色administrator、monitoring、policymaker、management、其它
+rabbitmqctl set_user_tags rabbituser users
+rabbitmqctl set_permissions -p '/' rabbituser '.*' '.*' '.*'
+rabbitmqctl clear_permissions -p / rabbituser
+rabbitmqctl list_permissions -p '/'
+
+192.168.13.50:5672，192.168.13.50:5673，192.168.13.50:5674
+
+
+
+
 </pre>
