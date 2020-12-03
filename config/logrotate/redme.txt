@@ -1,0 +1,4 @@
+#force run
+/usr/sbin/logrotate -f /etc/logrotate.d/homsom_audit.conf
+#default by /etc/anacrontab file crontab run
+
