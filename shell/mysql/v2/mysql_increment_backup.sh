@@ -1,19 +1,29 @@
 #!/bin/bash
 #Describe: Shell Command For Backup MySQL Database Everyday Automatically By Crontab  
 #Type: Increment Backup
+#mysql_info: mysql5.7
 #Author: JackLi
 #Date: 2020-11-22
+
+#----user authrization
+#grant select,lock tables,replication client,show view,trigger,reload,execute,super on *.* to dbbackup@'localhost';
+#[root@salt ~]# openssl rand -base64 5
+#hZH3oCw=
+#alter user dbbackup@'localhost' identified by "hZH3oCw=";
+#flush privileges;
+
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:/usr/local/mysql/bin
 export LANG=en_US.UTF-8
 
-ENV=Pro
+ENV=Dev
 TYPE=Increment
-USER=root
+USER=dbbackup
 HOSTNAME="localhost"
-PASSWORD="homsom"
-BACKUP_DIR=/data/jackbackup  #备份文件存储路径  
+PASSWORD="hZH3oCw="
+BACKUP_DIR=/home/backup  #备份文件存储路径  
 LOGFILE=${BACKUP_DIR}/mysql_backup.log #日记文件路径  
 DATE=`date '+%Y%m%d_%H%M%S'` #日期格式（作为文件名）  
+DATE_FILE="date +%Y%m%d_%H%M%S" #日期格式（作为文件名） 
 DATE_YEAR=`date '+%Y'`
 DATE_MONTH=`date '+%m'`
 FORMAT=${ENV}_${TYPE}_${DATE}
@@ -45,7 +55,7 @@ if [[ $? == 0 ]]; then
     echo "Copy_Binlog_To_BackupDir.........." >> $LOGFILE
     for i in `seq 0 ${#VAR_BINLOG_NAME_LONG[*]}`;do
         if [ "${i}" != "${#VAR_BINLOG_NAME_LONG[*]}" ];then
-                \cp -ar ${VAR_BINLOG_NAME_LONG[$[i]]} ${VAR_BINLOG_NAME_SHORT[${i}]}_${FORMAT}
+		\cp -ar ${VAR_BINLOG_NAME_LONG[$[i]]} ${VAR_BINLOG_NAME_SHORT[${i}]}_${ENV}_${TYPE}_`${DATE_FILE}`
         fi
     done
 
