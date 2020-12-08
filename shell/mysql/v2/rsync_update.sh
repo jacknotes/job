@@ -1,11 +1,17 @@
 #!/bin/sh
+#author: jack
+#date: 2020-12-08
 
-BACKUPDIR=/home/backup
-LOG=/home/backup/mysql_backup.log
+#source dir
+BACKUPDIR=/data/backup
+LOG=${BACKUPDIR}/mysql_backup.log
+#destination dir
 DESTINATION=/mnt
 
 echo " " >> ${LOG}
+echo "StartTime: `date +'%Y-%m-%d-%T'`" >> ${LOG}
 echo "copy ${BACKUPDIR} data to ${DESTINATION} dir storage" >> ${LOG}
+cd ${BACKUPDIR}
 ls ${BACKUPDIR} | egrep -v '*.log'| xargs -I {} rsync -avPz {} ${DESTINATION}
 if [ $? == 0 ];then
 	echo "copy ${BACKUPDIR} data to ${DESTINATION} dir storage: SUCCESS" >> ${LOG}
@@ -15,3 +21,4 @@ if [ $? == 0 ];then
 else 
 	echo "copy ${BACKUPDIR} data to ${DESTINATION} dir storage: FAILURE" >> ${LOG}
 fi
+echo "EndTime: `date +'%Y-%m-%d-%T'`" >> ${LOG}

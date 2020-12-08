@@ -3,7 +3,7 @@
 #Type: Single_Database_Full_Backup
 #mysql_info: mysql5.7
 #Author: JackLi
-#Date: 2020-12-04
+#Date: 2020-12-08
 #set -e
 
 #----user authrization
@@ -16,14 +16,14 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:/usr/local/mysql/bin
 export LANG=en_US.UTF-8
    
-ENV=Dev
+ENV=Pro
 TYPE=Full
 USER=dbbackup 
 HOSTNAME="localhost"  
-PASSWORD="hZH3oCw="  
-DATABASE=(car_platform flight_manager hotelresource payorder travelproduct)
+PASSWORD="s4ytieZbkqc="  
+DATABASE=(car_platform flight_manager payorderpro travelproduct)
 IPADDR=`ip add show | grep 192 | awk '{print $2}' | awk -F '/' '{print $1}'`
-BACKUP_DIR=/home/backup  #备份文件存储路径  
+BACKUP_DIR=/data/backup  #备份文件存储路径  
 LOGFILE=${BACKUP_DIR}/mysql_backup.log #日记文件路径  
 MYSQL_CONF=/etc/my.cnf   #mysql配置文件路径
 MYSQL_BOOT_SHELL=/etc/init.d/mysqld  #mysql启动脚本路径
@@ -39,7 +39,7 @@ DUMPFILE_INFO=${FORMAT}.sql.info #备份数据库信息名称
 MYSQL_DATADIR=`mysql -h${HOSTNAME} -u${USER} -p${PASSWORD} -e "show global variables like 'datadir';" | awk '{print $2}' | tail -n 1`
 INNODB_VERSION=`mysql -h${HOSTNAME} -u${USER} -p${PASSWORD} -e "show global variables like 'innodb_version';" | awk '{print $2}' | tail -n 1`
 BASE_DIR=`mysql -h${HOSTNAME} -u${USER} -p${PASSWORD} -e "show global variables like 'basedir';" | awk '{print $2}' | tail -n 1`
-OPT="--single-transaction --master-data=2 --databases "
+OPT="--single-transaction --master-data=2 --set-gtid-purged=off --databases "
 OPTIONS="-h${HOSTNAME} -u${USER} -p${PASSWORD} ${OPT}"    
 
 ##判断备份文件存储目录和二进制存储目录是否存在，否则创建该目录  

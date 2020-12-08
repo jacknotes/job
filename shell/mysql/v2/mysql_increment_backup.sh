@@ -3,7 +3,7 @@
 #Type: Increment Backup
 #mysql_info: mysql5.7
 #Author: JackLi
-#Date: 2020-11-22
+#Date: 2020-12-08
 
 #----user authrization
 #grant select,lock tables,replication client,show view,trigger,reload,execute,super on *.* to dbbackup@'localhost';
@@ -15,12 +15,12 @@
 export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:/usr/local/mysql/bin
 export LANG=en_US.UTF-8
 
-ENV=Dev
+ENV=Pro
 TYPE=Increment
 USER=dbbackup
 HOSTNAME="localhost"
-PASSWORD="hZH3oCw="
-BACKUP_DIR=/home/backup  #备份文件存储路径  
+PASSWORD="s4ytieZbkqc="
+BACKUP_DIR=/data/backup  #备份文件存储路径  
 LOGFILE=${BACKUP_DIR}/mysql_backup.log #日记文件路径  
 DATE=`date '+%Y%m%d_%H%M%S'` #日期格式（作为文件名）  
 DATE_FILE="date +%Y%m%d_%H%M%S" #日期格式（作为文件名） 
@@ -37,6 +37,7 @@ MYSQL_BINLOG_BASENAME="dirname `mysql -h${HOSTNAME} -u${USER} -p${PASSWORD} -e "
 if [ ! -d "${BACKUP_DIR}/${BACKUP_DIR_CHILD}" ]; then mkdir -p "${BACKUP_DIR}/${BACKUP_DIR_CHILD}"; fi
 
 #开始备份之前，将备份信息头写入日记文件   
+echo " " >> $LOGFILE
 echo "———————————————–————————————————————————" >> $LOGFILE
 echo "BACKUP DATETIME: "${DATE} >> $LOGFILE
 echo "———————————————–————————————————————–———" >> $LOGFILE
