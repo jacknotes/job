@@ -1,6 +1,6 @@
 #!/bin/sh
 #author: jack.li
-#datetime: 20210226-14:34
+#datetime: 20210226-14:56
 #description: cron make snapshot and clean history snapshot
 
 export PATH=/opt/xensource/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/root/bin
@@ -19,13 +19,14 @@ for i in ${VIR_HOST_UUID};do
 	echo "VM_NAME: ${Current_VM_Name}" >> ${SNAPSHOT_LOG}
 	echo "CREATE SNAPSHOT:" >> ${SNAPSHOT_LOG}
 	#create snapshot
-	echo "CREATE_SNAPSHOT_UUID: `xe vm-snapshot "uuid=${i}" new-name-label="${Current_VM_Name}-${DATE}"`" >> ${SNAPSHOT_LOG}
-
-	if [ $? == 0 ];then
+	Generate_Snapshot_UUID=`xe vm-snapshot "uuid=${i}" new-name-label="${Current_VM_Name}-${DATE}" 2> /dev/null`
+	if [ -n "${Generate_Snapshot_UUID}" ];then
+		echo "CREATE_SNAPSHOT_UUID: ${Generate_Snapshot_UUID} Create Successful!" >> ${SNAPSHOT_LOG}
 		echo "CREATE_SNAPSHOT_NAME: ${Current_VM_Name}-${DATE} Create Successful!" >> ${SNAPSHOT_LOG}
 		NUM=1 
 	else
 		echo "CREATE_SNAPSHOT_NAME: ${Current_VM_Name}-${DATE} Create Failure!" >> ${SNAPSHOT_LOG}
+		NUM=0 
 	fi
 
 	TmpSnapshotUUID=`xe snapshot-list params=uuid,name-label,snapshot-of | awk BEGIN{RS=EOF}'{gsub(/\n/," ");print}' | grep "${i}" | grep -v "${DATE}" | awk -F ':' '{print $2}' | awk '{print $1}'`
@@ -38,7 +39,7 @@ for i in ${VIR_HOST_UUID};do
 			[ $? == 0 ] && echo "SNAPSHOT_NAME: ${TmpSnapshotName} Destroy Successful!" >> ${SNAPSHOT_LOG} || echo "SNAPSHOT_NAME: ${TmpSnapshotName} Destroy Failure!" >> ${SNAPSHOT_LOG} 
 		done
 	else
-		echo "Snapshot Create Failure,Cannot Delete Old Snapshot!!!"
+		echo "Reason: Snapshot Create Failure,Cannot Delete Old Snapshot!!!" >> ${SNAPSHOT_LOG}
 	fi
 	echo ""  >> ${SNAPSHOT_LOG}
 done
