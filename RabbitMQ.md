@@ -525,6 +525,8 @@ rabbitmqctl clear_password guest
 rabbitmqctl change_password guest 123
 
 
+---
+Description: one node for docker rabbitmqCluster.
 docker run -d --restart=always \
 --hostname rabbit_test1 \
 --name rabbit_test1 \
@@ -591,8 +593,6 @@ rabbitmqctl start_app
 exit
 
 
-
-
 rabbitmqctl add_user rabbituser homsom
 ----角色administrator、monitoring、policymaker、management、其它
 rabbitmqctl set_user_tags rabbituser users
@@ -601,6 +601,135 @@ rabbitmqctl clear_permissions -p / rabbituser
 rabbitmqctl list_permissions -p '/'
 
 192.168.13.50:5672，192.168.13.50:5673，192.168.13.50:5674
+
+
+---
+DATETIME: 20210302
+IP:192.168.13.162
+docker run --name=rabbit1 \
+ --hostname=rabbitmq1.hs.com   \
+ --env=RABBITMQ_DEFAULT_USER=admin \
+ --env=RABBITMQ_DEFAULT_PASS=homsom+4006 \
+ --env=RABBITMQ_ERLANG_COOKIE=rabbitcookie \
+ --volume=/usr/local/rabbitmq:/var/lib/rabbitmq:z  \
+ -p 8081:15672 \
+ -p 25672:25672 \
+ -p 4369:4369  \
+ -p 5672:5672 \
+ --restart=always \
+
+生产环境RabbitMQ Docker部署：
+rabbitmq01: 192.168.13.235
+rabbitmq02: 192.168.13.65
+rabbitmq03: 192.168.13.160
+
+#节点1
+----运行rabbitmq01:
+docker run -d --restart=always \
+--hostname rabbitmq01 \
+--name rabbitmq01 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie@homsom' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbitmq02:192.168.13.65 \
+--add-host rabbitmq03:192.168.13.160 \
+rabbitmq:3.8.9-management
+----设置集群配置：
+docker exec -it rabbitmq01 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+exit
+
+
+#节点2
+----运行rabbitmq02:
+docker run -d --restart=always \
+--hostname rabbitmq02 \
+--name rabbitmq02 \
+-v /dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie@homsom' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbitmq01:192.168.13.235 \
+--add-host rabbitmq03:192.168.13.160 \
+rabbitmq:3.8.9-management
+----设置集群配置：
+docker exec -it rabbitmq02 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster --ram rabbit@rabbitmq01
+rabbitmqctl start_app
+exit
+
+
+#节点3
+----运行rabbitmq03:
+docker run -d --restart=always \
+--hostname rabbitmq03 \
+--name rabbitmq03 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie@homsom' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbitmq01:192.168.13.235 \
+--add-host rabbitmq02:192.168.13.65 \
+rabbitmq:3.8.9-management
+----设置集群配置：
+docker exec -it rabbitmq03 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster rabbit@rabbitmq02
+rabbitmqctl start_app
+exit
+
+
+#任意节点设置集群为HA镜像模式：
+rabbitmqctl set_policy --vhost / --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+注：这条策略是针对vhost为'/'的。如果增加了一个vhost为'/test'，则需要再增加一条针对'/test'的策略，'/'不包含'/test'
+
+rabbitmqctl set_policy --vhost my_vhost --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+
+#用户配置
+--添加一个管理员设置密码、角色、权限
+rabbitmqctl add_user admin p@ssword
+rabbitmqctl set_user_tags admin administrator
+rabbitmqctl set_permissions -p '/' admin '.*' '.*' '.*'
+--查看所有用户、指定用户权限
+rabbitmqctl list_users
+rabbitmqctl list_user_permissions admin
+--清除用户密码并禁用此用户
+rabbitmqctl clear_password guest
+--设置用户密码并启用此用户
+rabbitmqctl change_password guest 123
+
+增加普通用户：
+rabbitmqctl add_user rabbituser homsom123
+rabbitmqctl set_user_tags rabbituser users
+rabbitmqctl set_permissions -p '/' rabbituser '.*' '.*' '.*'
+rabbitmqctl list_permissions -p '/'
+rabbitmqctl list_users
+
+
+rabbitmqctl add_user devadmin homsom
+rabbitmqctl set_user_tags devadmin administrator
+rabbitmqctl set_permissions -p '/' devadmin '.*' '.*' '.*'
+rabbitmqctl list_permissions -p '/'
+rabbitmqctl list_users
+
 
 
 
