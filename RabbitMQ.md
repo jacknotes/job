@@ -603,21 +603,9 @@ rabbitmqctl list_permissions -p '/'
 192.168.13.50:5672，192.168.13.50:5673，192.168.13.50:5674
 
 
----
-DATETIME: 20210302
-IP:192.168.13.162
-docker run --name=rabbit1 \
- --hostname=rabbitmq1.hs.com   \
- --env=RABBITMQ_DEFAULT_USER=admin \
- --env=RABBITMQ_DEFAULT_PASS=homsom+4006 \
- --env=RABBITMQ_ERLANG_COOKIE=rabbitcookie \
- --volume=/usr/local/rabbitmq:/var/lib/rabbitmq:z  \
- -p 8081:15672 \
- -p 25672:25672 \
- -p 4369:4369  \
- -p 5672:5672 \
- --restart=always \
 
+------
+DATETIME: 20210302
 生产环境RabbitMQ Docker部署：
 rabbitmq01: 192.168.13.235
 rabbitmq02: 192.168.13.65
