@@ -1,0 +1,17 @@
+*/5 * * * * /usr/sbin/ntpdate time1.aliyun.com
+
+# clean consul log
+0 2 * * 7 cat /dev/null > /var/lib/docker/containers/f040c9f85e616f800dca565ad83daecbf34a6945b87c13ac44cf5500d9e99df6/f040c9f85e616f800dca565ad83daecbf34a6945b87c13ac44cf5500d9e99df6-json.log
+
+# cron windows check one
+5 8 * * * /shell/windows_taskschd.sh
+10 8 * * * /shell/linux_hosts_task.sh
+30 8 * * * /shell/send_mail.sh
+
+# cron windows check two
+5 15 * * * /shell/windows_taskschd.sh
+10 15 * * * /shell/linux_hosts_task.sh
+30 15 * * * /shell/send_mail.sh
+
+# get xenserver snapshot status
+0 10 * * 7 /shell/xenserver/xenserver-status.sh
