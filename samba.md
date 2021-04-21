@@ -231,7 +231,6 @@ default:group::r-x
 default:group:smb01:rwx
 default:mask::rwx
 default:other::r-x
-description: ¿¿¿¿¿-d¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿user,group,other¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿g:smb01:rwx¿mask¿¿¿¿¿¿¿¿¿¿¿mask¿rx¿¿¿¿ACL¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿
 [root@salt ~/k8s/root]# setfacl -d -m g::rwx k8s/
 [root@salt ~/k8s/root]# getfacl k8s
 # file: k8s
@@ -258,7 +257,7 @@ default:group::rwx
 default:group:smb01:rwx
 default:mask::rwx
 default:other::rwx
-[root@salt ~/k8s/root]# setfacl -b k8s/    --¿¿ACL¿¿¿¿
+[root@salt ~/k8s/root]# setfacl -b k8s/   
 [root@salt ~/k8s/root]# getfacl k8s
 # file: k8s
 # owner: root
@@ -277,7 +276,6 @@ group::r-x
 group:smb01:r--
 mask::r-x
 other::r-x
-¿¿¿¿¿¿¿¿¿rx¿¿¿¿¿¿¿¿ACL¿¿¿¿¿¿¿
 [root@salt ~/k8s/root]# setfacl -m g:smb01:rwx k8s
 [root@salt ~/k8s/root]# getfacl k8s/
 # file: k8s/
@@ -299,7 +297,6 @@ group::r-x			#effective:r--
 group:smb01:rwx			#effective:r--
 mask::r--
 other::r-x
-¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿¿
 [root@salt ~/k8s/root]# setfacl -m m::rwx k8s
 [root@salt ~/k8s/root]# getfacl k8s/
 # file: k8s/
@@ -321,7 +318,7 @@ group:smb01:rwx
 group:smb02:r--
 mask::rwx
 other::r-x
-[root@salt ~/k8s/root]# setfacl -x g:smb02 k8s/   --¿¿¿¿¿¿¿¿ACL
+[root@salt ~/k8s/root]# setfacl -x g:smb02 k8s/  
 [root@salt ~/k8s/root]# getfacl  k8s/
 # file: k8s/
 # owner: root
