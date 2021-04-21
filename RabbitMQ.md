@@ -719,7 +719,26 @@ rabbitmqctl list_permissions -p '/'
 rabbitmqctl list_users
 
 
+#202104211400
+#rabbitmq docker 集群节点移除、节点添加
+在主节点,也就是发起进群的主机上进行节点的移除.
+rabbit@rabbit_test1# rabbitmqctl cluster_status
+Basics
+Cluster name: rabbit@rabbit_test1
 
+rabbit@rabbit_test1# rabbitmqctl forget_cluster_node rabbit@rabbit_test3
+集群节点添加：
+节点3：
+#docker run --name=rabbit_test3 --hostname=rabbit_test3 --env=RABBITMQ_DEFAULT_USER=admin --env=RABBITMQ_DEFAULT_PASS=p@ss123.com --env='RABBITMQ_ERLANG_COOKIE=rabbitcookie!@#'  --volume=/home/dockerdata/rabbitmq3:/var/lib/rabbitmq --volume=/var/lib/rabbitmq --expose=15671 -p 15674:15672 --expose=15691 --expose=15692 -p 25674:25672 -p 4371:4369 --expose=5671 -p 5674:5672 --link rabbit_test2 --link rabbit_test1 --restart=always  --detach=true rabbitmq:3.8.9-management rabbitmq-server
+[root@tengine ~]# rm -rf /home/dockerdata/rabbitmq3   --宿主机移除节点3的数据
+[root@tengine ~]# docker exec -it rabbit_test3 /bin/sh
+rabbit@rabbit_test3#
+  rabbitmqctl cluster_status
+  rabbitmqctl stop_app
+  rabbitmqctl reset
+  rabbitmqctl join_cluster rabbit@rabbit_test1
+  rabbitmqctl change_cluster_node_type ram
+  rabbitmqctl start_app
 
 
 </pre>
