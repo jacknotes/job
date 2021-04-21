@@ -44,6 +44,7 @@ chkconfig --level 35 nmb on;然后使用脚本设置linux帐户和smb帐户，首先创建需要的群
 
 
 #202104211550
+<pre>
 [root@HOMSOM-LINUX01 files]# useradd -s /sbin/nologin jack
 [root@HOMSOM-LINUX01 files]# smbpasswd -a jack
 New SMB password:
@@ -331,6 +332,6 @@ group:smb01:rwx
 mask::rwx
 other::r-x
 
-
+</pre>
 
 
