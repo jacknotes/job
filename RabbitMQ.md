@@ -719,26 +719,62 @@ rabbitmqctl list_permissions -p '/'
 rabbitmqctl list_users
 
 
-#202104211400
+#202104282012实操迁移rabbitmq节点
 #rabbitmq docker 集群节点移除、节点添加
+移除节点：192.168.13.65
 在主节点,也就是发起进群的主机上进行节点的移除.
-rabbit@rabbit_test1# rabbitmqctl cluster_status
+[root@harbor ~]# docker exec -it rabbitmq01 /bin/sh
+# rabbitmqctl cluster_status
+Cluster status of node rabbit@rabbitmq01 ...
 Basics
-Cluster name: rabbit@rabbit_test1
+Cluster name: rabbit@rabbitmq01
+# rabbitmqctl forget_cluster_node rabbit@rabbitmq02
+Removing node rabbit@rabbitmq02 from the cluster
 
-rabbit@rabbit_test1# rabbitmqctl forget_cluster_node rabbit@rabbit_test3
 集群节点添加：
-节点3：
-#docker run --name=rabbit_test3 --hostname=rabbit_test3 --env=RABBITMQ_DEFAULT_USER=admin --env=RABBITMQ_DEFAULT_PASS=p@ss123.com --env='RABBITMQ_ERLANG_COOKIE=rabbitcookie!@#'  --volume=/home/dockerdata/rabbitmq3:/var/lib/rabbitmq --volume=/var/lib/rabbitmq --expose=15671 -p 15674:15672 --expose=15691 --expose=15692 -p 25674:25672 -p 4371:4369 --expose=5671 -p 5674:5672 --link rabbit_test2 --link rabbit_test1 --restart=always  --detach=true rabbitmq:3.8.9-management rabbitmq-server
-[root@tengine ~]# rm -rf /home/dockerdata/rabbitmq3   --宿主机移除节点3的数据
-[root@tengine ~]# docker exec -it rabbit_test3 /bin/sh
-rabbit@rabbit_test3#
-  rabbitmqctl cluster_status
-  rabbitmqctl stop_app
-  rabbitmqctl reset
-  rabbitmqctl join_cluster rabbit@rabbit_test1
-  rabbitmqctl change_cluster_node_type ram
-  rabbitmqctl start_app
+添加节点：192.168.13.162：
+docker run -d --restart=always \
+--hostname rabbitmq02 \
+--name rabbitmq02 \
+-v /home/dockerdata/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='rabbitcookie@homsom' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+--add-host rabbitmq01:192.168.13.235 \
+--add-host rabbitmq03:192.168.13.160 \
+rabbitmq:3.8.9-management
+[root@linux03 dockerdata]# docker exec -it rabbitmq02 /bin/sh
+#rabbitmqctl cluster_status
+Cluster status of node rabbit@rabbitmq02 ...
+Basics
+Cluster name: rabbit@rabbitmq02
+#rabbitmqctl stop_app
+Stopping rabbit application on node rabbit@rabbitmq02 ...
+#rabbitmqctl reset
+Resetting node rabbit@rabbitmq02 ...
+# rabbitmqctl join_cluster --ram rabbit@rabbitmq01
+Clustering node rabbit@rabbitmq02 with rabbit@rabbitmq01
+#rabbitmqctl start_app
+Starting node rabbit@rabbitmq02 ...
+# rabbitmqctl cluster_status
+Cluster status of node rabbit@rabbitmq02 ...
+Basics
+Cluster name: rabbit@rabbitmq01
 
+Disk Nodes
+rabbit@rabbitmq01
+rabbit@rabbitmq03
+
+RAM Nodes
+rabbit@rabbitmq02
+
+Running Nodes
+rabbit@rabbitmq01
+rabbit@rabbitmq02
+rabbit@rabbitmq03
 
 </pre>
