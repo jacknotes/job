@@ -1,7 +1,8 @@
 ﻿# Manual
+<pre>
 ALERT: 
 1. mysql backup(full,increment) shell require follow mysql restore shell match use.
-2. restore increment backup of initial master-bin.xxx and target master-bin.xxx must in directory.
+2. restore database data file.
 
 
 Usage:
@@ -13,22 +14,13 @@ alter user dbbackup@'localhost' identified by "hZH3oCw=";
 flush privileges;
 
 2. crontab backup: mysql backup in /etc/crontab
-*/5 * * * * mysql_restore.sh
+"*/5 * * * * mysql_restore.sh"
 
-3. restore backup method drop_db,generator_index_file,full_restore,increment_restore
-in target directory, drop match database name of DB.
-./mysql_restore.sh drop /tmp/mysql-restore/Pro_Full_20210509_010002
-or ./mysql_restore.sh drop .
+Usage: { ./mysql_restore.sh { [ drop | generator ] datadir } | { rename source_database target_database } | { [ convert | restore ] full_backup_directory increment_backup_directory } }
+Eexample: ./resotre_fullDB.sh rename db01 db01_backup
+Eexample: ./resotre_fullDB.sh drop /tmp/mysql-restore/Pro_Full_20210509_010002
+Eexample: ./resotre_fullDB.sh generator /tmp/mysql-restore/Pro_Full_20210509_010002
+Eexample: ./resotre_fullDB.sh convert /tmp/mysql-restore/Pro_Full_20210509_010002 /tmp/mysql-restore/Pro_Increment_20210509_030001
+Eexample: ./resotre_fullDB.sh restore /tmp/mysql-restore/Pro_Full_20210509_010002 /tmp/mysql-restore/Pro_Increment_20210509_030001
 
-in target directory, generator restore time require info, match database name of binlog filename with binlog position.
-./mysql_restore.sh generator /tmp/mysql-restore/Pro_Full_20210509_010002
-./mysql_restore.sh generator .
-
-in target directory, full restore match database name of DB.
-./mysql_restore.sh full /tmp/mysql-restore/Pro_Full_20210509_010002
-./mysql_restore.sh full .
-
-in target directory, increment restore match database name of DB. full and increment data can in the equal directory.
-./mysql_restore.sh increment /tmp/mysql-restore/Pro_Increment_20210509_010002
-./mysql_restore.sh increment 
-
+</pre>
