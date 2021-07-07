@@ -9,7 +9,7 @@
 
 
 DATADIR=$2
-LOGIN_STATEMENT="mysql -uroot -phomsom "
+LOGIN_STATEMENT="mysql -uroot -phomsom123 "
 DATABASE_MASTER_INDEX_FILE=master_index_file.txt
 DATABASE_INCREMENT_FILENAME=${DATADIR}/increment_filename.txt
 DATETIME="date +'%Y-%m-%d %T'"
@@ -34,6 +34,8 @@ rename_mysql_dbname(){
 		${LOGIN_STATEMENT} -e "rename table ${FORMAT_SOURCE_DATABASE_NAME}.\`${table}\` to ${TARGET_DATABASE}.\`${table}\`"
 		[ $? == 0 ] && echo "`eval ${DATETIME}`: rename table ${FORMAT_SOURCE_DATABASE_NAME}.\`${table}\` TO ${TARGET_DATABASE}.\`${table}\` successful." || echo "`eval ${DATETIME}`: rename table ${SOURCE_DATABASE}.\`${table}\` TO ${TARGET_DATABASE}.\`${table}\` failure."
         done
+	TABLE_ROW_NUMBER=`${LOGIN_STATEMENT} -e "show tables from ${FORMAT_SOURCE_DATABASE_NAME}" | wc -l`
+	[ ${TABLE_ROW_NUMBER} == 0 ] && ${LOGIN_STATEMENT} -e "drop database if exists ${FORMAT_SOURCE_DATABASE_NAME}"
 }
 
 #from full directory drop database
@@ -340,11 +342,14 @@ case $1 in
 		;;
 
 	*)
+		echo "BEGIN: "
+		echo "Eexample: ./resotre_fullDB.sh convert /tmp/mysql-restore/Pro_Full_20210509_010002 /tmp/mysql-restore/Pro_Increment_20210509_030001"
+
+		echo "AFTER: "
 		echo "Usage: { $0 { [ drop | generator ] datadir } | { rename source_database target_database } | { [ convert | restore ] full_backup_directory increment_backup_directory } }"
 		echo "Eexample: ./resotre_fullDB.sh drop /tmp/mysql-restore/Pro_Full_20210509_010002"
 		echo "Eexample: ./resotre_fullDB.sh generator /tmp/mysql-restore/Pro_Full_20210509_010002"
 		echo "Eexample: ./resotre_fullDB.sh rename db01 db01_backup"
-		echo "Eexample: ./resotre_fullDB.sh convert /tmp/mysql-restore/Pro_Full_20210509_010002 /tmp/mysql-restore/Pro_Increment_20210509_030001"
 		echo "Eexample: ./resotre_fullDB.sh restore /tmp/mysql-restore/Pro_Full_20210509_010002 /tmp/mysql-restore/Pro_Increment_20210509_030001"
 		;;
 esac
