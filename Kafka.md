@@ -229,7 +229,7 @@ tcp6       0      0 127.0.0.1:3389          :::*                    LISTEN      
 tcp6       0      0 :::2181                 :::*                    LISTEN      9535/java           
 tcp6       0      0 :::2182                 :::*                    LISTEN      9551/java      
 
-ot@jack zookeeper]# /usr/local/zookeeper/bin/zkServer.sh status
+[root@jack zookeeper]# /usr/local/zookeeper/bin/zkServer.sh status
 ZooKeeper JMX enabled by default
 Using config: /usr/local/zookeeper/bin/../conf/zoo.cfg
 Mode: follower
