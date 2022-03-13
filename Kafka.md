@@ -171,6 +171,9 @@ hello jack  #这是新接收到的消息
 
 
 ####kafka高可用集群搭建：
+选举优先级：
+一：对比事务ID，谁大谁为leader,集群初始没有事务ID，需要看第二步
+二：对比server ID,谁大谁为leader
 1.zookeeper高可用伪集群搭建：
 curl -L -O http://apache.fayea.com/zookeeper/zookeeper-3.4.14/zookeeper-3.4.14.tar.gz
 tar xf zookeeper-3.4.14.tar.gz -C /usr/local/
