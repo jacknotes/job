@@ -186,12 +186,12 @@ syncLimit=5    #用于集群， master主节点与从节点之间发送消息，
 dataDir=/tmp/zookeeper/data1    #数据存储位置
 dataLogDir=/tmp/zookeeper/log1  #日志目录
 clientPort=2181    #用于客户端连接的端口，默认2181
-server.1=127.0.0.1:2287:3387   #指名集群间通讯端口和选举端口
+server.1=127.0.0.1:2287:3387   #指定集群间通讯端口和选举端口
 server.2=127.0.0.1:2288:3388
 server.3=127.0.0.1:2289:3389   
 #上面server.1 这个1是服务器的标识，可以是任意有效数字，标识这是第几个服务器节点，这个标识要写到dataDir目录下面myid文件里
-[root@jack ~]# cp -a /usr/local/zookeeper /usr/local/zookeeper2
-[root@jack ~]# cp -a /usr/local/zookeeper /usr/local/zookeeper3
+[root@jack ~]# cp -a /usr/local/zookeeper-3.4.14 /usr/local/zookeeper2
+[root@jack ~]# cp -a /usr/local/zookeeper-3.4.14 /usr/local/zookeeper3
 node2:编辑节点2的zookeeper配置文件：
 [root@jack ~]# vim /usr/local/zookeeper2/conf/zoo.cfg
 tickTime=2000
@@ -220,7 +220,7 @@ mkdir -p  /tmp/zookeeper/data{1,2,3}
 mkdir -p  /tmp/zookeeper/log{1,2,3}
 [root@jack zookeeper]# echo 1 > /tmp/zookeeper/data1/myid 
 [root@jack zookeeper]# echo 2 > /tmp/zookeeper/data2/myid 
-[root@jack zookeeper]# echo 3 > /tmp/zookeeper/data2/myid 
+[root@jack zookeeper]# echo 3 > /tmp/zookeeper/data3/myid 
 /usr/local/zookeeper/bin/zkServer.sh start   #启动zookeeper
 /usr/local/zookeeper2/bin/zkServer.sh start
 /usr/local/zookeeper3/bin/zkServer.sh start
