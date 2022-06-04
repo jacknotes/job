@@ -338,7 +338,7 @@ Git分支十分强大，在团队开发中应该充分应用。
 
 ###错误分支
 <pre>
-git stash    --保存当前的工作状态，等需要时可拿出来，
+$ git stash    --保存当前的工作状态，等需要时可拿出来，
 原计划两个小时的缺陷修复只花了5分钟！现在接着回到dev分支干活了！
 
 $ git checkout dev
@@ -460,7 +460,7 @@ Writing objects: 100% (3/3), 308 bytes | 308.00 KiB/s, done.
 Total 3 (delta 0), reused 0 (delta 0)
 To github.com:michaelliao/learngit.git
    f52c633..7a5e5dd  dev -> dev
- 的你小伙伴已经向origin/dev分支推送了他的提交，而碰巧你也对同样的文件作了修改，并试图推送：
+你的小伙伴已经向origin/dev分支推送了他的提交，而碰巧你也对同样的文件作了修改，并试图推送：
 
 $ cat env.txt
 env
