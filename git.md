@@ -653,7 +653,8 @@ git stash apply stash@{0}   --恢复指定的保存工作列表
 git stash pop	#恢复工作列表并且也会删除保存的工作列表
 git push origin master		#推送master分支到远程仓库
 git push origin dev		#推送dev分支到远程仓库
-
+git tag v0.0.1			#轻量标签
+git tag -a v0.0.2 -m "v0.0.2"	#附注标签
 
 git pull = git fetch + git merge
 
@@ -662,6 +663,31 @@ git pull = git fetch + git merge
 fatal: Not a valid object name: 'master'.
 原因是没有提交一个对象，要先commit之后才会真正建立master分支，此时才可以建立其它分支。
 
+
+2. 回滚版本
+$ cat test4.txt	#此时是v0.0.5版本
+hehe
+test for v4
+test for test.....
+$ git reset --hard v0.0.4	#从v0.0.5回滚到v0.0.4
+HEAD is now at b984a9c v5
+$ cat test4.txt
+hehe
+test for v4
+
+$ git push origin master	#git push错误
+To http://gitlab.hs.com/kubernetes/frontend.git
+ ! [rejected]        master -> master (non-fast-forward)
+error: failed to push some refs to 'http://gitlab.hs.com/kubernetes/frontend.git'
+hint: Updates were rejected because the tip of your current branch is behind
+hint: its remote counterpart. Integrate the remote changes (e.g.
+hint: 'git pull ...') before pushing again.
+hint: See the 'Note about fast-forwards' in 'git push --help' for details.
+
+$ git push -f origin master		#我们需要强制推送进行覆盖，从而进行回滚
+Total 0 (delta 0), reused 0 (delta 0)
+To http://gitlab.hs.com/kubernetes/frontend.git
+ + 65b1e63...b984a9c master -> master (forced update)
 
 
 </pre>
