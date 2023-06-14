@@ -11,6 +11,7 @@ import re
     1. 用于自动批量参数化构建jenkins任务
     2. JobList为job列表
     3. jsonVar为参数化构建时传入的变量, 需对应调整参数达到预期效果
+    4. Jenkins ver. 2.222.3
 '''
 
 UserNameVar='0799'
