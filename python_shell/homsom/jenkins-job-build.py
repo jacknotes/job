@@ -16,7 +16,7 @@ import re
 
 UserNameVar='0799'
 # 生成的token
-UserTokenVar='1198f0510f05f48fa60ea9d5f6561e890e'
+UserTokenVar='1198f0510f05f48fa600e'
 JenkinsCrumbIssuerAddressVar='http://newjenkins.hs.com/crumbIssuer/api/json'
 JenkinsJobAddressVar = 'http://newjenkins.hs.com/job/'
 JenkinsJobBuildUrlVar = '/build?delay=0sec'
@@ -46,12 +46,12 @@ jsonVar={
         },
         {
             "name": "PublishEnvironment",
-            "value": "uat"
+            "value": "prepro"
         },
         {
             "name": "PublishPassword",
             # 此处经过post请求，会将此参数的'+'号变成'空',需要注意，将+用%2B替代
-            "value": "homsom%2B4006123123"
+            "value": "homsom%2B40023"
         }
     ],
     "Jenkins-Crumb": ""
