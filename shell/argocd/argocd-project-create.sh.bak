@@ -1,0 +1,120 @@
+#!/bin/sh
+
+
+init_args(){
+	# change current path
+	PROJECT_HOME='/root/k8s/git/k8s-deploy/'
+	DEST_LANGUATE="${1,,}"
+	DEST_DOMAIN="${2,,}"
+	DEST_HEALTH_PATH="${3,,}"
+
+	cd ${PROJECT_HOME} || exit 1
+
+	if [ "$1" == 'java' ];then
+		SRC_DOMAIN='vccApplication.service.hs.com'
+		SRC_HEALTH_PATH='/k8s/health'
+	elif [ "$1" == 'dotnet' ];then
+		SRC_DOMAIN='tripapplicationform.api.hs.com'
+		SRC_HEALTH_PATH='/index.html'
+	elif [ "$1" == 'frontend' ];then
+		SRC_DOMAIN='vccoperation.hs.com'
+		SRC_HEALTH_PATH='/NO-PATH'
+	else
+		echo '[ERROR] args not legal'
+		exit 10
+	fi
+
+	# process env
+	format_src_domain=$(echo "${SRC_DOMAIN}" | sed 's/\./\\\./g')
+	format_src_name=$(echo ${DEST_LANGUATE}-`echo "${SRC_DOMAIN}" | sed 's/\./-/g'`)
+	format_dst_name=$(echo ${DEST_LANGUATE}-`echo "${DEST_DOMAIN}" | sed 's/\./-/g'`)
+	format_src_health_path=$(echo "${SRC_HEALTH_PATH}" | sed 's/\./\\\./g')
+}
+
+
+git_clone(){
+	if ! [ -d "${format_dst_name}" ]; then
+		git clone git@gitlab.hs.com:k8s-deploy/${format_dst_name}.git || exit 10
+	else
+		echo "[ERROR] project already exists, path: ${PROJECT_HOME}${format_dst_name}"
+		exit 10
+	fi
+
+	cd ${format_dst_name} 
+	if [ $? == 0 ];then 
+		echo "[INFO] current Directory: ${PROJECT_HOME}${format_dst_name}" 
+	else 
+		echo '[ERROR] change dir failure'
+		exit 10
+	fi
+
+	# copy template files
+	echo '[INFO] copy template file'
+	for i in `ls ../init/${DEST_LANGUATE}`;do
+		\cp -a ../init/${DEST_LANGUATE}/$i . || exit 10
+	done
+
+}
+
+## replace_str function
+# replace_str filename src_str dst_str
+replace_str(){
+	# I ignore-case
+	sed -i "s@${2}@${3}@Ig" $1 
+	if [ $? == 0 ];then
+		echo "[INFO] replace $2 to $3 of file $1 success."
+	else
+		echo "[ERROR] replace $2 to $3 of file $1 fail."
+	fi
+}
+
+## do replace
+replace(){
+	# format ENV
+	# exclude .git dir
+	rep_files=(`find . -maxdepth 2 -type f -exec echo {} \; | grep -v .git`)
+	let files_num=${#rep_files[*]}-1
+	rep_strs=("${format_src_domain}|${DEST_DOMAIN}" "${format_src_health_path}|${DEST_HEALTH_PATH}" "${format_src_name}|${format_dst_name}")
+	let strs_num=${#rep_strs[*]}-1
+
+	for i in `seq 0 ${files_num}`;do
+		for j in `seq 0 ${strs_num}`;do
+			src_str=$(echo "${rep_strs[$j]}" | awk -F'|' '{print $1}')
+			dest_str=$(echo "${rep_strs[$j]}" | awk -F'|' '{print $2}')
+			grep -i ${src_str} ${rep_files[$i]} &> /dev/null && \
+			replace_str ${rep_files[$i]} ${src_str} ${dest_str}
+		done
+	done
+}
+
+init_repo(){
+	# push to master branch
+	git add -A && \
+	git commit -m "init" && \
+	git push origin master
+
+	# push to pro branch
+	git checkout -b pro && \
+	git push origin pro
+}
+
+apply_rollout(){
+	kubectl apply -f rollout-project.yaml -f rollout-application.yaml
+}
+
+case $1 in
+	replace)
+		if ! [ "$#" -eq 4 ];then echo '[ERROR] args not equals 4'; exit 5; fi
+		init_args $2 $3 $4
+		git_clone
+		$1
+		init_repo
+		apply_rollout
+		;;
+    	*)    
+      		echo "Usage: $0 replace { java | dotnet | frontend } DEST_DOMAIN DEST_HEALTH_PATH " 
+		echo "Example: [java] $0 replace java DFlightRFlightMaster.service.hs.com /doc.html"
+		echo "Example: [dotnet] $0 replace dotnet tripapplicationform.api.hs.com /index.html"
+		echo "Example: [frontend] $0 replace frontend vccoperation.hs.com /NO-PATH"
+        	exit 1
+esac
