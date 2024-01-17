@@ -1823,3 +1823,478 @@ destination：https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center
 
 
 
+
+
+# Jenkins for pipeline
+
+`实现基于Jenkins的K8s发布功能`
+
+
+
+## 安装
+
+
+* 安装jenkins，并安装以下插件
+```
+Git
+Git Parameter
+Git Pipeline for Blue Ocean
+GitLab
+Credentials
+Credentials Binding
+Blue Ocean
+Blue Ocean Pipeline Editor
+Blue Ocean Core JS
+Pipeline SCM API for Blue Ocean
+Dashboard for Blue Ocean
+Build With Parameters
+Dynamic Extended Choice Parameter Plug-In
+Dynamic Parameter Plug-in
+Extended Choice Parameter
+List Git Branches Parameter
+Pipeline
+Pipeline: Declarative
+Kubernetes
+Kubernetes CLI
+Kubernetes Credentials
+Image Tag Parameter
+Active Choices
+Generic Webhook Trigger
+```
+* 安装gitlab
+* 安装harbor
+* 部署Kubernetes
+* [Pipeline常用变量](http://Jenkins_URL/pipeline-syntax/globals)
+
+
+
+## 配置Jenkins
+
+
+**配置gitlab访问凭证**
+
+1. 在jenkins服务器生成ssh-key密钥对，将公钥放到gitlab中有权限用户的SSH密钥中，免密访问gitlab
+2. 将ssh-key密钥对的私钥复制到jenkins全局凭证中，名称为gitlab，类型为`SSH Username with private key`
+
+**配置harbor访问凭证**
+1. 在harbor中创建对应仓库用户和密码
+2. 将用户和密码放到jenkins全局凭证中，ID为harbor，类型为`Username with password`
+
+**配置k8s访问凭证**
+
+1. 制作有权限部署到k8s的kubeconfig
+2. 复制kubeconfig内容到新文件中，将将新文件上传到jenkins全局凭证中，ID为kubernetes，类型为`Secret file`
+
+
+
+## 创建项目hotelbusiness.service
+
+![](./images/jenkins/jenkins-job01.png)
+![](./images/jenkins/jenkins-job02.png)
+
+
+
+## 编写Jenkinsfile
+
+```bash
+pipeline {
+  agent {
+    kubernetes {
+      cloud 'test-kubernetes'
+      slaveConnectTimeout 1200
+      workspaceVolume hostPathWorkspaceVolume(hostPath: "/opt/workspace", readOnly: false)
+      yaml '''
+kind: Pod
+spec:
+  nodeSelector:
+    build: "true"
+  restartPolicy: "Never"
+  securityContext: {}
+  containers:
+    - args: [\'$(JENKINS_SECRET)\', \'$(JENKINS_NAME)\']
+      #image: 'registry.cn-beijing.aliyuncs.com/citools/jnlp:alpine'
+      image: 'harborrepo.hs.com/k8s/jenkins-jnlp-slave:4.13-jdk11'
+      name: "jnlp"
+      imagePullPolicy: IfNotPresent
+      volumeMounts:
+      - mountPath: "/etc/localtime"
+        name: "localtime"
+        readOnly: false
+    - command:
+      - "cat"
+      env:
+      - name: "LANGUAGE"
+        value: "en_US:en"
+      - name: "LC_ALL"
+        value: "en_US.UTF-8"
+      - name: "LANG"
+        value: "en_US.UTF-8"
+      image: "registry.cn-beijing.aliyuncs.com/citools/maven:3.5.3"
+      imagePullPolicy: "IfNotPresent"
+      name: "build"
+      tty: true
+      volumeMounts:
+      - mountPath: "/etc/localtime"
+        name: "localtime"
+      - mountPath: "/root/.m2/"
+        name: "cachedir"
+        readOnly: false
+    - command:
+      - "cat"
+      env:
+      - name: "LANGUAGE"
+        value: "en_US:en"
+      - name: "LC_ALL"
+        value: "en_US.UTF-8"
+      - name: "LANG"
+        value: "en_US.UTF-8"
+      image: "registry.cn-beijing.aliyuncs.com/citools/kubectl:self-1.17"
+      imagePullPolicy: "IfNotPresent"
+      name: "kubectl"
+      tty: true
+      volumeMounts:
+      - mountPath: "/etc/localtime"
+        name: "localtime"
+        readOnly: false
+    - command:
+      - "cat"
+      env:
+      - name: "LANGUAGE"
+        value: "en_US:en"
+      - name: "LC_ALL"
+        value: "en_US.UTF-8"
+      - name: "LANG"
+        value: "en_US.UTF-8"
+      image: "registry.cn-beijing.aliyuncs.com/citools/docker:19.03.9-git"
+      imagePullPolicy: "IfNotPresent"
+      name: "docker"
+      tty: true
+      volumeMounts:
+      - mountPath: "/etc/localtime"
+        name: "localtime"
+        readOnly: false
+      - mountPath: "/var/run/docker.sock"
+        name: "dockersock"
+        readOnly: false
+  volumes:
+  - hostPath:
+      path: "/var/run/docker.sock"
+    name: "dockersock"
+  - hostPath:
+      path: "/usr/share/zoneinfo/Asia/Shanghai"
+    name: "localtime"
+  - hostPath:
+      path: "/opt/m2"
+    name: "cachedir"
+      '''
+    }
+  }
+
+  options {
+    //buildDiscarder(logRotator(numToKeepStr: '2'))
+    //quietPeriod(5)
+    //retry(1)
+    //timeout(time: 1, unit: 'HOURS')
+    timestamps()
+  }
+  
+  triggers {
+    cron('H */12 * * 6-7 ')
+    //pollSCM('H */12 * * 6-7 ')
+    //upstream(upstreamProjects: 'job1,job2', threshold: hudson.model.Result.SUCCESS)
+  }
+  
+  //stages {
+  //  stage('Example') {
+  //    input {
+  //      message "还继续么？"
+  //      ok "继续"
+  //      submitter "alice,admin"
+  //      parameters {
+  //        string(name: 'PERSON', defaultValue: 'Mr Jenkins', description: 'Who should I say hello to?')
+  //      }
+  //    }
+  //  }
+  //}
+  
+  stages {
+    stage('Pulling Code') {
+      parallel {
+        stage('Pulling Code by Jenkins') {
+          when {
+            expression { 
+              env.gitlabBranch == null 
+            }
+          }
+          steps {
+            git(changelog: true, poll: true, url: 'git@172.168.2.14:k8s/hotelbusiness.service.git', branch: "${BRANCH}", credentialsId: 'gitlab')
+            script {
+              COMMIT_ID = sh(returnStdout: true, script: "git log -n 1 --pretty=format:'%h'").trim()
+              DATE_TIME = sh(returnStdout: true, script: "date +'%Y%m%d%H%M%S'").trim()
+              TAG = DATE_TIME + '-' + BUILD_NUMBER + '-' + COMMIT_ID
+              println "Current branch is ${BRANCH}, Commit ID is ${COMMIT_ID}, Image TAG is ${TAG}"
+            }
+          }
+        }
+
+        stage('Pulling Code by trigger') {
+          when {
+            expression { 
+              env.gitlabBranch != null 
+            }	
+          }
+          steps {
+            git(url: 'git@172.168.2.14:k8s/hotelbusiness.service.git', branch: env.gitlabBranch, changelog: true, poll: true, credentialsId: 'gitlab')
+            script {
+              COMMIT_ID = sh(returnStdout: true, script: "git log -n 1 --pretty=format:'%h'").trim()
+              DATE_TIME = sh(returnStdout: true, script: "date +'%Y%m%d%H%M%S'").trim()
+              TAG = DATE_TIME + '-' + BUILD_NUMBER + '-' + COMMIT_ID
+              println "Current branch is ${env.gitlabBranch}, Commit ID is ${COMMIT_ID}, Image TAG is ${TAG}"
+            }
+          }
+        }
+      }
+    }
+
+    stage('Building') { 
+      steps {
+        container(name: 'build') { 
+          sh """
+            mvn clean package -U -Dmaven.test.skip=true 
+            ls target/*
+          """
+        }
+      }
+    }
+
+    stage('Docker build for creating image') { 
+      environment {
+        HARBOR_USER = credentials('harbor')
+      }	 
+      steps {
+        container(name: 'docker') { 
+          sh """
+            echo ${HARBOR_USER_USR} ${HARBOR_USER_PSW} ${TAG}
+            docker build -t ${HARBOR_ADDRESS}/${REGISTRY_DIR}/${IMAGE_NAME}:${TAG} .
+            docker login -u ${HARBOR_USER_USR} -p ${HARBOR_USER_PSW} ${HARBOR_ADDRESS}
+            docker push ${HARBOR_ADDRESS}/${REGISTRY_DIR}/${IMAGE_NAME}:${TAG}
+          """
+        }
+      }
+    }
+
+    stage('Deploying to K8s') { 
+      environment {
+        MY_KUBECONFIG = credentials('kubernetes')
+      }
+      steps {
+        container(name: 'kubectl') { 
+          sh"""
+            /usr/local/bin/kubectl --kubeconfig $MY_KUBECONFIG set image deploy -l app=${IMAGE_NAME}-selector ${CONTAINER_NAME}=${HARBOR_ADDRESS}/${REGISTRY_DIR}/${IMAGE_NAME}:${TAG} -n $NAMESPACE
+          """
+        }
+      }
+    }
+  }
+  
+  environment {
+    COMMIT_ID = ""
+    HARBOR_ADDRESS = "harborrepo.hs.com"
+    REGISTRY_DIR = "test"
+    IMAGE_NAME = "java-hotelbusiness-service-hs-com"
+    NAMESPACE = "kubernetes"
+    CONTAINER_NAME = "homsom-container"
+    TAG = ""
+  }
+  parameters {
+    gitParameter(branch: '', branchFilter: 'origin/(.*)', defaultValue: '', description: 'Branch for build and deploy', name: 'BRANCH', quickFilterEnabled: false, selectedValue: 'NONE', sortMode: 'NONE', tagFilter: '*', type: 'PT_BRANCH')
+  }
+  
+  post {
+    always {
+      echo "Hello World!"
+      echo "to do END"
+    }
+  }
+}
+```
+
+
+
+## Dockerfile
+
+```bash
+# 项目结构
+[root@BuildImage /tmp/hotelbusiness.service]# ll
+total 28
+-rw-r--r-- 1 root root  289 Jan 17 15:03 Dockerfile
+-rw-r--r-- 1 root root  786 Jan 17 15:03 entrypoint.sh
+-rw-r--r-- 1 root root 2116 Jan 17 15:06 hotelbusiness-service.yaml
+-rw-r--r-- 1 root root 6357 Jan 17 17:13 Jenkinsfile
+-rw-r--r-- 1 root root 4363 Jan 17 15:03 pom.xml
+-rw-r--r-- 1 root root    0 Jan 17 15:03 README.md
+drwxr-xr-x 4 root root   28 Jan 17 15:03 src
+```
+
+```bash
+[root@BuildImage /tmp/hotelbusiness.service]# cat Dockerfile 
+FROM harborrepo.hs.com/base/java/ops_java:8
+EXPOSE 80
+
+ENV TZ=Asia/Shanghai 
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR / 
+ADD target/*.jar app.jar
+COPY entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
+
+[root@BuildImage /tmp/hotelbusiness.service]# cat entrypoint.sh 
+#!/bin/bash
+
+JAVA_ARGS='java -Xmx200m -Xss256k -XX:+UseParallelGC -XX:+UseParallelOldGC'
+
+if [[ "${JAVA_ENVIRONMENT}" == 'pro' ]];then
+	exec ${JAVA_ARGS} -javaagent:/jar/agent/skywalking-agent.jar -Dskywalking.agent.service_name=Hotel.operation.service.hs.com -Dskywalking.collector.backend_service=trace-skywalking.hs.com:11800 -jar app.jar --spring.profiles.active=${JAVA_ENVIRONMENT}
+elif [[ "${JAVA_ENVIRONMENT}" == 'uat' ]];then
+	exec ${JAVA_ARGS} -jar app.jar --spring.profiles.active=${JAVA_ENVIRONMENT}
+elif [[ "${JAVA_ENVIRONMENT}" == 'fat' ]];then
+	exec ${JAVA_ARGS} -jar -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=13372 app.jar --spring.profiles.active=${JAVA_ENVIRONMENT}
+else
+	echo "[ERROR]: JAVA_ENVIRONMENT variable not is pro | uat | fat"
+	exit 10
+fi
+```
+
+
+
+
+
+## 初始化K8s项目
+
+```bash
+# yaml文件
+[root@BuildImage /tmp/hotelbusiness.service]# cat hotelbusiness-service.yaml 
+apiVersion: v1
+kind: Service
+metadata:
+  name: java-hotelbusiness-service-hs-com-service
+spec:
+  ports:
+  - name: http
+    nodePort: 43890
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: java-hotelbusiness-service-hs-com-selector
+  type: NodePort
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    link.argocd.argoproj.io/external-link: http://172.168.2.30:8080/job/anvil.service.hs.com/
+  name: java-hotelbusiness-service-hs-com-deployment
+  labels:
+    app: java-hotelbusiness-service-hs-com-selector
+spec:
+  replicas: 1
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: java-hotelbusiness-service-hs-com-selector
+  template:
+    metadata:
+      labels:
+        app: java-hotelbusiness-service-hs-com-selector
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: java-hotelbusiness-service-hs-com-selector
+              topologyKey: kubernetes.io/hostname
+            weight: 50
+      imagePullSecrets:
+      - name: harborkey
+      containers:
+      - env:
+        - name: JAVA_ENVIRONMENT
+          value: fat
+        image: harborrepo.hs.com/fat/anvil.service.hs.com:v20231228194247
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 80
+          initialDelaySeconds: 120
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        name: homsom-container
+        ports:
+        - containerPort: 80
+          name: http
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /actuator/health
+            port: 80
+          initialDelaySeconds: 120
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 3
+        resources:
+          limits:
+            cpu: 4
+            memory: 1.5Gi
+          requests:
+            cpu: 10m
+            memory: 50Mi
+```
+
+
+
+## 构建项目
+
+
+
+### 手动构建项目
+
+**注：创建完项目后，手动构建项目第一次会失败，第二次及以后将正常**
+
+![手动构建项目](./images/jenkins/pipeline-manual.png)
+
+
+
+### trigger构建项目
+
+![配置触发器构建项目](./images/jenkins/pipeline-trigger-config01.png)
+![配置触发器构建项目](./images/jenkins/pipeline-trigger-config02.png)
+
+
+
+```bash
+http://172.168.2.30:8080/project/hotelbusiness.service
+a5ba9825e249291f768458c0e5429dfc
+```
+
+![触发器构建项目](./images/jenkins/gitlab-webhook.png)
+
+
+
+![触发器构建项目](./images/jenkins/pipeline-trigger01.png)
+![触发器构建项目](./images/jenkins/pipeline-trigger02.png)
+
+
+
+### 查看k8s部署效果
+
+![k8s部署项目](./images/jenkins/k8s-deploy01.png)
