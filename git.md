@@ -691,3 +691,45 @@ To http://gitlab.hs.com/kubernetes/frontend.git
 
 
 </pre>
+
+
+## git无法连接github
+
+```bash
+# 无法push
+$ git push origin master
+ssh: connect to host github.com port 22: Connection timed out
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+
+
+# 配置
+$ cat $HOME/.ssh/config
+Host github.com
+  Hostname ssh.github.com
+  Port 443
+
+$ ssh -T git@github.com
+The authenticity of host '[ssh.github.com]:443 ([20.205.243.160]:443)' can't be established.
+ECDSA key fingerprint is SHA256:p2QAMXNIC1TJYWeIOttrVc98/R1BUFWu3/LiyKgUfQM.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+Warning: Permanently added '[ssh.github.com]:443,[20.205.243.160]:443' (ECDSA) to the list of known hosts.
+Hi jacknotes! You've successfully authenticated, but GitHub does not provide shell access.
+
+# 成功push
+$ git push
+Enumerating objects: 16, done.
+Counting objects: 100% (16/16), done.
+Delta compression using up to 4 threads
+Compressing objects: 100% (14/14), done.
+Writing objects: 100% (14/14), 480.23 KiB | 2.22 MiB/s, done.
+Total 14 (delta 1), reused 0 (delta 0)
+remote: Resolving deltas: 100% (1/1), completed with 1 local object.
+To github.com:jacknotes/job.git
+   88180be..b62a640  master -> master
+
+
+
+```
