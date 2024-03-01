@@ -3,7 +3,7 @@
 import requests, config
 
 # 清除测试(test)目标的数据
-cfg = config.TARGET["prepro"]
+cfg = config.TARGET["prod"]
 address = 'http://%s/api/v4' % cfg['address']
 headers = { 'PRIVATE-TOKEN': cfg['access_token'] }
 print("[INFO]",address, headers)

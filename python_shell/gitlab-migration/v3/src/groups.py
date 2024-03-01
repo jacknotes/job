@@ -5,7 +5,8 @@ import requests
 class Groups(object):
 	def __init__(self, cfg):
 		super(Groups, self).__init__()
-		self.source_api = 'http://%s/api/v3/groups'
+		# self.source_api = 'http://%s/api/v3/groups'
+		self.source_api = 'http://%s/api/v4/groups'
 		self.target_api = 'http://%s/api/v4/groups'
 		self.source = cfg['source']
 		self.target = cfg['target']
@@ -15,6 +16,16 @@ class Groups(object):
 		target = self.inserts(source)
 		
 		return { 'source': source, 'target': target }
+
+	def get_target(self):
+		resp = requests.get(
+			self.target_api % self.target['address'], 
+			headers = self.target['headers'])
+
+		target_groups = sorted(resp.json(), key = lambda x:x['id'], reverse = False)
+
+		print('[INFO] Total groups: %d' % len(target_groups))
+		return target_groups
 
 	def get(self):
 		resp = requests.get(
@@ -34,7 +45,8 @@ class Groups(object):
 				"name": "PublicNew",
 				"path": "PublicNew",
 				"description": group['description'],
-				"visibility_level": group['visibility_level'],
+				# "visibility_level": group['visibility_level'],		# v3
+				"visibility": group['visibility'],						# v4
 				"lfs_enabled": 0
 			}
 			else:
@@ -42,7 +54,8 @@ class Groups(object):
 					"name": group['name'],
 					"path": group['path'],
 					"description": group['description'],
-					"visibility_level": group['visibility_level'],
+					# "visibility_level": group['visibility_level'],		# v3
+					"visibility": group['visibility'],  					# v4
 					"lfs_enabled": 0
 				}
 			resp = requests.post(

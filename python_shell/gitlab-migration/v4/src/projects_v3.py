@@ -48,7 +48,7 @@ class Projects(object):
 	def inserts(self, projects):
 		new_projects = []
 		for project in projects:
-			npn = project['namespace']['name']
+			npn = project['namespace']['path']
 			try:
 				# 因为老版本gitlab有Public的群组，而新版本gitlab不支持创建名为Public的群组，所以做了 'Public' + 'New'特殊处理
 				if npn == 'Public':
@@ -59,7 +59,7 @@ class Projects(object):
 						"path": project['path'],
 						"namespace_id": np['id'],
 						"description": project['description'],
-						"visibility_level": project['visibility_level'],
+						"visibility_level": project['visibility_level'],		# v3
 						"lfs_enabled": 0
 					}
 					resp = requests.post(
@@ -75,7 +75,7 @@ class Projects(object):
 						"path": project['path'],
 						"namespace_id": np['id'],
 						"description": project['description'],
-						"visibility_level": project['visibility_level'],
+						"visibility_level": project['visibility_level'],		# v3
 						"lfs_enabled": 0
 					}
 					resp = requests.post(
@@ -93,7 +93,7 @@ class Projects(object):
 						"path": project['path'],
 						"user_id": np['id'],
 						"description": project['description'],
-						"visibility_level": project['visibility_level'],
+						"visibility_level": project['visibility_level'],		# v3
 						"lfs_enabled": 0
 					}
 					resp = requests.post(
@@ -109,7 +109,7 @@ class Projects(object):
 						"path": project['path'],
 						"user_id": np['id'],
 						"description": project['description'],
-						"visibility_level": project['visibility_level'],
+						"visibility_level": project['visibility_level'],		# v3
 						"lfs_enabled": 0
 					}
 					resp = requests.post(

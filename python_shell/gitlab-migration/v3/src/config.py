@@ -10,7 +10,7 @@ TARGET = {
 		'address': 'gitlabtest.hs.com',
 		'access_token': '2zg9cmyxXTnFb-po7Fxw'
 	},
-	'prepro': {
+	'prod': {
 		'address': '192.168.13.211',
 		'access_token': 'glpat-47dgs7r15_kzQ7GxDtg4'
 	}
