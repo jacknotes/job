@@ -50,7 +50,7 @@
 
 ### 在ES上创建快照仓库
 
-```
+```bash
 GET _snapshot/my_backup
 
 PUT _snapshot/my_backup/
@@ -72,7 +72,7 @@ PUT _snapshot/my_backup/
 
 ### 在ES上备份索引
 
-```
+```bash
 # 备份所有索引
 PUT _snapshot/my_backup/snapshot_1?wait_for_completion=true
 
@@ -106,13 +106,19 @@ GET _snapshot/my_backup/_all
 
 ### 在新ES上恢复索引
 
-```
+```bash
 # 把备份快照中的所有索引恢复到Elasticsearch集群中
 POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
 
 ## 恢复所有索引（除.开头的系统索引，-表示不包括）
 #POST _snapshot/my_backup/snapshot_1/_restore 
-#{"indices":"*,-.monitoring*,-.security*,-.kibana*","ignore_unavailable":"true"}
+#{
+#  "indices":"*,-.monitoring*,-.security*,-.kibana*,-.apm*",
+#  "ignore_unavailable":"true",
+#  "index_settings": {
+#    "index.number_of_replicas": 0
+#  }
+#}
 
 ## 将指定快照中的指定索引以重命名名称恢复到Elasticsearch集群中
 #POST /_snapshot/my_backup/snapshot_1/_restore

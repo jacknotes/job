@@ -2541,7 +2541,7 @@ Program User Add Privileges: kibana-system,kibana-admin,homsom_commonuser
 Admin User Add Privileges: superuser
 
 Real Privileges Detail:	
-homsom-readuser: read,view_index_metadata	
+homsom-readuser: read,view_index_metadata,monitor
 homsom_commonuser: all	
 superuser: System Built-in
 Match Parttern Index:	*
@@ -3783,7 +3783,11 @@ harborrepo.hs.com/ops/elk:640
 ```
 
 
+
+
+
 ### 手动部署elsaticsearch 7.6.2，带x-pack认证
+
 ```
 root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/elasticsearch-7.6.2-linux-x86_64.tar.gz dest=/download/'
 root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/kibana-7.6.2-linux-x86_64.tar.gz dest=/download/'
@@ -3810,6 +3814,7 @@ xpack.security.transport.ssl.enabled: true  #这条如果不配，es将起不来
 cluster.initial_master_nodes: ["172.168.2.17"]
 ------------------
 [root@node01 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
+[root@node01 elasticsearch]# groupadd -r elasticsearch && useradd -r -M -s /sbin/nologin -g elasticsearch elasticsearch
 [root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
 [root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
 [root@node01 elasticsearch]# cat /etc/security/limits.d/99-ansible.conf
