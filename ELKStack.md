@@ -1867,6 +1867,62 @@ POST /backup-clog/_delete_by_query?scroll_size=5000
   }
 }
 
+
+**多条件查询数据删除**
+
+must: and
+must_not: not
+should: or
+```bash
+#!/bin/sh
+LOG_FILE=/shell/shell.log
+DATETIME='date +"%Y-%m-%d %H:%M:%S"'
+ES_ADDRESS='http://127.0.0.1:9210/clog'
+
+echo "`eval ${DATETIME}`: start clear ${ES_ADDRESS} data... " >> ${LOG_FILE}
+curl -s -H'Content-Type:application/json' -d'{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "appid": "1350"
+          }
+        },
+        {
+          "match": {
+            "level": "info"
+          }
+        }
+      ],
+      "filter": {
+        "range": {
+          "time": {
+            "time_zone": "+08:00",
+            "gte":"2024-04-06",
+            "lte":"2024-05-06"
+          }
+        }
+      }
+    }
+  }
+}
+' -XPOST "${ES_ADDRESS}/_delete_by_query?scroll_size=3000"
+
+
+echo "`eval ${DATETIME}`: clear http://127.0.0.1:9210/clog data finished... " >> ${LOG_FILE}
+echo '' >> ${LOG_FILE}
+```
+
+
+
+
+**批量手动配置所有索引为读写**
+```bash
+for i in `curl -s -XGET "http://localhost:9200/_settings" | jq 'keys' | jq .[] | tr -d '"'`;do echo $i;curl -H 'Content-Type: application/json' -X PUT http://localhost:9200/$i/_settings -d '{"index.blocks.read_only_allow_delete": null}';done
+```
+
+
 删除hlog小于20200101的旧日志-----20200508操作，一个月一个月来
 --查看指定时间日志大小
 GET /clog/_search
