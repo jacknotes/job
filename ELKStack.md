@@ -4934,3 +4934,47 @@ curl -X GET http://192.168.13.234:9200/_nodes/stats/breaker?pretty
 ```
 原因：Elasticsearche内存达到100%使用
 解决：扩展内存可使用空间并重启服务
+
+
+
+
+
+
+问题：报错如下，阿里云服务大量查询无法连接ES
+```
+System.Exception: ServerError: 429Type: search_phase_execution_exception Reason: "all shards failed" CausedBy: "Type: es_rejected_execution_exception Reason: "rejected execution of org.elasticsearch.common.util.concurrent.TimedRunnable@3f9a0659 on QueueResizingEsThreadPoolExecutor[name = hotel01/search, queue capacity = 1000, min queue capacity = 1000, max queue capacity = 1000, frame size = 2000, targeted response rate = 1s,task execution EWMA = 422.3micros, adjustment amount = 50, org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor@1706f25f[Running, pool size = 13, active threads = 13, queued tasks = 1000, completed tasks = 1164701926]]" CausedBy: "Type: es_rejected_execution_exception Reason: "rejected execution of org.elasticsearch.common.util.concurrent.TimedRunnable@3f9a0659 on QueueResizingEsThreadPoolExecutor[name =hotel01/search, queue capacity = 1000, min queue capacity = 1000, max queue capacity = 1000, frame size = 2000, targeted response rate = 1s, task execution EWMA = 422.3micros, adjustment amount = 50, org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor@1706f25f[Running, pool size = 13, active threads = 13, queued tasks = 1000, completed tasks = 1164701926]]"""
+```
+
+```
+# 查看集群健康状态
+GET /_cluster/health?pretty
+
+# 查看节点线程池使用信息
+GET /_nodes/stats/thread_pool?pretty
+
+-- search线程有大量的rejected
+        "search" : {
+          "threads" : 13,
+          "queue" : 0,
+          "active" : 0,
+          "rejected" : 16265042,
+          "largest" : 13,
+          "completed" : 1169058281
+        },
+-- write线程有很多的rejected	
+		"write" : {
+          "threads" : 8,
+          "queue" : 0,
+          "active" : 0,
+          "rejected" : 4924,
+          "largest" : 8,
+          "completed" : 194180403
+        }
+
+# 调整search线程数
+thread_pool.search.size: 20
+thread_pool.search.queue_size: 2000
+thread_pool.search.max_queue_size: 3000
+
+# 重启节点服务，使配置生效
+```
