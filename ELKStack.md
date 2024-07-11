@@ -3512,6 +3512,12 @@ POST /_snapshot/my_backup/snapshot_1/_restore
 GET restored_index_3/_recovery
 --查看集群中的所有索引的恢复信息（可能包含跟您的恢复进程无关的其他分片的恢复信息）。
 GET /_recovery/
+
+# 查看恢复状态
+GET /_cat/recovery
+GET /interdaolvv2_hotelstatic_db_ali_pro/_recovery
+
+
 --取消快照恢复
 DELETE /restored_index_3
 
