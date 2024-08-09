@@ -4984,3 +4984,44 @@ thread_pool.search.max_queue_size: 3000
 
 # 重启节点服务，使配置生效
 ```
+
+
+
+问题：集群索引量大会影响搜索性能
+**在调整refresh_interval时，请注意以下几点：**
+* 在进行大量数据导入时，将refresh_interval设置为-1可以加快数据导入速度。这是因为关闭索引刷新可以减少I/O操作和磁盘空间的使用量。一旦数据导入完成，你可以将refresh_interval重新设置为一个正数，以恢复正常的索引刷新操作。
+* 调整refresh_interval时要权衡性能和实时性需求。较短的refresh_interval可以提高查询的响应速度，但会增加I/O负载和磁盘空间的使用量。相反，较长的refresh_interval可以减少I/O负载和磁盘空间的使用量，但可能会降低查询的响应速度。
+* 在调整refresh_interval之前，建议先监控Elasticsearch集群的性能指标，如CPU使用率、内存使用率、磁盘I/O等。这将帮助你了解集群的负载情况，并更好地调整相关参数以优化性能。
+* 除了refresh_interval外，还有其他一些参数可以影响Elasticsearch的性能和响应时间，如index.shard.recovery.concurrent_streams和indices.recovery.max_bytes_per_sec等。合理配置这些参数也可以帮助优化Elasticsearch的性能。
+* 总之，了解refresh_interval的工作原理并根据实际需求进行合理设置是优化Elasticsearch性能的重要步骤之一。通过调整refresh_interval和其他相关参数，你可以在实时性和性能之间找到最佳平衡点，以满足你的应用场景需求。
+
+
+```
+# 配置索引模板
+PUT _template/custom_index_refresh_interval_template
+{
+  "index_patterns": ["*"],  // 匹配所有索引
+  "order" : 50,
+  "settings": {
+    "index.refresh_interval": "30s"  // 设置刷新间隔为60秒
+  }
+}
+
+
+# 设置索引刷新间隔时间
+PUT student/_settings
+{
+    "index" : {
+        "refresh_interval" : "30s"
+    }
+}
+
+
+# 清除索引刷新间隔设置
+PUT student/_settings
+{
+    "index" : {
+        "refresh_interval" : null
+    }
+}
+```
