@@ -3540,7 +3540,7 @@ DELETE /restored_index_3
     ]
 }
 
-2. 本地ES集群所有节点安装S3插件，并所有节点配置s3.client.default.access_key 和 s3.client.default.secret_key，最后所有节点更改/etc/elasticsearch/elasticsearch.keystore权限使es有权限访问，否则无法成功创建阿里云OSS仓库，此步非常重要，之前就是卡在这步
+2. 本地ES集群所有节点安装S3插件，并所有节点配置s3.client.default.access_key 和 s3.client.default.secret_key，最后所有节点更改/etc/elasticsearch/elasticsearch.keystore权限使elasticsearch用户有权限访问，否则无法成功创建阿里云OSS仓库，此步非常重要，之前就是卡在这步
 
 `例子`
 sh /opt/elasticsearch/bin/elasticsearch-plugin install --batch repository-s3  && 
@@ -3554,7 +3554,7 @@ bin/elasticsearch-plugin install repository-s3
 bin/elasticsearch-keystore add s3.client.default.access_key
 bin/elasticsearch-keystore add s3.client.default.secret_key
 bin/elasticsearch-keystore list
-chown root.elasticsearch /etc/elasticsearch/elasticsearch.keystore
+chown elasticsearch.elasticsearch /etc/elasticsearch/elasticsearch.keystore
 
 3. 创建仓库
 PUT _snapshot/backup/
@@ -5024,4 +5024,384 @@ PUT student/_settings
         "refresh_interval" : null
     }
 }
+```
+
+
+
+
+
+# 网络设备日志收集
+
+
+## elasticsearch-7.17.23
+
+```
+[root@opsaudit /usr/local]# cat elasticsearch/config/elasticsearch.yml 
+cluster.name: rsyslog
+node.name: log01
+path.data: /data/rsyslog/data
+path.logs: /data/rsyslog/log
+path.repo: /data/rsyslog/backups
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+xpack.security.enabled: true # 这条配置表示开启xpack认证机制
+xpack.security.transport.ssl.enabled: true  #这条如果不配，es将起不来
+cluster.initial_master_nodes: ["192.168.13.198"]
+cluster.max_shards_per_node: 3000
+
+[root@opsaudit /usr/local]# systemctl cat elasticsearch
+# /usr/lib/systemd/system/elasticsearch.service
+[Unit]
+Description=https://elastic.co
+After=network-online.target
+
+[Service]
+User=elasticsearch
+Group=elasticsearch
+Type=simple
+ExecStart=/usr/local/elasticsearch/bin/elasticsearch
+Restart=on-failure
+LimitNOFILE=1000000
+
+[Install]
+WantedBy=multi-user.target
+
+```
+
+
+## kibana-7.17.23
+
+```
+[root@opsaudit /usr/local]# cat kibana/config/kibana.yml 
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "rsyslogui"
+elasticsearch.hosts: ["http://127.0.0.1:9200"]
+kibana.index: ".kibana"
+i18n.locale: "zh-CN"
+elasticsearch.username: "kibana"
+elasticsearch.password: "VtMElqTDraGIuOlI"
+xpack.reporting.encryptionKey: "x3oAYMnN43j0OapL5xXDAOxEKV"       # 如果不添加这条配置，将会报错
+xpack.security.encryptionKey: "2xwVwyH2j25IVQEfpsvpCXsKwSce"        # 如果不配置这条，将会报错
+server.publicBaseUrl: "http://127.0.0.1:5601"
+elasticsearch.requestTimeout: 120000
+
+[root@opsaudit /usr/local]# systemctl cat kibana
+# /usr/lib/systemd/system/kibana.service
+[Unit]
+Description=https://elastic.co
+After=network-online.target
+
+[Service]
+User=elasticsearch
+Group=elasticsearch
+Type=simple
+ExecStart=/usr/local/kibana/bin/kibana
+Restart=on-failure
+LimitNOFILE=1000000
+MemoryLimit=1G
+MemoryAccounting=true
+
+[Install]
+WantedBy=multi-user.target
+
+
+# 索引优化，配置副本分片为0
+PUT /_template/indx_default_template
+{
+  "index_patterns": "*",
+  "order" : 100,
+  "settings": {
+    "number_of_shards": 2,
+    "number_of_replicas": "0"
+  }
+}
+
+
+```
+
+
+
+
+## rsyslog
+
+```
+[root@opsaudit /var/log]# grep -Ev '#|^$' /etc/rsyslog-remote.conf
+$ModLoad imudp
+$UDPServerRun 514
+$ModLoad imtcp
+$InputTCPServerRun 514
+$template RemoteIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"
+*.*  ?RemoteIp
+$WorkDirectory /var/lib/rsyslog-remote
+$ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
+
+
+[root@opsaudit /var/log]# mkdir -p /var/lib/rsyslog-remote /var/log/rsyslog-remote
+[root@opsaudit /var/log]# chmod 700 /var/lib/rsyslog-remote
+
+
+[root@opsaudit /var/log]# cat /usr/lib/systemd/system/rsyslog-remote.service
+[Unit]
+ConditionPathExists=/etc/rsyslog-remote.conf
+Description=Remote Syslog Service
+
+[Service]
+Type=simple
+PIDFile=/var/run/rsyslogd-remote.pid
+ExecStart=/usr/sbin/rsyslogd -n -f /etc/rsyslog-remote.conf -i /var/run/rsyslogd-remote.pid
+ExecReload=/bin/kill -HUP $MAINPID
+
+[Install]
+WantedBy=multi-user.target
+
+
+# 配置日志轮替
+[root@opsaudit /var/log/rsyslog-remote]# cat /etc/logrotate.d/homsom_audit.conf
+/var/log/rsyslog-remote/*.log{
+	daily
+	missingok
+	rotate 10
+	compress
+	#delaycompress
+	notifempty
+	create 0644 root root
+	su root root
+	dateext
+	dateformat -%Y%m%d
+	olddir /var/log/rsyslog-remote/backup_logs
+}
+
+# 立即执行轮替
+logrotate -vf /etc/logrotate.d/homsom_audit.conf
+```
+
+
+## filebeat-7.17.23
+
+```
+[root@opsaudit /usr/local/filebeat]# grep -Ev '#|^$' filebeat.yml
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.101.1.log
+  tags: ["sangfor-af"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.102.15.log
+  tags: ["sangfor-ac"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.102.1.log
+  tags: ["sangfor-atrust"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.103.9.log
+    - /var/log/rsyslog-remote/192.168.103.10.log
+  tags: ["huawei-af"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.102.2.log
+  tags: ["switch", "huawei-csw"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.16.254.log
+  tags: ["switch", "huawei-dsw"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.10.252.log
+    - /var/log/rsyslog-remote/192.168.10.253.log
+  tags: ["switch", "cisco-dsw"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.16.251.log
+    - /var/log/rsyslog-remote/192.168.16.252.log
+    - /var/log/rsyslog-remote/192.168.16.253.log
+  tags: ["switch", "huawei-asw"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/172.168.2.31.log
+    - /var/log/rsyslog-remote/172.168.2.32.log
+    - /var/log/rsyslog-remote/172.168.2.33.log
+    - /var/log/rsyslog-remote/172.168.2.34.log
+    - /var/log/rsyslog-remote/172.168.2.35.log
+    - /var/log/rsyslog-remote/172.168.2.36.log
+    - /var/log/rsyslog-remote/172.168.2.37.log
+  tags: ["switch", "huasan-asw"]
+- type: log
+  enabled: true
+  paths:
+    - /var/log/rsyslog-remote/192.168.102.7.log
+  tags: ["switch", "cisco-msw"]
+processors:
+  - drop_fields:
+      fields: ["ecs","host","input","agent","log"]
+      ignore_missing: false
+output.elasticsearch:
+  username: "logwrite"
+  password: "yrTpSbf0aLBQSoxj"
+  hosts: ["127.0.0.1:9200"]
+  indices:
+    - index: "sangfor-af_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "sangfor-af"
+    - index: "sangfor-ac_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "sangfor-ac"
+    - index: "sangfor-atrust_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "sangfor-atrust"
+    - index: "huawei-af_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "huawei-af"
+    - index: "switch_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "switch"
+logging.level: error
+
+
+
+[root@opsaudit /usr/local/filebeat]# chown -R root.filebeat /usr/local/filebeat-7.17.23-linux-x86_64/
+[root@opsaudit /usr/local/filebeat]# chmod -R 754 /usr/local/filebeat-7.17.23-linux-x86_64/
+[root@opsaudit /usr/local/filebeat]# cat /usr/lib/systemd/system/filebeat.service
+[Unit]
+Description=https://elastic.co
+After=network-online.target
+
+[Service]
+User=root
+Group=filebeat
+Type=simple
+ExecStart=/usr/local/filebeat/filebeat -c /usr/local/filebeat/filebeat.yml
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+[root@opsaudit /usr/local/filebeat]# systemctl daemon-reload 
+[root@opsaudit /usr/local/filebeat]# systemctl restart filebeat
+[root@opsaudit /usr/local/filebeat]# systemctl status filebeat
+
+```
+
+
+## 交换机配置日志收集命令
+
+```
+# 华为日志配置
+
+
+
+# 用户模式下手动配置时间
+clock timezone SH add 08:00:00
+clock datetime 13:57:00 2024-08-15
+
+# 配置模式下自动同步时间配置
+clock timezone SH add 08:00:00
+ntp-service unicast-server 203.107.6.88	# 执行2次
+ntp-service unicast-server 203.107.6.88
+
+# 查看时间
+[ASW1]display clock
+2024-08-15 15:55:21+08:00
+Thursday
+Time Zone(SH) : UTC+08:00
+
+# 配置日志
+info-center source default channel 2 log level debugging
+info-center loghost source Vlanif60
+info-center loghost 192.168.13.198 facility local7
+
+
+# 查看日志配置
+[ASW1]display current-configuration | include info-
+info-center source default channel 2 log level debugging
+info-center loghost source Vlanif60
+info-center loghost 192.168.13.198 facility local7
+
+
+
+
+-----------------------
+
+# 华三日志配置
+
+# 配置模式下自动同步时间配置
+---- H3C S5048 配置ntp
+clock timezone SH add 08:00:00
+ntp-service enable  
+ntp-service unicast-server 203.107.6.88  
+clock protocol ntp
+---- H3C S5120-52P-LI 配置ntp
+ntp-service unicast-server 203.107.6.88 
+
+
+
+# 查看时间
+[UA-ASW07]display clock
+16:15:28.618 SH Thu 08/15/2024
+Time Zone : SH add 08:00:00
+
+# 配置日志
+---- H3C S5048 配置
+info-center source default loghost level debugging
+info-center loghost source Vlan-interface 20
+info-center loghost 192.168.13.198 facility local7
+-----H3C S5120-52P-LI 配置
+info-center source default channel 2 log level debugging
+info-center loghost source Vlan-interface 20
+info-center loghost 192.168.13.198 facility local7
+
+# 查看日志配置
+[UA-ASW07]display current-configuration | include info-
+ info-center loghost source Vlan-interface20
+ info-center loghost 192.168.13.198
+ info-center source default loghost level debugging
+
+
+
+
+-----------------------
+
+# 思科日志配置
+
+# 配置时间同步
+ntp source vlan 102
+ntp server 203.107.6.88
+
+# 查看时间
+DSW4#show clock
+15:36:23.909 GMT Thu Aug 15 2024
+
+
+# 配置日志
+logging on
+logging console debugging
+logging monitor debugging
+logging buffered debugging
+logging trap debugging
+logging facility syslog
+logging source-interface Vlan10
+logging 192.168.13.198
+
+
+# 查看日志配置
+DSW3(config)#do show run | inclu logg
+logging trap debugging
+logging facility syslog
+logging source-interface Vlan10
+logging 192.168.13.198
+
+
+
 ```
