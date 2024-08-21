@@ -5157,7 +5157,7 @@ ExecReload=/bin/kill -HUP $MAINPID
 WantedBy=multi-user.target
 
 
-# 配置日志轮替
+# 配置日志轮替，需要配置postrotate使rsyslog-remote服务重新读取新文件
 [root@opsaudit /var/log/rsyslog-remote]# cat /etc/logrotate.d/homsom_audit.conf
 /var/log/rsyslog-remote/*.log{
 	daily
@@ -5169,9 +5169,13 @@ WantedBy=multi-user.target
 	create 0644 root root
 	su root root
 	dateext
-	dateformat -%Y%m%d
+	dateformat -%Y%m%d%H.%s
 	olddir /var/log/rsyslog-remote/backup_logs
+    postrotate
+      /usr/bin/systemctl reload rsyslog-remote > /dev/null 2>/dev/null || true
+    endscript
 }
+
 
 # 立即执行轮替
 logrotate -vf /etc/logrotate.d/homsom_audit.conf
@@ -5180,6 +5184,10 @@ logrotate -vf /etc/logrotate.d/homsom_audit.conf
 172.168.2.32.log-20240815.gz  172.168.2.36.log-20240815.gz   192.168.102.1.log-20240815.gz   192.168.102.7.log-20240815.gz   192.168.16.252.log-20240815.gz
 172.168.2.33.log-20240815.gz  172.168.2.37.log-20240815.gz   192.168.102.2.log-20240815.gz   192.168.103.10.log-20240815.gz  192.168.16.253.log-20240815.gz
 172.168.2.34.log-20240815.gz  192.168.101.1.log-20240815.gz  192.168.10.252.log-20240815.gz  192.168.103.9.log-20240815.gz   192.168.16.254.log-20240815.gz
+
+# 或者编辑/var/lib/logrotate/logrotate.status文件，将需要轮替的文件时间往前调小，将要轮替的文件记录删除将不起作用。
+# 执行命令即可
+/etc/cron.daily/logrotate
 ```
 
 
