@@ -590,3 +590,51 @@ total 153120
 -rw-r--r-- 1 root root      257 Apr 11  2021 sysctl.conf
 [root@centos7-node03 /download]# ./docker-install.sh
 
+
+
+
+
+
+
+
+
+## docker配置代理
+
+
+**通过两种方式配置这些设置：**
+* 通过配置文件或 CLI 标志配置守护进程
+* 在系统上设置 环境变量
+> 直接配置守护进程优先于环境变量
+
+
+**守护进程配置**
+```bash
+root@k8s02-master01:~# cat /etc/docker/daemon.json
+{
+  "proxies": {
+    "http-proxy": "http://172.168.2.219:10809",
+    "https-proxy": "https://172.168.2.219:10809",
+    "no-proxy": "localhost,127.0.0.0/8,192.168.0.0/8,172.168.0.0/8"
+  }
+}
+```
+> 有些服务器使用`守护进程配置`会导致docker无法启动，请移除proxies的所有配置，使用`环境变量配置`，不建议使用此方式
+
+
+
+**环境变量配置**
+```bash
+root@k8s02-master01:~# cat /etc/systemd/system/docker.service.d/http-proxy.conf
+[Service]
+Environment="HTTP_PROXY=http://172.168.2.219:10809"
+Environment="HTTPS_PROXY=http://172.168.2.219:10809"
+Environment="NO_PROXY=localhost,127.0.0.1"
+root@k8s02-master01:~# systemctl daemon-reload
+root@k8s02-master01:~# systemctl restart docker
+root@k8s02-master01:~# docker info | grep -i 'proxy'
+WARNING: No swap limit support
+ HTTP Proxy: http://172.168.2.219:10809
+ HTTPS Proxy: http://172.168.2.219:10809
+ No Proxy: localhost,127.0.0.1
+  https://dockerproxy.com/
+```
