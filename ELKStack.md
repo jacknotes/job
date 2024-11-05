@@ -5156,6 +5156,20 @@ ExecReload=/bin/kill -HUP $MAINPID
 [Install]
 WantedBy=multi-user.target
 
+[root@opsaudit /var/log]# systemctl daemon-reload 
+[root@opsaudit /var/log]# systemctl enable rsyslog-remote.service
+[root@opsaudit /var/log]# systemctl start rsyslog-remote.service 
+[root@opsaudit /var/log]# systemctl status rsyslog-remote.service 
+● rsyslog-remote.service - Remote Syslog Service
+   Loaded: loaded (/usr/lib/systemd/system/rsyslog-remote.service; disabled; vendor preset: disabled)
+   Active: active (running) since 三 2024-10-30 14:54:37 CST; 915ms ago
+ Main PID: 2640 (rsyslogd)
+   CGroup: /system.slice/rsyslog-remote.service
+           └─2640 /usr/sbin/rsyslogd -n -f /etc/rsyslog-remote.conf -i /var/run/rsyslogd-remote.pid
+[root@opsaudit /var/log]# netstat -anulp | grep 514
+udp        0      0 0.0.0.0:514             0.0.0.0:*                           2640/rsyslogd       
+udp6       0      0 :::514                  :::*                                2640/rsyslogd    
+
 
 # 配置日志轮替，需要配置postrotate使rsyslog-remote服务重新读取新文件
 [root@opsaudit /var/log/rsyslog-remote]# cat /etc/logrotate.d/homsom_audit.conf
@@ -5185,7 +5199,7 @@ logrotate -vf /etc/logrotate.d/homsom_audit.conf
 172.168.2.33.log-20240815.gz  172.168.2.37.log-20240815.gz   192.168.102.2.log-20240815.gz   192.168.103.10.log-20240815.gz  192.168.16.253.log-20240815.gz
 172.168.2.34.log-20240815.gz  192.168.101.1.log-20240815.gz  192.168.10.252.log-20240815.gz  192.168.103.9.log-20240815.gz   192.168.16.254.log-20240815.gz
 
-# 或者编辑/var/lib/logrotate/logrotate.status文件，将需要轮替的文件时间往前调小，将要轮替的文件记录删除将不起作用。
+# 或者编辑/var/lib/logrotate/logrotate.status文件，将需要轮替的文件时间往前调小，如果将要轮替的文件记录删除将不起作用。
 # 执行命令即可
 /etc/cron.daily/logrotate
 ```
@@ -5193,30 +5207,150 @@ logrotate -vf /etc/logrotate.d/homsom_audit.conf
 
 ## filebeat-7.17.23
 
+```bash
+#### centos6
+#!/bin/bash
+#
+# filebeat    Start/Stop the filebeat service
+#
+# chkconfig: - 85 15
+# description: Filebeat is a log shipper from Elastic
+# processname: filebeat
+# config: /usr/local/filebeat/filebeat.yml
+# pidfile: /var/run/filebeat.pid
+
+### BEGIN INIT INFO
+# Provides:          filebeat
+# Required-Start:    $network $local_fs $remote_fs
+# Required-Stop:     $network $local_fs $remote_fs
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Starts and stops the filebeat service
+### END INIT INFO
+
+PATH_HOME=/usr/local/filebeat
+FILEBEAT_PATH=/usr/local/filebeat/filebeat
+CONFIG_FILE=/usr/local/filebeat/filebeat.yml
+PID_FILE=/var/run/filebeat.pid
+LOG_FILE=/var/log/filebeat.log
+
+start() {
+    echo -n "Starting filebeat: "
+    if [ -f $PID_FILE ]; then
+        echo "filebeat is already running."
+        return 1
+    fi
+    $FILEBEAT_PATH -c $CONFIG_FILE -path.home $PATH_HOME -path.config $PATH_HOME -path.data $PATH_HOME -path.logs $LOG_FILE &> $LOG_FILE &
+    echo $! > $PID_FILE
+    echo "done."
+}
+
+stop() {
+    echo -n "Stopping filebeat: "
+    if [ ! -f $PID_FILE ]; then
+        echo "filebeat is not running."
+        return 1
+    fi
+    kill `cat $PID_FILE`
+    rm $PID_FILE
+    echo "done."
+}
+
+restart() {
+    stop
+    start
+}
+
+status() {
+    if [ -f $PID_FILE ]; then
+        echo "filebeat is running, PID=`cat $PID_FILE`"
+    else
+        echo "filebeat is not running."
+    fi
+}
+
+case "$1" in
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    restart)
+        restart
+        ;;
+    status)
+        status
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+esac
+
+exit 0
 ```
+
+```bash
+# syslog收集网络设备日志
 [root@opsaudit /usr/local/filebeat]# grep -Ev '#|^$' filebeat.yml
 filebeat.inputs:
 - type: log
   enabled: true
   paths:
+    - /var/log/*
+  exclude_files: ['/var/log/rsyslog-remote/*']
+  processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~ 
+  - add_fields:
+      target: host
+      fields:
+        tags: linux
+- type: log
+  enabled: true
+  paths:
     - /var/log/rsyslog-remote/192.168.101.1.log
   tags: ["sangfor-af"]
+  processors:
+    - add_fields:
+        fields:
+          hostIP: 192.168.101.1
 - type: log
   enabled: true
   paths:
     - /var/log/rsyslog-remote/192.168.102.15.log
   tags: ["sangfor-ac"]
+  processors:
+    - add_fields:
+        fields:
+          hostIP: 192.168.102.15
 - type: log
   enabled: true
   paths:
     - /var/log/rsyslog-remote/192.168.102.1.log
   tags: ["sangfor-atrust"]
+  processors:
+    - add_fields:
+        fields:
+          hostIP: 192.168.102.1
 - type: log
   enabled: true
   paths:
     - /var/log/rsyslog-remote/192.168.103.9.log
+  tags: ["huawei-af"]
+  processors:
+    - add_fields:
+        fields:
+          hostIP: 192.168.102.9
+- type: log
+  enabled: true
+  paths:
     - /var/log/rsyslog-remote/192.168.103.10.log
   tags: ["huawei-af"]
+  processors:
+    - add_fields:
+        fields:
+          hostIP: 192.168.102.10
 - type: log
   enabled: true
   paths:
@@ -5225,14 +5359,10 @@ filebeat.inputs:
 - type: log
   enabled: true
   paths:
-    - /var/log/rsyslog-remote/192.168.16.254.log
-  tags: ["switch", "huawei-dsw"]
-- type: log
-  enabled: true
-  paths:
     - /var/log/rsyslog-remote/192.168.10.252.log
     - /var/log/rsyslog-remote/192.168.10.253.log
-  tags: ["switch", "cisco-dsw"]
+    - /var/log/rsyslog-remote/192.168.16.254.log
+  tags: ["switch", "huawei-dsw"]
 - type: log
   enabled: true
   paths:
@@ -5258,12 +5388,15 @@ filebeat.inputs:
   tags: ["switch", "cisco-msw"]
 processors:
   - drop_fields:
-      fields: ["ecs","host","input","agent","log"]
+      fields: ["ecs","input","agent"]
       ignore_missing: false
 output.elasticsearch:
-  username: "logwrite"
-  password: "yrTpSbf0aLBQSoxj"
-  hosts: ["127.0.0.1:9200"]
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "pass"
+  template:
+    name: "ops_template"
+    pattern: "*"
   indices:
     - index: "sangfor-af_%{+yyyy.MM.dd}"
       when.contains:
@@ -5280,6 +5413,9 @@ output.elasticsearch:
     - index: "switch_%{+yyyy.MM.dd}"
       when.contains:
         tags: "switch"
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+      when.contains:
+        host.tags: "linux"
 logging.level: error
 
 
@@ -5306,6 +5442,123 @@ WantedBy=multi-user.target
 [root@opsaudit /usr/local/filebeat]# systemctl status filebeat
 
 ```
+
+
+## 收集nginx日志
+```
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*
+  exclude_files: ['/var/log/rsyslog-remote/*']
+  tags: ["linux"]
+  processors:
+    - add_host_metadata: ~
+    - add_cloud_metadata: ~
+    - drop_fields:
+        fields: ["ecs","input","agent"]
+        ignore_missing: false
+- type: log
+  enabled: true
+  paths:
+    - /usr/local/nginx/logs/access*log
+    - /usr/local/nginx/logs/*/access*log
+  json.keys_under_root: true
+  processors:
+    - rename:
+        fields:
+          - from: "time"
+            to: "nginx_timestamp"
+          - from: "remote_addr"
+            to: "nginx-remote_addr"
+          - from: "referer"
+            to: "nginx-referer"
+          - from: "host"
+            to: "nginx-host"
+          - from: "request"
+            to: "nginx-request"
+          - from: "status"
+            to: "nginx-status"
+          - from: "bytes"
+            to: "nginx-bytes"
+          - from: "agent"
+            to: "nginx-agent"
+          - from: "x_forwarded"
+            to: "nginx-x_forwarded"
+          - from: "up_addr"
+            to: "nginx-up_addr"
+          - from: "up_host"
+            to: "nginx-up_host"
+          - from: "up_resp_time"
+            to: "nginx-up_resp_time"
+          - from: "request_time"
+            to: "nginx-request_time"
+        ignore_missing: true
+  tags: ["nginx-access"]
+- type: log
+  enabled: true
+  paths:
+    - /usr/local/nginx/logs/error*log
+    - /usr/local/nginx/logs/*/error*log
+  tags: ["nginx-error"]
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "pass"
+  indices:
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "linux"
+    - index: "nginx-access_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "nginx-access"
+    - index: "nginx-error_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "nginx-error"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+```
+
+## filebeat收集主机日志
+```bash
+# 配置索引模板
+PUT _template/ops_template
+{
+  "index_patterns": ["hosts-*","sangfor-*","huawei-*","switch*","filebeat-*","winlogbeat-*","nginx*"],
+  "settings": {
+    "number_of_shards": 1,  
+    "number_of_replicas": 0 
+  }
+}
+
+# filebeat配置段
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*
+  exclude_files: ['/var/log/rsyslog-remote/*']
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "pass"
+  indices:
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+```
+
 
 
 ## 交换机配置日志收集命令
@@ -5414,7 +5667,291 @@ logging trap debugging
 logging facility syslog
 logging source-interface Vlan10
 logging 192.168.13.198
+```
 
 
+
+## filebeat for windows安装
+[filebeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.17.23-windows-x86_64.zip)
+
+```powershell
+
+# 将安装包解压放到以下目录，并使用管理员权限打开powershell
+PS C:\Program Files\filebeat> dir
+
+
+    目录: C:\Program Files\filebeat
+
+
+Mode                LastWriteTime     Length Name
+----                -------------     ------ ----
+d----        2024/10/31     17:19            kibana
+d----        2024/10/31     17:20            module
+d----        2024/10/31     17:20            modules.d
+-a---         2024/7/25     21:46         41 .build_hash.txt
+-a---         2024/7/25     21:41    3782069 fields.yml
+-a---         2024/7/25     21:44   83708928 filebeat.exe
+-a---         2024/7/25     21:41     171147 filebeat.reference.yml
+-a---         2024/7/25     21:41       8348 filebeat.yml
+-a---         2024/7/25     21:46        883 install-service-filebeat.ps1
+-a---         2024/7/25     21:41      13675 LICENSE.txt
+-a---         2024/7/25     21:41    2262097 NOTICE.txt
+-a---         2024/7/25     21:46        816 README.md
+-a---         2024/7/25     21:46        250 uninstall-service-filebeat.ps1
+
+
+# 执行命令安装
+PS C:\Program Files\filebeat> .\install-service-filebeat.ps1
+
+Status   Name               DisplayName
+------   ----               -----------
+Stopped  filebeat           filebeat
+
+# 查看模块
+PS C:\Program Files\filebeat> .\filebeat.exe modules list
+Enabled:
+
+Disabled:
+activemq
+apache
+auditd
+aws
+awsfargate
+azure
+barracuda
+bluecoat
+cef
+checkpoint
+cisco
+coredns
+crowdstrike
+cyberark
+cyberarkpas
+cylance
+elasticsearch
+envoyproxy
+f5
+fortinet
+gcp
+google_workspace
+googlecloud
+gsuite
+haproxy
+ibmmq
+icinga
+iis
+imperva
+infoblox
+iptables
+juniper
+kafka
+kibana
+logstash
+microsoft
+misp
+mongodb
+mssql
+mysql
+mysqlenterprise
+nats
+netflow
+netscout
+nginx
+o365
+okta
+oracle
+osquery
+panw
+pensando
+postgresql
+proofpoint
+rabbitmq
+radware
+redis
+santa
+snort
+snyk
+sonicwall
+sophos
+squid
+suricata
+system
+threatintel
+tomcat
+traefik
+zeek
+zookeeper
+zoom
+zscaler
+
+# filebeat配置文件
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - C:\Windows\System32\winevt\Logs\*
+  exclude_files: ['C:\Windows\System32\winevt\Logs\rsyslog-remote\*']
+        
+filebeat.config.modules:
+  # Glob pattern for configuration loading
+  path: ${path.config}/modules.d/*.yml
+  # Set to true to enable config reloading
+  reload.enabled: false
+  
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["opsaudites.hs.com:9200"]
+  username: "filebeat"
+  password: "pass"
+  indices:
+    - index: "hosts-windows_%{+yyyy.MM.dd}"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+
+
+PS C:\Program Files\filebeat> start-service filebeat
+PS C:\Program Files\filebeat> get-service filebeat
+PS C:\Program Files\filebeat> stop-service filebeat
+```
+
+
+## winlogbeat安装
+[winlogbeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-7.17.23-windows-x86_64.zip)
+
+```powershell
+
+PS C:\Program Files\winlogbeat> dir
+
+
+    目录: C:\Program Files\winlogbeat
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----         2024/11/1     10:10                kibana
+d-----         2024/11/1     10:10                module
+-a----         2024/7/25     15:30             41 .build_hash.txt
+-a----         2024/7/25     15:30         380360 fields.yml
+-a----         2024/7/25     15:30            901 install-service-winlogbeat.ps1
+-a----         2024/7/25     15:30          13675 LICENSE.txt
+-a----         2024/7/25     15:30        2262097 NOTICE.txt
+-a----         2024/7/25     15:30            839 README.md
+-a----         2024/7/25     15:30            254 uninstall-service-winlogbeat.ps1
+-a----         2024/7/25     15:30       69578888 winlogbeat.exe
+-a----         2024/7/25     15:30          63590 winlogbeat.reference.yml
+-a----         2024/11/1     11:04           2389 winlogbeat.yml
+
+
+# winlogbeat配置
+winlogbeat.event_logs:
+  - name: Application
+    ignore_older: 72h
+
+  - name: System
+
+  - name: Security
+    processors:
+      - script:
+          lang: javascript
+          id: security
+          file: ${path.home}/module/security/config/winlogbeat-security.js
+
+  - name: Microsoft-Windows-Sysmon/Operational
+    processors:
+      - script:
+          lang: javascript
+          id: sysmon
+          file: ${path.home}/module/sysmon/config/winlogbeat-sysmon.js
+
+  - name: Windows PowerShell
+    event_id: 400, 403, 600, 800
+    processors:
+      - script:
+          lang: javascript
+          id: powershell
+          file: ${path.home}/module/powershell/config/winlogbeat-powershell.js
+
+  - name: Microsoft-Windows-PowerShell/Operational
+    event_id: 4103, 4104, 4105, 4106
+    processors:
+      - script:
+          lang: javascript
+          id: powershell
+          file: ${path.home}/module/powershell/config/winlogbeat-powershell.js
+
+  - name: ForwardedEvents
+    tags: [forwarded]
+    processors:
+      - script:
+          when.equals.winlog.channel: Security
+          lang: javascript
+          id: security
+          file: ${path.home}/module/security/config/winlogbeat-security.js
+      - script:
+          when.equals.winlog.channel: Microsoft-Windows-Sysmon/Operational
+          lang: javascript
+          id: sysmon
+          file: ${path.home}/module/sysmon/config/winlogbeat-sysmon.js
+      - script:
+          when.equals.winlog.channel: Windows PowerShell
+          lang: javascript
+          id: powershell
+          file: ${path.home}/module/powershell/config/winlogbeat-powershell.js
+      - script:
+          when.equals.winlog.channel: Microsoft-Windows-PowerShell/Operational
+          lang: javascript
+          id: powershell
+          file: ${path.home}/module/powershell/config/winlogbeat-powershell.js
+
+setup.template.settings:
+  index.number_of_shards: 1
+
+setup.kibana:
+#  hosts: ["opsaudites.hs.com:9200"]
+#  username: "filebeat"
+#  password: "pass"
+
+output.elasticsearch:
+  hosts: ["opsaudites.hs.com:9200"]
+  username: "filebeat"
+  password: "pass"
+  indices:
+    - index: "hosts-windows_%{+yyyy.MM.dd}"
+  template:
+    name: "ops_template"
+    pattern: "*"
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","event","agent"]
+      ignore_missing: false
+
+
+
+PS C:\Program Files\winlogbeat> .\install-service-winlogbeat.ps1
+
+Status   Name               DisplayName
+------   ----               -----------
+Stopped  winlogbeat         winlogbeat
+
+PS C:\Program Files\winlogbeat> Start-Service winlogbeat
+PS C:\Program Files\winlogbeat> Get-Service winlogbeat
+
+Status   Name               DisplayName
+------   ----               -----------
+Running  winlogbeat         winlogbeat
+
+
+PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 
 ```
