@@ -678,3 +678,22 @@ aliyun       1853    192.168.13.182 Mon May 13 03:32:27 PM 2024 CST  -          
 
 
 
+
+
+## 5.问题汇总
+
+### 5.1服务器启用密码策略后带来的问题
+
+* 提示密码过期，需要更改密码
+* 使用smbpassword更改密码后，提示用户首次登录需要更改密码
+* 再次使用passwd来更改密码
+
+```bash
+# 第一步更改用户密码
+root@repo:~# echo smb_ops:ops@Linux111 | chpasswd
+# 第二步更改smb密码后，即可正常访问
+root@repo:~# smbpasswd smb_ops
+New SMB password:
+Retype new SMB password:
+```
+

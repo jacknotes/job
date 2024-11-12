@@ -5026,6 +5026,119 @@ PUT student/_settings
 }
 ```
 
+## index.refresh_interval，默认是10s
+```
+# 查看所有索引配置
+GET /_all/_settings?pretty
+
+# API即时生效，仅针对单个索引
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "15s"
+  }
+}
+
+# API即时生效，批量更改所有索引 
+PUT /_all/_settings
+{
+  "settings": {
+    "index.refresh_interval": "30s"
+  }
+}
+```
+
+```yaml
+# 全局生效，需要重启ES服务，仅针对新创建索引生效
+index.refresh_interval: 15s
+```
+
+
+## index.memory.index_buffer_size，主要提高写入效率的问题，
+默认是ES堆内存的10%，这里面ES堆内存为16G却1.6G，从 Elasticsearch 5.x 到 Elasticsearch 7.x，该设置已经被弃用并不再使用。替代方案见转录日志（translog）
+
+```
+# 查看全部索引配置
+GET /_all/_settings?pretty
+
+# API即时生效，仅针对单个索引
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.memory.index_buffer_size": "20%"
+  }
+}
+
+# API即时生效，批量更改所有索引 
+PUT /_all/_settings
+{
+  "settings": {
+    "index.memory.index_buffer_size": "20%"
+  }
+}
+```
+
+```yaml
+# 全局生效，需要重启ES服务，仅针对新创建索引生效
+index.memory.index_buffer_size: 15%
+```
+
+
+
+
+## index.memory.index_buffer_size替代方案，主要提高写入效率的问题
+索引缓冲区的大小与刷新间隔（refresh_interval）以及转录日志（translog）设置有更直接的关联。
+
+**关键设置：**
+* index.translog.durability：控制转录日志的持久性。async 表示异步写入，request 表示每个写入操作都等待同步确认。
+	* 对于批量写入：建议使用 async，这样可以提高写入吞吐量。
+	* 对于更高的持久性：使用 request。
+
+* index.translog.sync_interval：控制转录日志的刷写频率，默认为 5s。
+	* 对于高写入负载，可以考虑将 sync_interval 设置为较短时间（如 1 秒），以更频繁地将数据持久化到磁盘。
+	* 对于批量导入数据，可以增加同步间隔，减少磁盘 I/O。
+
+* index.translog.flush_threshold_size：控制当转录日志大小达到一定阈值时，自动刷新到磁盘。
+	* 可以根据集群内存和磁盘容量调整此阈值，以平衡性能和持久性。
+
+```
+# 高吞吐量的批量写入（如数据导入）：
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "-1",  // 禁用刷新，直到数据导入完毕
+    "index.translog.durability": "async",  // 异步写入提高吞吐量
+    "index.translog.sync_interval": "30s",  // 延长同步间隔，减少磁盘 I/O
+    "index.translog.flush_threshold_size": "512mb"  // 增加阈值，减少转录日志刷新频率
+  }
+}
+
+# 需要快速查询的场景（低延迟）
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "1s",  // 每秒刷新一次，确保快速数据可见
+    "index.translog.durability": "request",  // 每次写入操作都同步到磁盘
+    "index.translog.sync_interval": "5s",  // 每 5 秒同步一次转录日志
+    "index.translog.flush_threshold_size": "256mb"  // 较低阈值，确保快速数据持久化
+  }
+}
+```
+
+## CPU和磁盘繁忙故障排错、原因查找 
+```
+# 查看繁忙的线程
+GET /_nodes/hot_threads?interval=500ms&threads=20
+# 查看指定索引慢日志的操作
+GET /fuxunhotel_db_pro_ali/slowlog/_settings?pretty
+# 查看节点CPU、内存、磁盘状态
+GET /_nodes/stats/process?pretty
+GET /_nodes/stats/jvm?pretty
+GET /_nodes/stats/fs?pretty
+# 查看集群健康状态
+GET /_cluster/health?pretty
+```
+
 
 
 
@@ -5955,3 +6068,6 @@ Running  winlogbeat         winlogbeat
 PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 
 ```
+
+
+
