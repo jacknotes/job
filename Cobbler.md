@@ -68,13 +68,13 @@
 ## 4. 工具化
 1. Shell脚本（功能性（流程）脚本、检查性脚本、报表性脚本）
 2. 开源工具：（Zabbix(监控)、ELKStack(日志收集和分析)、SaltStack(批量管理和配置管理)、Cobbler自动化安装的）(目的自动化)
-**目标：**
+	**目标：**
 	1. 促进标准化的实施
     2. 将重复的操作简单化
     3. 将多次操作流程化
     4. 减少人为操作的低效和降低故障率
 	5. 工具化和标准化是好基友
-**痛点：**
+	**痛点：**
 	1. 你至少要ssh到服务器执行。可能犯错
 	2. 多个脚本有执行顺序的时候，可能犯错。
 	3. 权限不好管理，日志没法统计。
@@ -140,6 +140,7 @@
 	6. 加入集群
 	7. 通知（短信、邮件）
 	
+
 自动化缩容：
 1. 触发条件和决策
 2. 从集群中移除节点-关闭监控-移除
@@ -218,27 +219,26 @@ KPI：关键绩效指标（来考核年终奖）
 ```bash
 # 8.2.1 配置源和安装必备软件
 yum install -y https://mirrors.aliyun.com/epel/epel-release-latest-7.noarch.rpm
-yum install –y httpd dhcp tftp cobbler cobbler-web pykickstart xinetd
+yum install -y httpd dhcp tftp cobbler cobbler-web pykickstart xinetd
 
 # 安装步骤：cobbler安装centos7内存最低要求为2G
-1. systemctl start httpd
+1. systemctl start httpd 
 2. systemctl start cobblerd
 3. 关闭selinux和iptables
-4. 第一步执行cobbler 	check检查，以下两项可以忽略不用设置
+4. 第一步执行cobbler check检查，可以忽略1，2不用设置，如果是虚拟机则还可以忽略3
 	1 : debmirror package is not installed, it will be required to manage debian deployments and repositories
 	2 : fencing tools were not found, and are required to use the (optional) power management features. install cman or fence-agents to use them
+	3 : Some network boot-loaders are missing from /var/lib/cobbler/loaders.  If you only want to handle x86/x86_64 netbooting, you may ensure that you have installed a *recent* version of the syslinux package installed and can ignore this message entirely.  Files in this directory, should you want to support all architectures, should include pxelinux.0, menu.c32, elilo.efi, and yaboot.
 5. vim /etc/cobbler/settings 
 next_server 192.168.1.237(为TFTP主机)
 server: 192.168.1.237(为cobbler主机)
 manage_dhcp: 1   # 设置cobbler使用dhcp模板文件管理设置dhcp
 yum_post_install_mirror: 0   # 不推送cobbler自带的yum仓库
 6.	将/etc/xinetd.d/tftp中的disable设为no # 因为设置了tftp所以这里要开启tftp
+systemctl restart cobblerd
 7.	cobbler get-loaders  # 运行获取cobbler所需的文件
-[root@autodep ~]# systemctl enable rsyncd
-[root@autodep ~]# systemctl start rsyncd
-[root@autodep ~]# systemctl start xinetd
-[root@autodep ~]# systemctl start dhcpd
-[root@autodep ~]# systemctl enable xinetd
+[root@autodep ~]# systemctl enable httpd cobblerd xinetd dhcpd rsyncd
+[root@autodep ~]# systemctl start xinetd dhcpd rsyncd
 8.	systemctl restart cobblerd  #重启cobbler的服务
 # 生成加密密码，并在/etc/cobbler/settings将default_password_crypted 值设为刚才生成的加密密码，此密码为自动化部署成功后root密码,'cobbler888'为设置后的密码，'cobbler'为描述信息
 9.	openssl passwd -1 -salt 'cobbler' 'cobbler888' 
@@ -252,6 +252,7 @@ subnet 192.168.1.0 netmask 255.255.255.0 {
 # 同步cobbler的配置，自动生成dhcp的配置文件并自动重启，先挂载Centos7.5镜像，然后导入Centos7.5镜像才行
 12. cobbler sync
 # 导入系统镜像的路径，镜像名字为CentOS-7-X86_64，系统位数为x86_64，导入后的镜像路径在/var/www/cobbler/ks_mirror/下,/mount/路径是已经挂载的系统镜像，必需要挂载才能读，删除不需要的镜像：cobbler profile remove --name=CentOS-7-X86_64 --recursive
+mount -t iso9660 /dev/cdrom /mnt/
 13. cobbler import --path=/mount/ --name=CentOS-7-x86_64 --arch=x86_64
 14. cobbler profile  # 可查看镜像的命令
 Cobbler profile report  # 查看详细的参数信息
@@ -259,6 +260,22 @@ Cobbler profile report  # 查看详细的参数信息
 cobbler profile edit --name=CentOS-7-x86_64 --kickstart=/var/lib/cobbler/kickstarts/CentOS-7-x86_64.cfg   
 cobbler profile edit --name=CentOS-7-x86_64 --kopts='net.ifnames=0 biosdevname=0'  # 使自动化安装Centos7更改linux内核参数，使网卡名称为eth0、eth1
 15. cobbler sync  # 同步更改后的配置
+
+## 镜像导入失败
+-----------------------
+[root@cobbler ~]# cobbler import --path=/mnt --name=Rocky-9.5-x86_64 --arch=x86_64
+task started: 2024-11-21_195424_import
+task started (id=Media import, time=Thu Nov 21 19:54:24 2024)
+Found a candidate signature: breed=suse, version=opensuse15.0
+Found a candidate signature: breed=suse, version=opensuse15.1
+Found a candidate signature: breed=redhat, version=rhel8
+No signature matched in /var/www/cobbler/ks_mirror/Rocky-9.5-x86_64
+!!! TASK FAILED !!!
+-----------------------
+# 原因：Rocky Linux 9.5 存储库没有匹配的签名 cobbler signature update
+# 解决： 更新 Cobbler 签名：cobbler signature update无效，最终将cobbler部署在RockyLinux9.5之上才能导入成功，cobbler版本为3.3.4
+-----------------------
+
 
 
 # CentOS-7-x86_64.cfg的kickstart配置文件参数，另centos的kickstart默认文件sample_end.ks也可以安装centos，只是不能像这样定制化安装
@@ -872,6 +889,7 @@ curl -o /etc/yum.repos.d/centos7.repo http://mirrors.aliyun.com/repo/Centos-7.re
 $yum_config_stanza
 %end
 ```
+
 
 
 ### 8.13 自动化安装ubuntu18.04.5

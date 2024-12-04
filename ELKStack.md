@@ -2479,7 +2479,7 @@ filebeat.inputs:
     - /var/log/hosts/127.0.0.1.log
   tags: ["linux_host"]
   exclude_lines: ["filebeat: 2"]
-output.elasticsearch:
+  output.elasticsearch:
   hosts: ["127.0.0.1:9401"]
   indices:
     - index: "newdon_%{+yyyy.MM.dd}"
@@ -2488,8 +2488,8 @@ output.elasticsearch:
     - index: "linux_host_%{+yyyy.MM.dd}"
       when.contains:
         tags: "linux_host"
-  #username: "jack"
-  #password: "123456"
+      #username: "jack"
+      #password: "123456"
 ---
 注：可用nginx进行htpasswd对es进行认证，反向代理es。在本机上配置iptables防火墙，只允许指定主机无密码访问es9200（一般指nginx反向代理），其它主机全部拒绝。如果是本机nginx代理本机docker，则无须进行只允许本机访问这条策略，因为防火墙只对外部有用，对同一个宿主机上的内部通信则不能控制。但是其它主机全部拒绝依旧配置。
 ---
@@ -3700,7 +3700,7 @@ Snapshot(){
 		let sum+=1
 		sleep 1
 	done
-
+	
 	if [ ${sum} -eq ${count} ];then
 		Log "snapshot ${ES_SNAPSHOT_NAME} failure!"
 		exit 10
@@ -4295,26 +4295,26 @@ path.config: /usr/local/logstash/pipeline/*.conf
 http.host: "0.0.0.0"
 [root@elk /usr/local/logstash/pipeline]# cat logstash.conf
 input {
-  kafka {
+    kafka {
     bootstrap_servers => "172.168.2.14:9092"
     topics => ["filebeat"]
     codec => "json"
-  }
+    }
 }
 filter {
-  date {
+    date {
     match => [ "timestamp" , "dd/MMM/yyyy:HH:mm:ss Z" ]
-  }
+    }
 }
 output {
-  if [kubernetes][pod][name] {
+    if [kubernetes][pod][name] {
     elasticsearch {
       hosts => ["127.0.0.1:9200"]
       user => "elastic"
       password => "homsom"
       index => "%{[kubernetes][pod][name]}-%{+YYYY.MM.dd}"
     }
-  }
+    }
 }
 ----
 [root@elk /usr/local/logstash/pipeline]# /usr/local/logstash/bin/logstash -f logstash.conf
@@ -4388,11 +4388,11 @@ data:
     #        type: container
     #        paths:
     #          - /var/log/containers/*${data.kubernetes.container.id}.log
-
+    
     processors:
       - add_cloud_metadata:
       - add_host_metadata:
-
+    
     #https://www.elastic.co/guide/en/beats/filebeat/current/kafka-output.html
     output:
       kafka:
@@ -4484,7 +4484,7 @@ subjects:
 - kind: ServiceAccount
   name: filebeat
   namespace: ns-elk
-roleRef:
+  roleRef:
   kind: ClusterRole
   name: filebeat
   apiGroup: rbac.authorization.k8s.io
@@ -4498,10 +4498,10 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-roleRef:
-  kind: Role
-  name: filebeat
-  apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: filebeat
+    apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -4512,10 +4512,10 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-roleRef:
-  kind: Role
-  name: filebeat-kubeadm-config
-  apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: filebeat-kubeadm-config
+    apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -4693,7 +4693,7 @@ subjects:
 - kind: ServiceAccount
   name: filebeat
   namespace: ns-elk
-roleRef:
+  roleRef:
   kind: ClusterRole
   name: filebeat
   apiGroup: rbac.authorization.k8s.io
@@ -4707,10 +4707,10 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-roleRef:
-  kind: Role
-  name: filebeat
-  apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: filebeat
+    apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -4721,10 +4721,10 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-roleRef:
-  kind: Role
-  name: filebeat-kubeadm-config
-  apiGroup: rbac.authorization.k8s.io
+  roleRef:
+    kind: Role
+    name: filebeat-kubeadm-config
+    apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -5183,6 +5183,7 @@ WantedBy=multi-user.target
 ```
 
 
+
 ## kibana-7.17.23
 
 ```
@@ -5316,6 +5317,7 @@ logrotate -vf /etc/logrotate.d/homsom_audit.conf
 # 执行命令即可
 /etc/cron.daily/logrotate
 ```
+
 
 
 ## filebeat-7.17.23
@@ -5557,7 +5559,9 @@ WantedBy=multi-user.target
 ```
 
 
+
 ## 收集nginx日志
+
 ```
 filebeat.inputs:
 - type: log
@@ -5635,7 +5639,10 @@ output.elasticsearch:
 logging.level: error
 ```
 
+
+
 ## filebeat收集主机日志
+
 ```bash
 # 配置索引模板
 PUT _template/ops_template
@@ -5666,6 +5673,116 @@ output.elasticsearch:
   password: "pass"
   indices:
     - index: "hosts-linux_%{+yyyy.MM.dd}"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+```
+
+
+
+## filebeat收集lvs日志
+
+```bash
+[root@lvs02 ~]# cat /usr/local/filebeat/filebeat.yml
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*
+  exclude_files: ['/var/log/rsyslog-remote/*']
+  tags: ["linux"]
+- type: log
+  enabled: true
+  paths:
+    - /root/lvs.log
+  multiline:
+    pattern: '^"\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}":\s$'
+    negate: true
+    match: after
+  multiline:
+    pattern: '^"\d{4}-\d{2}-\d{2}-\d{2}:\d{2}:\d{2}":\s--------------------\sSTEP\sEND\s--------------------$'
+    negate: true
+    match: before
+  tags: ["lvs"]
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "password"
+  indices:
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "linux"
+    - index: "lvs"
+      when.contains:
+        tags: "lvs"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+```
+
+> **pattern**: 使用正则表达式匹配以 `# Time:` 开头并遵循时间格式的行：
+>
+> ```
+> ^# Time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+\d{2}:\d{2}$
+> ```
+>
+> 这会匹配所有以 `# Time: YYYY-MM-DDTHH:MM:SS.ssssss+ZZ:ZZ` 格式的时间戳开头的行。
+>
+> **negate: true**: 表示匹配的行不是多行事件的一部分，而是多行事件的开始。
+>
+> **match: after**: 表示匹配模式后面的行将被追加到前一行。也就是说，所有以时间戳开头的行将被视为新的日志事件的开始，并将它们后面的行与之合并。
+
+
+
+## filebeat收集mysql日志
+
+```bash
+filebeat.inputs:
+- type: log
+  enabled: true
+  paths:
+    - /var/log/*
+  exclude_files: ['/var/log/rsyslog-remote/*']
+  tags: ["linux"]
+- type: log
+  enabled: true
+  paths:
+    - /data/mysql/mysql.err
+  tags: ["mysql"]
+- type: log
+  enabled: true
+  paths:
+    - /data/mysql/mysql-slow.log
+  multiline:
+    pattern: '^# Time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+\d{2}:\d{2}$'
+    negate: true
+    match: after
+  tags: ["mysql"]
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "password"
+  indices:
+   - index: "hosts-linux_%{+yyyy.MM.dd}"
+     when.contains:
+       tags: "linux"
+   - index: "mysql"
+     when.contains:
+       tags: "mysql"
   template:
     name: "ops_template"
     pattern: "*"
@@ -5935,7 +6052,9 @@ PS C:\Program Files\filebeat> stop-service filebeat
 ```
 
 
+
 ## winlogbeat安装
+
 [winlogbeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-7.17.23-windows-x86_64.zip)
 
 ```powershell
