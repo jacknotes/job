@@ -4498,7 +4498,7 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-  roleRef:
+    roleRef:
     kind: Role
     name: filebeat
     apiGroup: rbac.authorization.k8s.io
@@ -4512,7 +4512,7 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-  roleRef:
+    roleRef:
     kind: Role
     name: filebeat-kubeadm-config
     apiGroup: rbac.authorization.k8s.io
@@ -4707,7 +4707,7 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-  roleRef:
+    roleRef:
     kind: Role
     name: filebeat
     apiGroup: rbac.authorization.k8s.io
@@ -4721,7 +4721,7 @@ subjects:
   - kind: ServiceAccount
     name: filebeat
     namespace: ns-elk
-  roleRef:
+    roleRef:
     kind: Role
     name: filebeat-kubeadm-config
     apiGroup: rbac.authorization.k8s.io
@@ -5641,7 +5641,7 @@ logging.level: error
 
 
 
-## filebeat收集主机日志
+## filebeat收集centos7主机日志
 
 ```bash
 # 配置索引模板
@@ -5678,6 +5678,37 @@ output.elasticsearch:
     pattern: "*"
 logging.level: error
 ```
+
+
+
+## filebeat收集ubuntu18主机日志
+
+```bash
+filebeat.config.modules.path: ${path.config}/modules.d/*.yml
+filebeat.inputs:
+  - type: journald
+    id: everything
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "filebeat"
+  password: "password"
+  indices:
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+```
+
+> type: journald是filebeat7.16及以后集成的，可直接使用解析journal的日志
+
+
 
 
 

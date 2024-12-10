@@ -68,11 +68,11 @@ CPU三个重要的概念
 	1. 上下文切换:CPU调度器实施对进程的切换过程，称为上下文切换
 	2. 运行队列（负载）：运行队列的多少来判别负载的大小
 	3. 使用率：user time（用户态）,system time（系统态）
-	
+
 	确定服务类型：
 		IO密集型：数据库
 		CPU密集型：web、mail
-
+	
 	确定性能基准线：
 		运行队列：1-3个线程为正常，1CPU4核来计算，线程应不超过12为正常
 		CPU使用：65%——70% 用户态利用率为正常
@@ -279,8 +279,8 @@ snmptranslate:可以将MIB和OID两种表现形式进行转换
 	end
 2. 在zabbix-weg上添加监控
 	设置snmp Interfaces
-root@zabbix ~]# yum -y install net-snmp-utils net-snmp #安装snmp
-snmpwalk -v 2c -c route 192.168.1.1 SNMPv2-MIB::sysDescr.0 #测试跟开启snmp设备的连通性
+	root@zabbix ~]# yum -y install net-snmp-utils net-snmp #安装snmp
+	snmpwalk -v 2c -c route 192.168.1.1 SNMPv2-MIB::sysDescr.0 #测试跟开启snmp设备的连通性
 3. 关联监控模板Templete SNMP DEVICE,监控SNMP思科设备
 #IPMI
 建议使用自定义item将值传给zabbix,来实现ipmi监控
@@ -306,17 +306,17 @@ TIMEOUT=3
 	mv apache-tomcat-8.5.34 /usr/local/
 	ln -s apache-tomcat-8.5.34/ /usr/local/tomcat
 	/usr/local/tomcat/bin/start.sh
-JMX有三种类型：1.无密码认证	2.用户名密码认证	3.ssl加密认证
-#开启JMX远程监控：查看tomcat官方文档
-#vim /usr/local/tomcat/bin/catalina.sh在最前面添加如下行，下面信息是从tomcat官网文档中搜索JMX找到的
-CATALINA_OPTS="$CATALINA_OPTS -Dcom.sun.management.jmxremote
-  -Dcom.sun.management.jmxremote.port=8888  #本机打开jmx协议的端口
-  -Dcom.sun.management.jmxremote.ssl=false
-  -Dcom.sun.management.jmxremote.authenticate=false
-  -Djava.rmi.server.hostname=192.168.1.233"  #本机的ip
-重启tomcat并检查8888和8080端口是否开启：netstat -tunlp
-然后使用windows下装的java JDK安装目录中/bin/jconsole进行连接测试看有没有问题，选择远程进程，输入开启jmx的IP加端口，例：192.168.1.233:8888,能连接看到信息则表示开启成功,最后在zabbix-web上加入tomcat的jmx类型监控即可，只需要输入JMX主机和端口，并链接模板应用。
-#监控Nginx
+	JMX有三种类型：1.无密码认证	2.用户名密码认证	3.ssl加密认证
+	#开启JMX远程监控：查看tomcat官方文档
+	#vim /usr/local/tomcat/bin/catalina.sh在最前面添加如下行，下面信息是从tomcat官网文档中搜索JMX找到的
+	CATALINA_OPTS="$CATALINA_OPTS -Dcom.sun.management.jmxremote
+    -Dcom.sun.management.jmxremote.port=8888  #本机打开jmx协议的端口
+    -Dcom.sun.management.jmxremote.ssl=false
+    -Dcom.sun.management.jmxremote.authenticate=false
+    -Djava.rmi.server.hostname=192.168.1.233"  #本机的ip
+	重启tomcat并检查8888和8080端口是否开启：netstat -tunlp
+	然后使用windows下装的java JDK安装目录中/bin/jconsole进行连接测试看有没有问题，选择远程进程，输入开启jmx的IP加端口，例：192.168.1.233:8888,能连接看到信息则表示开启成功,最后在zabbix-web上加入tomcat的jmx类型监控即可，只需要输入JMX主机和端口，并链接模板应用。
+	#监控Nginx
 1. 开启Nginx监控
 2. 编写脚本来采集数据
 3. 设置用户自定义参数
@@ -611,8 +611,8 @@ Include=/etc/zabbix/zabbix_agentd.d/*.conf
 2. 主动发现(zabbix server基于zabbix agent的被动模式)
 	2.1 自动发现Discovery
 	2.2 Zabbix API
-##注：无论是主动模式还是被动模式下，触发条件应都先包含不能先等于，因为可能值中还包含其它的字符
-#######自动注册操作：
+	##注：无论是主动模式还是被动模式下，触发条件应都先包含不能先等于，因为可能值中还包含其它的字符
+	#######自动注册操作：
 1. 在Agent中更改配置，关闭Agent被动模式，并设置StartAgents=0,设置主动模式的ServerActive地址。设置HostMetadataItem或者HostMetadata。HostMetadata是手动设置值，例：HostMetadata=Linux。HostMetadataItem是使用Zabbix Agent的key来自动获取值，例如HostMetadataItem=system.uname
 #vim /etc/zabbix/zabbix_agentd.conf
 [root@linux-node1 ~]# grep '^[a-Z]'  /etc/zabbix/zabbix_agentd.conf             
@@ -1144,27 +1144,27 @@ curl  -X POST "${url}" -H "${header}"  -d "${txt}"
 2. ./dingding.py 13661196xxx test "这个条测试信息,忽略" #第一个值为要@特的手机号，第二个值为主题，第三个值为消息内容
 3. 编辑zabbix_server.conf配置文件
 	AlertScriptsPath=/usr/local/zabbix/share/zabbix/alertscripts
-#设成报警脚本的目录，后面在zabbixGUI上新建媒介才有用
-##测试通过后去zabbix WEBGUI进行添加媒介：
-名称:dingding_alert
-类型:script
-脚本名称：dingding.py
-脚本参数：
-{ALERT.SENDTO}   #接收的用户地址
-{ALERT.SUBJECT}  #消息主题
-{ALERT.MESSAGE}  #消息内容
-##去用户添加媒介：
-收件人：就是你的接收着地址，这里是发到钉钉群里，所以填写@的人手机号即可
-##在对应主机上添加web监测
-新建web场景，并添加设置步骤，步骤内容为对应的WEB URL地址、设定超时时间、和你需要的代码200
-##新建触发器
-{smb:web.test.fail[smb-web].last()}<>0  #设置失败的步骤是否不等于0，不等于0表示有失败的步骤，会触发报警
-{smb:web.test.rspcode[smb-web,smb-web].last()}<>200 #设置响应的代码是否不等于200，不等于200表示服务异常，会触发报警
-##发送消息内容模板
-Trigger: {TRIGGER.NAME}
-Trigger status: {TRIGGER.STATUS}
-Trigger severity: {TRIGGER.SEVERITY}
-Original event ID: {EVENT.ID}
+	#设成报警脚本的目录，后面在zabbixGUI上新建媒介才有用
+	##测试通过后去zabbix WEBGUI进行添加媒介：
+	名称:dingding_alert
+	类型:script
+	脚本名称：dingding.py
+	脚本参数：
+	{ALERT.SENDTO}   #接收的用户地址
+	{ALERT.SUBJECT}  #消息主题
+	{ALERT.MESSAGE}  #消息内容
+	##去用户添加媒介：
+	收件人：就是你的接收着地址，这里是发到钉钉群里，所以填写@的人手机号即可
+	##在对应主机上添加web监测
+	新建web场景，并添加设置步骤，步骤内容为对应的WEB URL地址、设定超时时间、和你需要的代码200
+	##新建触发器
+	{smb:web.test.fail[smb-web].last()}<>0  #设置失败的步骤是否不等于0，不等于0表示有失败的步骤，会触发报警
+	{smb:web.test.rspcode[smb-web,smb-web].last()}<>200 #设置响应的代码是否不等于200，不等于200表示服务异常，会触发报警
+	##发送消息内容模板
+	Trigger: {TRIGGER.NAME}
+	Trigger status: {TRIGGER.STATUS}
+	Trigger severity: {TRIGGER.SEVERITY}
+	Original event ID: {EVENT.ID}
 
 {ITEM.NAME} ({HOST.NAME}:{ITEM.KEY}): {ITEM.VALUE}
 
@@ -1199,7 +1199,7 @@ class zabbixBaseAPI(object):
         response = json.loads(result.read())
         result.close()
         return response
-
+    
     # json data process
     def json_data(self,method,params,authid):
         data = json.dumps(
@@ -1212,7 +1212,7 @@ class zabbixBaseAPI(object):
         })
         request_info = self.post_request(self.url, data.encode('utf-8'), self.header)
         return request_info
-
+    
     # login authentication 
     def authid(self,user,password): 
         data = json.dumps(
@@ -1232,7 +1232,7 @@ class zabbixBaseAPI(object):
         except KeyError:
             print ('认证失败,用户名或密码错误')
             exit()
-
+    
     #ip file process
     def text_process(self,file):
         import re
@@ -1247,7 +1247,7 @@ class zabbixBaseAPI(object):
               if find.search(t.rstrip("\n")) == None:
                 text_info.append(t.rstrip("\n"))
         return text_info
-
+    
     # logout authentication
     def login_out(self,authid):
         data = json.dumps(
@@ -1493,7 +1493,7 @@ class RabbitMQAPI(object):
         self.conf = conf or '/etc/zabbix/zabbix_agentd.conf'
         self.senderhostname = senderhostname or socket.gethostname()
         self.protocol = protocol or 'http'
-
+    
     def call_api(self, path):
         '''Call the REST API and convert the results into JSON.'''
         url = '{0}://{1}:{2}/api/{3}'.format(self.protocol, self.host_name, self.port, path)
@@ -1503,7 +1503,7 @@ class RabbitMQAPI(object):
         logging.debug('Issue a rabbit API call to get data on ' + path + " against " + self.host_name)
         logging.debug('Full URL:' + url)
         return json.loads(urllib2.build_opener(handler).open(url).read())
-
+    
     def list_queues(self, filters=None):
         '''
         List all of the RabbitMQ queues, filtered against the filters provided
@@ -1525,7 +1525,7 @@ class RabbitMQAPI(object):
                     logging.debug('Discovered queue '+queue['vhost']+'/'+queue['name'])
                     break
         return queues
-
+    
     def list_shovels(self, filters=None):
         '''
         List all of the RabbitMQ shovels, filtered against the filters provided
@@ -1552,7 +1552,7 @@ class RabbitMQAPI(object):
                 return shovels
             else:
                 raise err
-
+    
     def list_nodes(self):
         '''Lists all rabbitMQ nodes in the cluster'''
         nodes = []
@@ -1565,15 +1565,15 @@ class RabbitMQAPI(object):
             nodes.append(element)
             logging.debug('Discovered nodes '+name+'/'+node['type'])
         return nodes
-
+    
     def check_queue(self, filters=None):
         '''Return the value for a specific item in a queue's details.'''
         return_code = 0
         if not filters:
             filters = [{}]
-
+    
         buffer = io.StringIO()
-
+    
         try:
             for queue in self.call_api('queues'):
                 success = False
@@ -1592,19 +1592,19 @@ class RabbitMQAPI(object):
                 return return_code
             else:
                 raise err
-
+    
         return_code = self._send_data(buffer)
         buffer.close()
         return return_code
-
+    
     def check_shovel(self, filters=None):
         '''Return the value for a specific item in a shovel's details.'''
         return_code = 0
         if not filters:
             filters = [{}]
-
+    
         buffer = io.StringIO()
-
+    
         try:
             for shovel in self.call_api('shovels'):
                 success = False
@@ -1627,11 +1627,11 @@ class RabbitMQAPI(object):
                 return return_code
             else:
                 raise err
-
+    
         return_code = self._send_data(buffer)
         buffer.close()
         return return_code
-
+    
     def _prepare_data(self, queue, file):
         '''Prepare the queue data for sending'''
         for item in ['memory', 'messages', 'messages_unacknowledged',
@@ -1648,7 +1648,7 @@ class RabbitMQAPI(object):
             value = queue.get('message_stats', {}).get(item, 0)
             logging.debug("SENDER_DATA: - %s %s" % (key,value))
             file.write("- %s %s\n" % (key, value))
-
+    
     def _send_data(self, file):
         '''Send the queue data to Zabbix.'''
         args = 'zabbix_sender -vv -c {0} -i -'
@@ -1671,11 +1671,11 @@ class RabbitMQAPI(object):
             logging.debug(err)
             logging.debug(out)
         return return_code
-
+    
     def check_aliveness(self):
         '''Check the aliveness status of a given vhost.'''
         return self.call_api('aliveness-test/%2f')['status']
-
+    
     def check_server(self, item, node_name):
         '''First, check the overview specific items'''
         if item == 'message_stats_deliver_get':
@@ -1730,7 +1730,7 @@ def main():
     api = RabbitMQAPI(user_name=options.username, password=options.password,
                       host_name=options.hostname, port=options.port,
                       conf=options.conf, senderhostname=options.senderhostname,
-		     protocol=options.protocol)
+    	     protocol=options.protocol)
     if options.filters:
         try:
             filters = json.loads(options.filters)
@@ -2287,7 +2287,7 @@ services:
     hostname: zabbix-mysql-server
     restart: always                 # 失败自动重启策略
     environment:                                    
-      - MYSQL_ROOT_PASSWORD=123456
+      - MYSQL_ROOT_PASSWORD=123456		# `=`号以后都是密码
       - MYSQL_USER=zabbix
       - MYSQL_PASSWORD=123456
       - MYSQL_DATABASE=zabbix
@@ -2377,9 +2377,9 @@ services:
     hostname: zabbix-server-mysql
     restart: always
     environment:                                    
-      - DB_SERVER_HOST=mysql.hs.com
+      - DB_SERVER_HOST=mysql.test.com
       - MYSQL_USER=zabbix
-      - MYSQL_PASSWORD=kcbIKcUkjUzEUaM5
+      - MYSQL_PASSWORD=aaa123456
       - MYSQL_DATABASE=zabbix
     volumes:
       - /etc/localtime:/etc/localtime:ro
@@ -2406,9 +2406,9 @@ services:
       - zabbix-server-mysql:zabbix-server
     restart: always        
     environment:    
-      - DB_SERVER_HOST=mysql.hs.com
+      - DB_SERVER_HOST=mysql.test.com
       - MYSQL_USER=zabbix
-      - MYSQL_PASSWORD=kcbIKcUkjUzEUaM5
+      - MYSQL_PASSWORD=aaa123456
       - MYSQL_DATABASE=zabbix
       - ZBX_SERVER_HOST=zabbix-server
       - PHP_TZ=Asia/Shanghai
@@ -2433,6 +2433,74 @@ networks:
     driver: bridge
 ----
 注：默认用户：Admin  默认密码：zabbix
+
+
+**zabbix-server-mysql如果启动不了，是因为配置缓存（CacheSize）过小或者系统整体内存不足所致，报错和解决问题如下**
+```
+# 问题
+** Starting Zabbix server
+Starting Zabbix Server. Zabbix 3.4.15 (revision 86739).
+Press Ctrl+C to exit.
+
+   128:20241205:192107.848 Starting Zabbix Server. Zabbix 3.4.15 (revision 86739).
+   128:20241205:192107.849 ****** Enabled features ******
+   128:20241205:192107.849 SNMP monitoring:           YES
+   128:20241205:192107.849 IPMI monitoring:           YES
+   128:20241205:192107.849 Web monitoring:            YES
+   128:20241205:192107.849 VMware monitoring:         YES
+   128:20241205:192107.849 SMTP authentication:       YES
+   128:20241205:192107.849 Jabber notifications:      YES
+   128:20241205:192107.849 Ez Texting notifications:  YES
+   128:20241205:192107.849 ODBC:                      YES
+   128:20241205:192107.849 SSH2 support:              YES
+   128:20241205:192107.849 IPv6 support:              YES
+   128:20241205:192107.849 TLS support:               YES
+   128:20241205:192107.849 ******************************
+   128:20241205:192107.849 using configuration file: /etc/zabbix/zabbix_server.conf
+   128:20241205:192115.876 current database version (mandatory/optional): 03040000/03040007
+   128:20241205:192115.876 required mandatory version: 03040000
+   128:20241205:192120.911 __mem_malloc: skipped 0 asked 80 skip_min 4294967295 skip_max 0
+   128:20241205:192120.911 [file:dbconfig.c,line:90] zbx_mem_malloc(): out of memory (requested 80 bytes)
+   128:20241205:192120.911 [file:dbconfig.c,line:90] zbx_mem_malloc(): please increase CacheSize configuration parameter
+   128:20241205:192120.911 === memory statistics for configuration cache ===
+   128:20241205:192120.911 free chunks of size     24 bytes:       36
+   128:20241205:192120.911 free chunks of size     32 bytes:        3
+   128:20241205:192120.911 free chunks of size     40 bytes:        4
+   128:20241205:192120.911 free chunks of size     48 bytes:        1
+   128:20241205:192120.911 free chunks of size     56 bytes:        8
+   128:20241205:192120.911 free chunks of size     64 bytes:        1
+   128:20241205:192120.911 free chunks of size     72 bytes:        4
+   128:20241205:192120.911 min chunk size:         24 bytes
+   128:20241205:192120.911 max chunk size:         72 bytes
+   128:20241205:192120.911 memory of total size 7129936 bytes fragmented into 59465 chunks
+   128:20241205:192120.911 of those,       1968 bytes are in       57 free chunks
+   128:20241205:192120.911 of those,    6176544 bytes are in    59408 used chunks
+   128:20241205:192120.911 ================================
+   128:20241205:192120.911 === Backtrace: ===
+   128:20241205:192120.913 12: /usr/sbin/zabbix_server(zbx_backtrace+0x35) [0x56060ae30a0d]
+   128:20241205:192120.913 11: /usr/sbin/zabbix_server(__zbx_mem_malloc+0x163) [0x56060ae2c929]
+   128:20241205:192120.913 10: /usr/sbin/zabbix_server(+0xb9fd1) [0x56060ae00fd1]
+   128:20241205:192120.913 9: /usr/sbin/zabbix_server(zbx_hashset_insert_ext+0x2d4) [0x56060ae35bdf]
+   128:20241205:192120.913 8: /usr/sbin/zabbix_server(zbx_hashset_insert+0x2d) [0x56060ae35909]
+   128:20241205:192120.913 7: /usr/sbin/zabbix_server(+0xba9f1) [0x56060ae019f1]
+   128:20241205:192120.913 6: /usr/sbin/zabbix_server(+0xc0f06) [0x56060ae07f06]
+   128:20241205:192120.913 5: /usr/sbin/zabbix_server(DCsync_configuration+0xc48) [0x56060ae0b61f]
+   128:20241205:192120.913 4: /usr/sbin/zabbix_server(MAIN_ZABBIX_ENTRY+0x5fa) [0x56060ad874e4]
+   128:20241205:192120.913 3: /usr/sbin/zabbix_server(daemon_start+0x32b) [0x56060ae30258]
+   128:20241205:192120.913 2: /usr/sbin/zabbix_server(main+0x31e) [0x56060ad86ee8]
+   128:20241205:192120.914 1: /lib64/libc.so.6(__libc_start_main+0xf5) [0x7eff3bc39445]
+   128:20241205:192120.914 0: /usr/sbin/zabbix_server(+0x344d9) [0x56060ad7b4d9]
+
+
+
+# 解决办法：增加缓存大小   
+# vim /etc/zabbix/zabbix_server.conf
+CacheSize=256M
+```
+
+
+
+
 
 #二、测试snmp
 ----zabbix-server安装snmpget工具
@@ -2544,3 +2612,527 @@ Script parameters
 注：邮件收到信息显示中文乱码,建议使用英文
 </pre>
 
+
+
+
+## zabbix3.4.15部署
+
+### docker部署
+
+环境：
+
+| 名称            | 角色          | 描述                                     |
+| --------------- | ------------- | ---------------------------------------- |
+| zabbix-server01 | zabbix-server | zabbix节点1                              |
+| zabbix-server02 | zabbix-server | zabbix节点2                              |
+| zabbix-proxy    | zabbix代理    | 代理zabbix-server收集数据给zabbix-server |
+| mysql.test.com  | mysql集群     | 确保zabbix-server集群高可用              |
+
+
+
+#### 1. zabbix-server01
+依赖文件
+```bash
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+LogType=console
+DBHost=mysql.test.com
+DBName=zabbix
+DBUser=zabbix
+DBPassword=aaa123456
+DBPort=3306
+AlertScriptsPath=/usr/lib/zabbix/alertscripts
+ExternalScripts=/usr/lib/zabbix/externalscripts
+FpingLocation=/usr/sbin/fping
+Fping6Location=/usr/sbin/fping6
+SSHKeyLocation=/var/lib/zabbix/ssh_keys
+SSLCertLocation=/var/lib/zabbix/ssl/certs/
+SSLKeyLocation=/var/lib/zabbix/ssl/keys/
+SSLCALocation=/var/lib/zabbix/ssl/ssl_ca/
+LoadModulePath=/var/lib/zabbix/modules/
+StartJavaPollers=4
+JavaGateway=127.0.0.1
+CacheSize=256M
+Timeout=30
+
+
+[root@harbor ~]# ls /data/docker/zabbix/zabbix-server/alertscripts
+dingding.sh  email.sh
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+#!/bin/bash
+header="Content-Type: application/json;charset=utf-8"
+url="https://oapi.dingtalk.com/robot/send?access_token=XXXXXX"
+txt='{
+      "msgtype":"text",
+          "text":{
+                 "content":"'$1'"
+                 },
+          "at":{
+                 "atMobiles":["'$2'"],
+                 "isAtAll":false
+                 }
+     }'
+curl  -X POST "${url}" -H "${header}"  -d "${txt}"
+
+
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+#!/bin/bash
+#send mail
+messages=`echo $3 | tr '\r\n' '\n'`
+subject=`echo $2 | tr '\r\n' '\n'`
+echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
+
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/mail.rc
+....
+set from=prometheus@test.com
+set smtp=smtp.qiye.163.com
+set smtp-auth=login
+set smtp-auth-user=prometheus@test.com
+set smtp-auth-password=PASSWORD
+set ssl-verify=ignore
+set nss-config-dir=/etc/aildbs/
+```
+
+
+部署清单
+```
+## 使用新mysql数据库部署
+[root@prometheus02 zabbix]# cat docker-compose.yml 
+# docker exec -it zabbix-server-mysql bash
+# rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
+
+version: '3.4'
+services:
+  zabbix-mysql-server:                   
+    image: harborrepo.test.com/ops/zabbix-mysql:5.7
+    container_name: zabbix-mysql-server
+    hostname: zabbix-mysql-server
+    restart: always
+    environment:                                    
+      - MYSQL_ROOT_PASSWORD=aaa123456
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+    volumes:
+      - /data/docker/zabbix/mysql/data:/var/lib/mysql
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.10
+    ports:
+      - 23306:3306
+    command: 
+      - --character-set-server=utf8
+      - --collation-server=utf8_bin
+  zabbix-server-mysql:                   
+    image: harborrepo.test.com/ops/zabbix/zabbix-server-mysql:centos-3.4.15
+    container_name: zabbix-server-mysql   
+    hostname: zabbix-server-mysql
+    restart: always
+    links:
+      - zabbix-mysql-server:mysql
+    environment:                                    
+      - DB_SERVER_HOST=mysql
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /data/docker/zabbix/zabbix-server/alertscripts:/usr/lib/zabbix/alertscripts
+      - /data/docker/zabbix/zabbix-server/externalscripts:/usr/lib/zabbix/externalscripts
+      - /data/docker/zabbix/zabbix-server/mail.rc:/etc/mail.rc
+        #- /data/docker/zabbix/zabbix-server/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
+    depends_on:
+      - zabbix-mysql-server
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.11
+    ports:
+      - 10051:10051
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4096M
+        reservations:
+          memory: 100M
+  zabbix-web-nginx-mysql:            
+    image: harborrepo.test.com/ops/zabbix/zabbix-web-nginx-mysql:centos-3.4.15
+    container_name: zabbix-web-nginx-mysql 
+    hostname: zabbix-web-nginx-mysql
+    links:
+      - zabbix-mysql-server:mysql
+      - zabbix-server-mysql:zabbix-server
+    restart: always        
+    environment:    
+      - DB_SERVER_HOST=mysql
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+      - ZBX_SERVER_HOST=zabbix-server
+      - PHP_TZ=Asia/Shanghai
+    volumes:
+      - /data/docker/zabbix/zabbix-web-nginx/graphfont.ttf:/usr/share/zabbix/fonts/graphfont.ttf
+    depends_on:
+      - zabbix-mysql-server
+      - zabbix-server-mysql
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.12
+    ports:
+      - 80:80
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 4096M
+        reservations:
+          memory: 100M
+networks:
+  zabbix:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.238.0/16
+		
+		
+## 使用已有外部数据库部署
+[root@prometheus02 zabbix]# cat docker-compose-no-mysql.yml 
+# docker exec -it zabbix-server-mysql bash
+# rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
+
+version: '3.4'
+services:
+  zabbix-server-mysql:                   
+    image: harborrepo.test.com/ops/zabbix/zabbix-server-mysql:centos-3.4.15
+    container_name: zabbix-server-mysql   
+    hostname: zabbix-server-mysql
+    restart: always
+    environment:                                    
+      - DB_SERVER_HOST=mysql.test.com
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /data/docker/zabbix/zabbix-server/alertscripts:/usr/lib/zabbix/alertscripts
+      - /data/docker/zabbix/zabbix-server/externalscripts:/usr/lib/zabbix/externalscripts
+      - /data/docker/zabbix/zabbix-server/mail.rc:/etc/mail.rc
+      - /data/docker/zabbix/zabbix-server/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.11
+    ports:
+      - 10051:10051
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '4'
+#          memory: 4096M
+#        reservations:
+#          memory: 100M
+  zabbix-web-nginx-mysql:            
+    image: harborrepo.test.com/ops/zabbix/zabbix-web-nginx-mysql:centos-3.4.15
+    container_name: zabbix-web-nginx-mysql 
+    hostname: zabbix-web-nginx-mysql
+    links:
+      - zabbix-server-mysql:zabbix-server
+    restart: always        
+    environment:    
+      - DB_SERVER_HOST=mysql.test.com
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+      - ZBX_SERVER_HOST=zabbix-server
+      - PHP_TZ=Asia/Shanghai
+    volumes:
+      - /data/docker/zabbix/zabbix-web-nginx/graphfont.ttf:/usr/share/zabbix/fonts/graphfont.ttf
+    depends_on:
+      - zabbix-server-mysql
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.12
+    ports:
+      - 80:80
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '4'
+#          memory: 4096M
+#        reservations:
+#          memory: 100M
+networks:
+  zabbix:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.238.0/16
+```
+
+
+#### 1. zabbix-server02
+
+依赖配置文件
+```bash
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+LogType=console
+DBHost=mysql.test.com
+DBName=zabbix
+DBUser=zabbix
+DBPassword=aaa123456
+DBPort=3306
+AlertScriptsPath=/usr/lib/zabbix/alertscripts
+ExternalScripts=/usr/lib/zabbix/externalscripts
+FpingLocation=/usr/sbin/fping
+Fping6Location=/usr/sbin/fping6
+SSHKeyLocation=/var/lib/zabbix/ssh_keys
+SSLCertLocation=/var/lib/zabbix/ssl/certs/
+SSLKeyLocation=/var/lib/zabbix/ssl/keys/
+SSLCALocation=/var/lib/zabbix/ssl/ssl_ca/
+LoadModulePath=/var/lib/zabbix/modules/
+StartJavaPollers=4
+JavaGateway=127.0.0.1
+CacheSize=256M
+Timeout=30
+
+
+[root@harbor ~]# ls /data/docker/zabbix/zabbix-server/alertscripts
+dingding.sh  email.sh
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+#!/bin/bash
+header="Content-Type: application/json;charset=utf-8"
+url="https://oapi.dingtalk.com/robot/send?access_token=XXXXXX"
+txt='{
+      "msgtype":"text",
+          "text":{
+                 "content":"'$1'"
+                 },
+          "at":{
+                 "atMobiles":["'$2'"],
+                 "isAtAll":false
+                 }
+     }'
+curl  -X POST "${url}" -H "${header}"  -d "${txt}"
+
+
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+#!/bin/bash
+#send mail
+messages=`echo $3 | tr '\r\n' '\n'`
+subject=`echo $2 | tr '\r\n' '\n'`
+echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
+
+[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/mail.rc
+....
+set from=prometheus@test.com
+set smtp=smtp.qiye.163.com
+set smtp-auth=login
+set smtp-auth-user=prometheus@test.com
+set smtp-auth-password=PASSWORD
+set ssl-verify=ignore
+set nss-config-dir=/etc/aildbs/
+```
+
+docker部署清单
+```bash
+[root@harbor ~]# cat zabbix/docker-compose-no-mysql.yml 
+# docker exec -it zabbix-server-mysql bash
+# rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
+
+version: '3.4'
+services:
+  zabbix-server-mysql:                   
+    image: zabbix/zabbix-server-mysql:centos-3.4.15
+    container_name: zabbix-server-mysql   
+    hostname: zabbix-server-mysql
+    restart: always
+    environment:                                    
+      - DB_SERVER_HOST=mysql.test.com
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /data/docker/zabbix/zabbix-server/alertscripts:/usr/lib/zabbix/alertscripts
+      - /data/docker/zabbix/zabbix-server/externalscripts:/usr/lib/zabbix/externalscripts
+      - /data/docker/zabbix/zabbix-server/mail.rc:/etc/mail.rc
+      - /data/docker/zabbix/zabbix-server/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.11
+    ports:
+      - 10051:10051
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '4'
+#          memory: 4096M
+#        reservations:
+#          memory: 100M
+  zabbix-web-nginx-mysql:            
+    image: zabbix/zabbix-web-nginx-mysql:centos-3.4.15
+    container_name: zabbix-web-nginx-mysql 
+    hostname: zabbix-web-nginx-mysql
+    links:
+      - zabbix-server-mysql:zabbix-server
+    restart: always        
+    environment:    
+      - DB_SERVER_HOST=mysql.test.com
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix
+      - ZBX_SERVER_HOST=zabbix-server
+      - PHP_TZ=Asia/Shanghai
+    volumes:
+      - /data/docker/zabbix/zabbix-web-nginx/graphfont.ttf:/usr/share/zabbix/fonts/graphfont.ttf
+    depends_on:
+      - zabbix-server-mysql
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.12
+    ports:
+      - 80:80
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+#    deploy:
+#      resources:
+#        limits:
+#          cpus: '4'
+#          memory: 4096M
+#        reservations:
+#          memory: 100M
+networks:
+  zabbix:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.238.0/16
+```
+
+
+#### 3. zabbix-proxy
+
+依赖配置文件
+```bash
+[root@syslog /data/docker/zabbix]# cat /data/docker/zabbix/zabbix-proxy/zabbix_proxy.conf 
+#ProxyMode: 0主动，1被动，默认是主动模式
+ProxyMode=0
+Server=192.168.13.235
+ServerPort=10051
+Hostname=172.168.2.199
+LogType=console
+DBHost=mysql
+DBName=zabbix_proxy
+DBUser=zabbix
+DBPassword=aaa123456
+DBPort=3306
+ExternalScripts=/usr/lib/zabbix/externalscripts
+FpingLocation=/usr/sbin/fping
+Fping6Location=/usr/sbin/fping6
+SSHKeyLocation=/var/lib/zabbix/ssh_keys
+SSLCertLocation=/var/lib/zabbix/ssl/certs/
+SSLKeyLocation=/var/lib/zabbix/ssl/keys/
+SSLCALocation=/var/lib/zabbix/ssl/ssl_ca/
+LoadModulePath=/var/lib/zabbix/modules/
+CacheSize=256M
+Timeout=30
+```
+
+部署清单
+```bash
+[root@syslog ~]# cat zabbix/docker-compose.yml
+version: '3.7'
+services:
+  zabbix-mysql-server:                   
+    image: harborrepo.test.com/ops/zabbix-mysql:5.7
+    container_name: zabbix-mysql-server
+    hostname: zabbix-mysql-server
+    restart: always
+    environment:                                    
+      - MYSQL_ROOT_PASSWORD=aaa123456
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix_proxy
+    volumes:
+      - /data/docker/zabbix/mysql/data:/var/lib/mysql
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.10
+    ports:
+      - 23306:3306
+    command: 
+      - --character-set-server=utf8
+      - --collation-server=utf8_bin
+  zabbix-proxy-mysql:                   
+    image: harborrepo.test.com/ops/zabbix/zabbix-proxy-mysql:centos-3.4.15
+    container_name: zabbix-proxy-mysql   
+    hostname: zabbix-proxy-mysql
+    restart: always
+    links:
+      - zabbix-mysql-server:mysql
+    environment:                                    
+      - DB_SERVER_HOST=mysql
+      - MYSQL_USER=zabbix
+      - MYSQL_PASSWORD=aaa123456
+      - MYSQL_DATABASE=zabbix_proxy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /data/docker/zabbix/zabbix-proxy/zabbix_proxy.conf:/etc/zabbix/zabbix_proxy.conf
+    networks:
+      zabbix:
+        ipv4_address: 172.30.238.11
+    ports:
+      - 10051:10051
+    dns:
+      - 192.168.13.186
+      - 192.168.13.251
+      - 192.168.10.110
+networks:
+  zabbix:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.238.0/16
+```
+
+> 问题：如果监控设备添加了zabbix_proxy去监控，但是主机界面仍然无法看到有数据，原因如下：
+> 1. zabbix-proxy无法获取目标对象数据，例如无法获取snmp对象数据，可用命令进行测试：
+>
+>    ````
+>    snmpwalk -v2c -c public 192.168.102.15 1.3.6.1.2.1.1.3.0
+>    ````
+>
+> 2. 另外一个原因是zabbix-proxy数据缓冲区填满了，如果 Proxy 和 Server 的连接出现问题，且无法及时同步数据，Proxy 的本地缓存可能会填满，导致数据丢失或无法进一步采集。解决办法在zabbix-server.conf和zabbix-proxy.conf中配置如下参数
+>
+>    ```
+>    CacheSize=256M
+>    Timeout=30
+>    ```
+>
+>    
+>
+> 
