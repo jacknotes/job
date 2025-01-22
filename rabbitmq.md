@@ -114,6 +114,8 @@ RabbitMQ模式大概分为以下三种:
 3. 镜像模式(把需要的队列做成镜像队列，存在于多个节点，属于RabbiMQ的HA方案，在对业务可靠性要求较高的场合中比较适用)。
 要实现镜像模式，需要先搭建一个普通集群模式，在这个模式的基础上再配置镜像模式以实现高可用。
 
+
+
 ### 3.1 单一模式部署
 
 > 安装erlang版本要大于21.6，因为rabbitmq-server3.8需要
@@ -355,6 +357,7 @@ tcp6       0      0 :::4369                 :::*                    LISTEN      
 Uploaded definitions from "localhost" to backup.file. The import process may take some time. Consult server logs to track progress.
 注：此时数据和元数据都成功恢复
 ```
+
 
 
 ### 3.2 集群部署
@@ -746,13 +749,24 @@ rabbitmqctl list_users
 
 
 
+> 
+
+
+
+
+
 ## 六、小记
 
-```bash
-#202104282012实操迁移rabbitmq节点
-#rabbitmq docker 集群节点移除、节点添加
+>  202104282012实操迁移生产rabbitmq节点
+
+
+
+### 6.1 rabbitmq docker 集群节点移除
+
 移除节点：192.168.13.65
-在主节点,也就是发起进群的主机上进行节点的移除.
+
+```
+# 在主节点,也就是发起集群的主机上进行节点的移除
 [root@harbor ~]# docker exec -it rabbitmq01 /bin/sh
 # rabbitmqctl cluster_status
 Cluster status of node rabbit@rabbitmq01 ...
@@ -760,8 +774,14 @@ Basics
 Cluster name: rabbit@rabbitmq01
 # rabbitmqctl forget_cluster_node rabbit@rabbitmq02
 Removing node rabbit@rabbitmq02 from the cluster
+```
 
-集群节点添加：
+
+
+### 6.2 rabbitmq docker 集群节点添加
+
+```bash
+# 集群节点添加：
 添加节点：192.168.13.162：
 docker run -d --restart=always \
 --hostname rabbitmq02 \
@@ -777,6 +797,7 @@ docker run -d --restart=always \
 --add-host rabbitmq01:192.168.13.235 \
 --add-host rabbitmq03:192.168.13.160 \
 rabbitmq:3.8.9-management
+
 [root@linux03 dockerdata]# docker exec -it rabbitmq02 /bin/sh
 #rabbitmqctl cluster_status
 Cluster status of node rabbit@rabbitmq02 ...
@@ -808,3 +829,71 @@ rabbit@rabbitmq02
 rabbit@rabbitmq03
 ```
 
+
+
+### 6.3 rabbitmq参数调整
+
+[docs01](https://www.rabbitmq.com/docs/3.13/configure#supported-environment-variables)
+[docs02](https://github.com/rabbitmq/rabbitmq-server/blob/v3.8.9/docs/rabbitmq.conf.example)
+
+
+
+#### 6.3.1 动态调整
+
+```
+# 动态调整rabbitmq节点的内存限制大小
+# 内存限制: 通过 vm_memory_high_watermark 设置，合理调整内存占用比例可以避免 RabbitMQ 因内存溢出而出现问题。
+rabbitmqctl set_vm_memory_high_watermark 0.6
+
+# 动态调整rabbitmq节点的磁盘可用空间限制大小，当小于此值时，rabbitmq整个集群将不可用，因此此值是越小越好，避免频繁触发
+# 磁盘空间限制: 通过 disk_free_limit 动态配置，确保磁盘空间不足时 RabbitMQ 不会进一步占用磁盘资源。设置 disk_free_limit 为 48MB 并不会造成问题，因为它是一个用于防止磁盘空间耗尽的保护机制。
+rabbitmqctl set_disk_free_limit 1GB
+#rabbitmqctl set_disk_free_limit 10%
+
+# 文件描述符和套接字描述符: 可以通过操作系统的 ulimit 命令调整，在docker中只能通过宿主机操作系统的ulimit命令和docker中的rabbitmq.conf配置文件进行更改
+
+
+# Erlang 进程的限制:通过内存和系统资源的分配动态管理，适时增加内存和调整高水位限制可以控制进程数量，rabbitmq自动调整
+
+
+```
+
+
+
+#### 6.3.1 静态调整
+
+```
+# 定入配置文件/etc/rabbitmq/rabbitmq.conf，并重启rabbitmq服务
+
+# file_descriptor_limit = 65536
+vm_memory_high_watermark.relative = 0.4
+# vm_memory_high_watermark.absolute = 2GB
+disk_free_limit.absolute = 500mb
+```
+
+
+
+### 6.4 宿主机ulimit调整后，docker容器中值还未改变，如何调整容器ulimit
+
+```bash
+[root@test ~]# docker stop rabbit
+[root@test ~]# docker rm -fv rabbit
+[root@test ~]# docker run -d --restart=always \
+--hostname rabbit \
+--name rabbit \
+--ulimit nofile=80000:80000 \
+-v /data/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='test666666' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=p@ss123.com \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+[root@test ~]# docker exec rabbit sh -c 'ulimit -n'
+80000
+```
+
+> --ulimit nofile=80000:80000设置容器内的文件描述符限制为 80000。此参数表示容器内软限制和硬限制都为80000
