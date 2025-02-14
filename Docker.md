@@ -638,3 +638,31 @@ WARNING: No swap limit support
  No Proxy: localhost,127.0.0.1
   https://dockerproxy.com/
 ```
+
+
+## docker健康检查
+```bash
+$ sudo docker run -d --name alipro_hotelryinglv_test -e JAVA_ENVIRONMENT=pro -p 12941:80 -m 2147483648 --health-cmd "curl -sf http://localhost/doc.html || exit 1" --health-start-period=2m --health-interval=30s --health-timeout=1s --health-retries=3 --restart always registry.cn-shanghai.aliyuncs.com/aliyun/hotelryinglv.service.hs.com:v20250117144201 
+
+$ sudo docker inspect alipro_hotelryinglv_test
+		"Health": {
+                "Status": "healthy",
+                "FailingStreak": 0,
+                "Log": [
+                    {
+                        "Start": "2025-02-14T09:37:27.744022868+08:00",
+                        "End": "2025-02-14T09:37:27.81685433+08:00",
+                        "ExitCode": 1,
+                        "Output": ""
+                    },
+                    {
+                        "Start": "2025-02-14T09:37:57.822215241+08:00",
+                        "End": "2025-02-14T09:37:58.024398105+08:00",
+                        "ExitCode": 0,
+                        "Output": "<!DOCTYPE html><html lang=en><head><meta charset=utf-8><meta http-equiv=X-UA-Compatible content=\"IE=edge\"><meta name=viewport content=\"width=device-width,initial-scale=1\"><link rel=icon href=favicon.ico><title></title><link href=webjars/css/chunk-51277dbe.57225f85.css rel=prefetch><link href=webjars/js/chunk-069eb437.a0c9f0ca.js rel=prefetch><link href=webjars/js/chunk-0fd67716.d57e2c41.js rel=prefetch><link href=webjars/js/chunk-2d0af44e.c09671a4.js rel=prefetch><link href=webjars/js/chunk-2d0bd799.5bb1a14e.js rel=prefetch><link href=webjars/js/chunk-2d0d0b98.4693c46e.js rel=prefetch><link href=webjars/js/chunk-2d0da532.a47fb5c8.js rel=prefetch><link href=webjars/js/chunk-2d22269d.fc57b306.js rel=prefetch><link href=webjars/js/chunk-3b888a65.8737ce4f.js rel=prefetch><link href=webjars/js/chunk-3ec4aaa8.a79d19f8.js rel=prefetch><link href=webjars/js/chunk-51277dbe.6f598840.js rel=prefetch><link href=webjars/js/chunk-589faee0.5b861f49.js rel=prefetch><link href=webjars/js/chunk-735c675c.be4e3cfe.js rel=prefetch><link href=webjars/js/chunk-adb9e944.fff7fcef.js rel=prefetch><link href=webjars/css/app.f802fc13.css rel=preload as=style><link href=webjars/css/chunk-vendors.2997cc1a.css rel=preload as=style><link href=webjars/js/app.23f8b31d.js rel=preload as=script><link href=webjars/js/chunk-vendors.90e8ba20.js rel=preload as=script><link href=webjars/css/chunk-vendors.2997cc1a.css rel=stylesheet><link href=webjars/css/app.f802fc13.css rel=stylesheet></head><body><noscript><strong>We're sorry but knife4j-vue doesn't work properly without JavaScript enabled. Please enable it to continue.</strong></noscript><div id=app></div><script src=webjars/js/chunk-vendors.90e8ba20.js></script><script src=webjars/js/app.23f8b31d.js></script></body></html>"
+                    }
+                ]
+            }
+        },
+```
+
