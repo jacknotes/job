@@ -5791,6 +5791,15 @@ filebeat.inputs:
 - type: log
   enabled: true
   paths:
+    - /data/mysql/mysql.log
+  multiline:
+    pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+\d{2}:\d{2}.*$'
+    negate: true
+    match: after
+  tags: ["mysql"]
+- type: log
+  enabled: true
+  paths:
     - /data/mysql/mysql-slow.log
   multiline:
     pattern: '^# Time: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}\+\d{2}:\d{2}$'
@@ -5819,6 +5828,33 @@ output.elasticsearch:
     pattern: "*"
 logging.level: error
 ```
+
+**mysql日志轮替**
+```bash
+[root@devmysql /data]# cat /etc/logrotate.d/mysql 
+# grant reload on *.* to ops@'localhost' identified by 'homsom';
+/data/mysql/mysql.err /data/mysql/mysql-slow.log /data/mysql/mysql.log{
+	create 640 mysql mysql
+	dateext
+	notifempty
+	daily
+	maxage 60
+	rotate 30
+	missingok
+	compress
+	olddir /data/logrotate
+	postrotate
+	    # just if mysqld is really running
+	    if test -x /usr/local/mysql/bin/mysqladmin &&
+	       /usr/local/mysql/bin/mysqladmin -uops -phomsom ping &>/dev/null
+	    then
+	       /usr/local/mysql/bin/mysqladmin -uops -phomsom flush-logs error slow general
+	    fi
+	endscript
+}
+[root@devmysql /data]# logrotate -vf /etc/logrotate.d/mysql 
+```
+
 
 
 
