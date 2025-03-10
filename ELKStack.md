@@ -5137,6 +5137,8 @@ GET /_nodes/stats/jvm?pretty
 GET /_nodes/stats/fs?pretty
 # 查看集群健康状态
 GET /_cluster/health?pretty
+# 查看索引健康状态 
+GET /_cluster/health?level=indices 
 ```
 
 
