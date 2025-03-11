@@ -5,17 +5,24 @@ ELKStack简介:
 对于日志来说，最常见的需求就是收集、存储、查询、展示，开源社区正好有相对应的开源项目：logstash（收集）、elasticsearch（存储+搜索）、kibana（展示），我们将这三个组合起来的技术称之为ELKStack，所以说ELKStack指的是Elasticsearch、Logstash、Kibana技术栈的结合
 Elasticsearch天生是分布式的，有两种方式进行通信：1.组播（加到组中，在组中的主机互相通信） 2.单播(指定主机)
 
-```
-### 安装JDK
+
+
+## 1.部署ELK
+
+### 1.1 安装JDK
+```bash
 [root@clusterFS-node4-salt ~]# yum install -y java-1.8.0
 [root@clusterFS-node4-salt ~]# java -version
 openjdk version "1.8.0_191"
 OpenJDK Runtime Environment (build 1.8.0_191-b12)
 OpenJDK 64-Bit Server VM (build 25.191-b12, mixed mode)
+```
 
-### Elasticsearch部署
+
+
+### 1.2 Elasticsearch部署
 Elasticsearch首先需要Java环境，所以需要提前安装好JDK，可以直接使用yum安装。也可以从Oracle官网下载JDK进行安装。开始之前要确保JDK正常安装并且环境变量也配置正确：
-YUM安装ElasticSearch
+```bash
 1.下载并安装GPG key:
 [root@clusterFS-node4-salt ~]# rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
 2.添加yum仓库:
@@ -144,9 +151,12 @@ discovery.zen.ping.unicast.hosts: ["192.168.1.31", "192.168.1.37"]    #ip地址�
 20.[root@clusterFS-node3-salt .ssh]# cat /proc/sys/vm/max_map_count
 65530
 21.上elasticsearch第一件事情就是改openfile:sysctl -w vm.max_map_count=262144
+```
 
-### logstash部署：
-YUM部署LogStash:
+
+
+### 1.3 logstash部署
+```bash
 1.下载并安装GPG key:
 rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
 2.添加yum仓库:
@@ -243,10 +253,11 @@ output{
         index => "system-log-%{+YYYY.MM}"
     }
 }
+```
 
-### kabana部署:
+### 1.4 kabana部署
 kabana跟logstash没有一点关系，kabana只是为elasticsearch设置的一个设置界面
-Yum安装Kibana
+```bash
 1.下载并安装GPG key
 [root@clusterFS-node4-salt log]#  rpm --import https://packages.elastic.co/GPG-KEY-elasticsearch
 2.添加yum仓库
@@ -430,11 +441,17 @@ output{
 3.前端Nginx做负载均衡（kibana性能到20多个人时就极限）、ip_hash、身份验证（限制访问）、ACL。
 ```
 
-```
-### Rsyslog日志(Redhat6之后不叫syslog了)
-syslog插件：logstash开启514端口，其他节点就可以把所有系统日志传到这台主机的514端口了。
-#### syslog插件 （logstash自带所有插件，免安装）
 
+
+### 1.5 Rsyslog日志(Redhat7之前叫syslog)
+syslog插件：logstash开启514端口，其他节点就可以把所有系统日志传到这台主机的514端口了。
+
+
+
+
+#### 1.5.1 syslog插件
+logstash自带所有插件，免安装
+```bash
 1.vim /etc/logstash/conf.d/syslog.conf
 input {
     syslog{   #意思是开启收集系统日志的端口，用于收取其他节点的系统日志
@@ -474,12 +491,13 @@ output {
         codec => rubydebug
     }
 }
+```
 
-#TCP日志（使用tcp插件）
+#### 1.5.2 TCP日志（使用tcp插件）
 当logstash收集日志时少收了一些日志，要补日志到kibana上，有两种方法：
 1. 把缺少日志写到文件，再通过logstash把文件传到kibana
 2. 用tcp来传少的日志到kibana(这种方式较灵活)
-tcp插件：
+```bash
 1. [root@clusterFS-node4-salt conf.d]# cat tcp.conf
 input {
     tcp {   #开启tcp端口收集日志
@@ -499,9 +517,14 @@ output {
 echo "hehe" | nc 192.168.1.31 6666
 nc 192.168.1.31 6666 < /etc/resolv.conf
 echo "hello" > /dev/tcp/192.168.1.31/6666
- 
-## filter模块：
-#grok插件：
+```
+
+
+
+### 1.6 filter模块
+
+#### 1.6.1 grok插件
+```bash
 1. grok系统自带正则表达式目录（自带大部分应用正则表达式）：
 [root@clusterFS-node4-salt conf.d]# cd /opt/logstash/vendor/bundle/jruby/1.9/gems/logstash-patterns-core-2.0.5/patterns/
 2. [root@clusterFS-node4-salt conf.d]# cat grok.conf
@@ -550,8 +573,13 @@ output{
 不用grok原因:
 1.grok是非常影响性能的  2.不灵活。除非你懂ruby。 3.生产环境用的流程是：logstash->redis<-python->ES (logstash收集到redis,python读取redis并处理数据后写入到ES)
 为什么用python脚本来处理，而不用grok处理，因为grok正则处理大量数据时很麻烦，而python处理大量数据时灵活。
+```
 
-#消息队列：rabbitMQ  kafka   redis    
+
+
+### 1.7 消息队列插件
+rabbitMQ  kafka   redis   
+```bash 
 1.用redis来做消息队列，安装redis:
 yum install -y redis
 2.vim /etc/redis.conf
@@ -785,7 +813,8 @@ output{
 ```
 
 
-## ELKStack生产环境实战
+
+## 2. ELKStack实战
 ```
 需求分析：
 访问日志：apache访问日志、nginx访问日志、tomcat访问日志    
@@ -804,10 +833,13 @@ output{
 
 流程图：
 源日志==>logstash收集==>写入redis存储<==logstash读取redis写到es==>kibana展示
+```
 
-###实战：
------------------------------
-#192.168.1.31上：
+
+
+### 2.1 实战
+```bash
+# 192.168.1.31
 1. [root@clusterFS-node4-salt conf.d]# cat shipper.conf 
 input {
         file{
@@ -855,8 +887,9 @@ LS_GROUP=root
 [root@clusterFS-node4-salt conf.d]# vim /etc/rsyslog.conf 
 *.* @@192.168.1.37:514  #配置最后面设置
 5. [root@clusterFS-node4-salt conf.d]# systemctl restart rsyslog.service 
------------------------------
-#192.168.1.37上：
+
+
+# 192.168.1.37
 1. [root@clusterFS-node3-salt conf.d]# cat indexer.conf 
 input {
         syslog{
@@ -914,7 +947,8 @@ output{
 LS_USER=root   #将logstash改成root(如果不启端口用root，启用端口用logstash用户)
 LS_GROUP=root
 3. [root@clusterFS-node3-salt logstash]# systemctl restart logstash.service 
------------------------------
+
+
 结论：如果redis list 作为ELKStack消息队列，那么请对所有list key的长度进行监控
 llen key_name
 根据实际情况，例如超过10万就报警。如果不做redis满了的话就会删除老的数据从而丢失数据。
@@ -938,12 +972,13 @@ llen key_name
 把之前读取redis的操作，改成mysql。
 
 Head First Python  #这本python书要看一下
-
 ```
 
-### 源码安装ELKstack
-```
-备注:环境为centos7.6 ，请按实际需求更改
+
+
+### 2.2 源码安装ELKstack
+环境为centos7.6 ，请按实际需求更改
+```bash
 [root@elk down]# wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-6.3.0.tar.gz #下载elasticsearch
 [root@elk down]# wget https://artifacts.elastic.co/downloads/kibana/kibana-6.3.0-linux-x86_64.tar.gz  #下载kibana
 [root@elk down]# wget https://artifacts.elastic.co/downloads/logstash/logstash-6.3.0.tar.gz #下载logstash
@@ -1191,8 +1226,11 @@ node2: elasticsearch、kibana
 #注：它们之间全靠elasticsearch存储，各elasticsearch节点之间同步数据达到集群的作用
 ```
 
-### docker部署elk
-```
+
+
+
+### 2.3 docker部署ELK-方式一
+```bash
 [root@elk2 ~]# docker pull elasticsearch:2.4.6
 [root@elk2 ~]# docker pull kibana:4.5 
 [root@elk2 ~]# docker pull logstash:2.4.0 
@@ -1258,11 +1296,12 @@ output {
 
 [root@elk2 elasticsearsh]# docker run --name lg -d -p 5000:5000 -v /docker/elk/logstash/config:/etc/logstash/conf.d -v /docker/elk/logstash/docker-entrypoint.sh:/docker-entrypoint.sh --link els:elasticsearch logstash:2.4.0 
 
-#注：--link els:elasticsearch表示连接名称为els的容器，并取一个elasticsearch别名，使在新建的容器中可以解析els主机的ip
+#--link els:elasticsearch表示连接名为els的容器，别名为elasticsearch，使在新建的容器中可以解析els主机的ip
 ```
 
 
-### ELK docker部署
+
+### 2.4 docker部署ELK-方式二
 ```
 #1.宿主机系统调优
 变更 /etc/security/limits.conf 文件，为其追加以下内容：
@@ -1662,8 +1701,12 @@ output.elasticsearch:
 
 #7.访问kibana,http://192.168.43.201:5601 || http://192.168.43.202:5601
 在设置中建立索引模式 system-test* 。就可以在首页查看测试日志了
+```
 
-##其它问题：##
+
+
+### 2.5 其它问题
+```
 1.需要删除太久远的日志，用来腾出空间
 curl -X DELETE http://192.168.43.201:9200/system-test-2020.01.01 #system-test-2020.01.01就是索引名称，system-test-2020*，也可以用通配符来删除
 2.elasticsearch需要进行安全防护，不然任何人都可以进行增删查改elasticsearch,很危险
@@ -1675,11 +1718,21 @@ curl -X DELETE http://192.168.43.201:9200/system-test-2020.01.01 #system-test-20
 8.在kibana的配置文件中，可以连接多个es集群。指定es地址是列表格式
 --当es7.1.1集群是两个节点的时候：其中一个节点挂了，你往另外一个节点写入json日志时，kibana和es无法读取索引，必须等待另一个节点起来后，两个节点都是正常状态才能写入，之前写入的json日志也不会丢失，还是会在es中，只是未写入排队状态。（两个节点可以保证数据的安全，但不能保证业务的可靠）
 --当大于等于3个节点时：不会遇到这个问题。因为当其中一个节点挂掉时，其它任一个节点会选举为master,此时被写入索引不会被锁定，可以正常写入（三个及以上节点及可以保证数据安全也可以保证业务可靠）
+```
 
-######Elasticsearch日志备份：采用快照方式，官方建议
-Elasticsearch 做备份有两种方式，一是将数据导出成文本文件，比如通过 elasticdump、esm 等工具将存储在 Elasticsearch 中的数据导出到文件中。二是以备份 elasticsearch data 目录中文件的形式来做快照，也就是 Elasticsearch 中 snapshot 接口实现的功能。第一种方式相对简单，在数据量小的时候比较实用，当应对大数据量场景效率就大打折扣。
-###第一种方式备份：
-6.4版本docker-compose.yml
+
+
+## 3. Elasticsearch备份
+Elasticsearch 做备份有两种方式:
+1. 将数据导出成文本文件，比如通过 elasticdump、esm 等工具将存储在 Elasticsearch 中的数据导出到文件中。
+2. 备份 elasticsearch data 目录中文件的形式来做快照，也就是 Elasticsearch 中 snapshot 接口实现的功能。
+> 第一种方式相对简单，在数据量小的时候比较实用，当应对大数据量场景效率就大打折扣。
+
+
+
+### 3.1 第一种方式备份
+```
+# 6.4版本docker-compose.yml
 -------------
 version: '3'
 services:
@@ -1868,12 +1921,14 @@ POST /backup-clog/_delete_by_query?scroll_size=5000
 }
 
 
-**多条件查询数据删除**
-
+# 多条件查询数据删除
 must: and
 must_not: not
 should: or
-```bash
+
+
+## 脚本
+---
 #!/bin/sh
 LOG_FILE=/shell/shell.log
 DATETIME='date +"%Y-%m-%d %H:%M:%S"'
@@ -1912,15 +1967,12 @@ curl -s -H'Content-Type:application/json' -d'{
 
 echo "`eval ${DATETIME}`: clear http://127.0.0.1:9210/clog data finished... " >> ${LOG_FILE}
 echo '' >> ${LOG_FILE}
-```
+---
 
 
-
-
-**批量手动配置所有索引为读写**
-```bash
+# 批量手动配置所有索引为读写
 for i in `curl -s -XGET "http://localhost:9200/_settings" | jq 'keys' | jq .[] | tr -d '"'`;do echo $i;curl -H 'Content-Type: application/json' -X PUT http://localhost:9200/$i/_settings -d '{"index.blocks.read_only_allow_delete": null}';done
-```
+
 
 
 删除hlog小于20200101的旧日志-----20200508操作，一个月一个月来
@@ -1956,9 +2008,12 @@ http://192.168.13.237:9200/clog/_refresh
 http://192.168.13.237:9200/_cat/segments/clog
 --合并段腾出空间
 POST /clog/_forcemerge?only_expunge_deletes=true&max_num_segments=1
+```
 
-###第二种备份的方式，即 snapshot api 的使用
-elk日志备份步骤：
+
+
+### 3.2 第二种方式备份
+```bash
 yum install -y nfs-utils rpcbind
 #vim /etc/exports
   /backup	*(rw,async)
@@ -2262,12 +2317,15 @@ Enter host password for user 'ops0799':
 [ops0799@jumpserver ~]$ curl -su ops0799 "http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200/_cluster/settings?pretty&include_defaults=true" -H "Content-Type: application/json" | grep auto_create_index
 Enter host password for user 'ops0799':
       "auto_create_index" : "+.*,+*_ali,-*"
-
 ```
 
 
-### 基于sebp/elk镜像部署elk
-```
+## 4. 镜像部署elk
+
+
+
+### 4.1 docker部署ES 7.6.1
+```bash
 --------部署环境---------
 node1: 192.168.13.160
 node2: 192.168.13.161
@@ -2572,1195 +2630,8 @@ iptables -I FORWARD 2 -o docker0 -p tcp --dport 5601 -j DROP
 ```
 
 
-### Elasticsearch问题汇总
-问题：
-Validation Failed: 1: this action would add [8] total shards, but this cluster currently has [999]/[1000] maximum shards open
-原因：
-Elasticsearch默认分片数量1000
-解决：
-可以增加分片数量或者取消副本数，这里以设置为3000为例，此方法比写在配置文件还有效，表示持久化生效：
-curl -X PUT localhost:9401/_cluster/settings -H "Content-Type: application/json" -d '{ "persistent": { "cluster.max_shards_per_node": "3000" } }'
 
-```
-### 分词器安装
-DOWNLOAD URL: https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.6.1/elasticsearch-analysis-ik-7.6.1.zip
-docker cp analysis elasticsearch:/opt/elasticsearch/plugins
-docker exec -it elasticsearch /bin/sh
-cd /opt/elasticsearch/plugins
-chown -R elasticsearch:elasticsearch analysis
-chmod -R 755 analysis
-
-### 阿里云Elasticsearch和Kibana权限分配：
-Aliyun Elasticsearch Product:	
-Common User Add Privileges: kibana-system,kibana-admin,homsom_readuser	
-Program User Add Privileges: kibana-system,kibana-admin,homsom_commonuser	
-Admin User Add Privileges: superuser
-
-Real Privileges Detail:	
-homsom-readuser: read,view_index_metadata,monitor
-homsom_commonuser: all	
-superuser: System Built-in
-Match Parttern Index:	*
-
-#### 202104271058
---快照备份恢复
-例如：在集群中每个节点挂载了NFS，并且创建了两个快照：
-PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
-{
-  "indices": "test01",
-  "ignore_unavailable": true,
-  "include_global_state": false,
-  "metadata": {
-    "taken_by": "jack",
-    "taken_because": "snapshot on 202104271018' "
-  }
-}
-PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
-{
-  "indices": "test01",
-  "ignore_unavailable": true,
-  "include_global_state": false,
-  "metadata": {
-    "taken_by": "jack",
-    "taken_because": "snapshot on 202104271019' "
-  }
-}
-在恢复节点上挂载NFS，挂载目录必须对应elasticsearch的备份目录，这里为/var/backups
-mkdir /tmpelkdata; chmod -R 777 /tmpelkdata
-mount -t nfs 192.168.13.67:/elkdata /tmpelkdata
---新建一个仓库
-put /_snapshot/test_backup
-{ 
-  "type": "fs",
-  "settings": { 
-    "location": "/var/backups"
-  }
-}
---恢复快照1，名称和原来一样
-post /_snapshot/test_backup/snapshot_1/_restore
-{
-  "indices": "test*",   
-  "ignore_unavailable": true,
-  "include_global_state": false,
-  "rename_pattern": "test(.+)",
-  "rename_replacement": "test$1"
-}
--- close index
-post test01/_close
---恢复快照2
-post /_snapshot/test_backup/snapshot_2/_restore
-{
-  "indices": "test*",   
-  "ignore_unavailable": true,
-  "include_global_state": false,
-  "rename_pattern": "test(.+)",
-  "rename_replacement": "test$1"
-}
--- open index 
-post test01/_open
-
-
-#elasticsearch集群增加节点和删除节点
---删除节点
-GET http://192.168.13.51:9200/_cat/nodes
-192.168.13.52 24 97 2 0.31 0.13 0.09 dilm - testelk-02
-192.168.13.51 30 96 8 1.00 1.03 0.89 dilm * testelk-01
-192.168.13.53 26 97 6 0.49 0.55 0.53 dilm - testelk-03
-
-1.1 移除指定节点
-PUT _cluster/settings
-{
-  "transient" : {
-    "cluster.routing.allocation.exclude._ip" : "192.168.13.52"
-  }
-}
-
-1.2 检查集群健康状态，如果没有节点relocating，则节点已经被安全剔除，可以考虑关闭节点
-GET http://192.168.13.51:9200/_cluster/health?pretty=true
-{
-  "cluster_name" : "testelk",
-  "status" : "green",
-  "timed_out" : false,
-  "number_of_nodes" : 3,
-  "number_of_data_nodes" : 3,
-  "active_primary_shards" : 23,
-  "active_shards" : 51,
-  "relocating_shards" : 0,
-  "initializing_shards" : 0,
-  "unassigned_shards" : 0,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 100.0
-}
-
-1.3 查看节点数据是否已迁移，都是 0 表示数据也已经迁移
-GET http://192.168.13.53:9200/_nodes/testelk-02/stats/indices?pretty
-      "indices" : {
-        "docs" : { 
-          "count" : 0,         --这里为0
-          "deleted" : 0
-        }
-
-上述三步，能保证节点稳妥删除。以下可作辅助查看：
-1.4 查看分布数量
-GET http://192.168.13.51:9200/_cat/allocation?v
-1.5 查看有没有任务挂起，若出现pening_tasks，当pending_tasks的等级>=HIGH时，存在集群无法新建索引的风险
-GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
-1.6 若集群中出现UNASSIGNED shards,检查原因，查看是否是分配策略导致无法迁移分片
-GET http://192.168.13.51:9200/_cluster/allocation/explain?pretty
-1.7 取消节点禁用策略，会使分片自动平均到各个节点
-PUT _cluster/settings
-{
-  "transient": {
-    "cluster.routing.allocation.exclude._ip": null
-  }
-}
---从集群中加入此节点的IP，会使除master leader节点外的节点分片到此ip地址，此参数可不用
-PUT _cluster/settings
-{
-  "transient" : {
-    "cluster.routing.allocation.include._ip" : "10.0.0.1"
-  }
-}
-```
-
-
-### 向现有集群增加节点，生产真实操作
-```
-[root@node01 ~/tmpelk]# cat elasticsearch.yml 
-node.name: testelk-04
-network.host: 0.0.0.0
-http.port: 9200
-transport.tcp.port: 9300
-path.repo: /var/backups
-cluster.name: testelk
-network.publish_host: 192.168.13.56
-discovery.seed_hosts: ["192.168.13.51:9300","192.168.13.52:9300","192.168.13.53:9300","192.168.13.56:9300"]
-cluster.initial_master_nodes: ["192.168.13.51"]
-node.master: true
-node.data: true
-discovery.zen.minimum_master_nodes: 2
-discovery.zen.fd.ping_timeout: 1m
-discovery.zen.fd.ping_retries: 5
-http.cors.enabled: true
-http.cors.allow-origin: "*"
-注：指定的master必须是当前集群的master地址，成功加入集群后，可以更改最小节点数量为3，允许失败一个节点。
-虽说不用更改配置文件，其它3个之前的节点discovery.seed_hosts中的主机配置没有配置新添加的节点，在整个集群重启过后
-仍然可以成功建立集群，建立把配置文件补充完整，以后排错也方便。
-[root@node01 ~/tmpelk]# cat kibana.yml 
-server.name: testelk_kibana01
-server.host: "0.0.0.0"
-i18n.locale: "zh-CN"
-[root@node01 ~/tmpelk]# cat docker_run.sh 
-docker run -d --restart=always --name=testelk-node \
--p 9200:9200 \
--p 9300:9300 \
--p 5601:5601 \
--e ES_CONNECT_RETRY=60 \
--e KIBANA_CONNECT_RETRY=60 \
--e LOGSTASH_START=0 \
--e ELASTICSEARCH_START=1 \
--e KIBANA_START=1 \
--e ES_HEAP_SIZE="1g" \
--e TZ="Asia/Shanghai" \
--v /root/tmpelk/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
--v /root/tmpelk/kibana.yml:/opt/kibana/config/kibana.yml \
--v /root/tmpelk/es_data:/var/lib/elasticsearch \
--v /tmpelkdata:/var/backups \
-192.168.13.235:8000/ops/elk:761
--- 设置最小master为3个--此参数应该写入到配置文件，否则不会持久生效。
-curl -XPUT '192.168.13.56:9200/_cluster/settings' -d'
-{
-  "transient": {
-    "discovery.zen.minimum_master_nodes": 3
-  }
-}
-
-
-#向现有集群删除节点
---执行删除前
-GET http://192.168.13.56:9200/_cluster/health?pretty=true
-{
-  "cluster_name" : "testelk",
-  "status" : "green",
-  "timed_out" : false,
-  "number_of_nodes" : 4,
-  "number_of_data_nodes" : 4,
-  "active_primary_shards" : 23,
-  "active_shards" : 51,
-  "relocating_shards" : 0,
-  "initializing_shards" : 0,
-  "unassigned_shards" : 0,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 100.0
-}
-
-GET http://192.168.13.56:9200/_cat/nodes
-192.168.13.53 21 95 6 0.24 0.35 0.52 dilm - testelk-03
-192.168.13.52 31 97 2 0.16 0.21 0.22 dilm - testelk-02
-192.168.13.51 28 95 9 1.03 0.68 0.68 dilm - testelk-01
-192.168.13.56 20 96 7 0.40 0.61 0.69 dilm * testelk-04
-
-GET http://192.168.13.51:9200/_cat/allocation?v
-shards disk.indices disk.used disk.avail disk.total disk.percent host          ip            node
-    12       44.2kb     6.3gb     92.6gb     98.9gb            6 192.168.13.53 192.168.13.53 testelk-03
-    13       48.4kb     6.6gb     92.3gb     98.9gb            6 192.168.13.51 192.168.13.51 testelk-01
-    13         82kb     6.3gb     92.6gb     98.9gb            6 192.168.13.52 192.168.13.52 testelk-02
-    13       86.5kb       7gb     91.8gb     98.9gb            7 192.168.13.56 192.168.13.56 testelk-04
-
-GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
-{
-  "tasks" : [ ]
-}
-
-
---执行删除后
-PUT _cluster/settings
-{
-  "transient" : {
-    "cluster.routing.allocation.exclude._ip" : "192.168.13.52"
-  }
-}
-get /_cluster/settings
--------
-{
-  "persistent" : { },
-  "transient" : {
-    "cluster" : {
-      "routing" : {
-        "allocation" : {
-          "exclude" : {
-            "_ip" : "192.168.13.52"
-          }
-        }
-      }
-    }
-  }
-}
--------
-GET http://192.168.13.56:9200/_cluster/health?pretty=true
-{
-  "cluster_name" : "testelk",
-  "status" : "green",
-  "timed_out" : false,
-  "number_of_nodes" : 4,
-  "number_of_data_nodes" : 4,
-  "active_primary_shards" : 23,
-  "active_shards" : 51,
-  "relocating_shards" : 0,    --这里为0就说明分片分离成功,等到为0才可进行下一步
-  "initializing_shards" : 0,
-  "unassigned_shards" : 0,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 100.0
-}
-GET http://192.168.13.56:9200/_cat/nodes
-192.168.13.53 26 96  6 0.53 0.36 0.49 dilm - testelk-03
-192.168.13.52 11 97  2 0.30 0.21 0.22 dilm - testelk-02
-192.168.13.51 26 95 11 0.61 0.66 0.67 dilm - testelk-01
-192.168.13.56 12 97  6 0.10 0.39 0.59 dilm * testelk-04
-GET http://192.168.13.51:9200/_cat/allocation?v
-shards disk.indices disk.used disk.avail disk.total disk.percent host          ip            node
-    17       61.7kb     6.6gb     92.3gb     98.9gb            6 192.168.13.51 192.168.13.51 testelk-01
-    17        103kb     6.3gb     92.6gb     98.9gb            6 192.168.13.53 192.168.13.53 testelk-03
-    17        103kb       7gb     91.8gb     98.9gb            7 192.168.13.56 192.168.13.56 testelk-04
-     0           0b     6.3gb     92.6gb     98.9gb            6 192.168.13.52 192.168.13.52 testelk-02
-GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
-{
-  "tasks" : [ ]
-}
-GET http://192.168.13.51:9200/_nodes/testelk-02/stats/indices?pretty
---------
-      "indices" : {
-        "docs" : {
-          "count" : 0,   --这里为0说明此节点数据已经分离到其它节点成功，此时可以关闭此节点的服务进行移除了
-          "deleted" : 0
-        }
---------
-注：当节点成功添加和移除，记得要更新配置文件，为现有的节点，另外要仔细检查配置文件，防止最后配置更改错误导致集群起不来。
-
-```
-
-
-### 一次UNASSIGNED_FAILED事便原因解决：
-```
-#查看集群状态
-GET http://192.168.13.160:9200/_cluster/health?pretty
-{
-  "cluster_name" : "dlog",
-  "status" : "yellow",
-  "timed_out" : false,
-  "number_of_nodes" : 3,
-  "number_of_data_nodes" : 3,
-  "active_primary_shards" : 255,
-  "active_shards" : 485,
-  "relocating_shards" : 0,
-  "initializing_shards" : 0,
-  "unassigned_shards" : 31,
-  "delayed_unassigned_shards" : 0,
-  "number_of_pending_tasks" : 0,
-  "number_of_in_flight_fetch" : 0,
-  "task_max_waiting_in_queue_millis" : 0,
-  "active_shards_percent_as_number" : 93.9922480620155
-}
-#查看分片分配情况
-http://192.168.13.197:9200/_cat/allocation?v
-shards disk.indices disk.used disk.avail disk.total disk.percent host           ip             node
-   241       67.4gb   129.5gb    258.6gb    388.1gb           33 192.168.13.160 192.168.13.160 dlog-01
-    92       19.2gb    24.5gb    174.3gb    198.8gb           12 192.168.13.197 192.168.13.197 dlog-04
-   152       64.8gb    80.1gb    318.6gb    398.8gb           20 192.168.13.161 192.168.13.161 dlog-02
-    31                                                                                         UNASSIGNED
-#查看unassigned失败原因
-GET http://192.168.13.160:9200/_cat/shards?h=index,shard,prirep,state,unassigned.reason
-#查看集群节点ID详细信息
-GET http://192.168.13.160:9200/_nodes/process?pretty
------------
-{
-  "_nodes" : {
-    "total" : 3,
-    "successful" : 3,
-    "failed" : 0
-  },
-  "cluster_name" : "dlog",
-  "nodes" : {
-    "18E6bO7URyKQUekXZPi_OQ" : {
-      "name" : "dlog-04",
-      "transport_address" : "192.168.13.197:9300",
-      "host" : "192.168.13.197",
-      "ip" : "192.168.13.197",
-      "version" : "7.6.1",
-      "build_flavor" : "default",
-      "build_type" : "tar",
-      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
-      "roles" : [
-        "master",
-        "ingest",
-        "data",
-        "ml"
-      ],
-      "attributes" : {
-        "ml.machine_memory" : "8200798208",
-        "ml.max_open_jobs" : "20",
-        "xpack.installed" : "true"
-      },
-      "process" : {
-        "refresh_interval_in_millis" : 1000,
-        "id" : 130,
-        "mlockall" : false
-      }
-    },
-    "w1f1PVrRRWWARu8M6HlPRA" : {
-      "name" : "dlog-02",
-      "transport_address" : "192.168.13.161:9300",
-      "host" : "192.168.13.161",
-      "ip" : "192.168.13.161",
-      "version" : "7.6.1",
-      "build_flavor" : "default",
-      "build_type" : "tar",
-      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
-      "roles" : [
-        "master",
-        "ingest",
-        "data",
-        "ml"
-      ],
-      "attributes" : {
-        "ml.machine_memory" : "16651141120",
-        "ml.max_open_jobs" : "20",
-        "xpack.installed" : "true"
-      },
-      "process" : {
-        "refresh_interval_in_millis" : 1000,
-        "id" : 126,
-        "mlockall" : false
-      }
-    },
-    "FKJ5nYktROmj7aLiQ9i5Fw" : {
-      "name" : "dlog-01",
-      "transport_address" : "192.168.13.160:9300",
-      "host" : "192.168.13.160",
-      "ip" : "192.168.13.160",
-      "version" : "7.6.1",
-      "build_flavor" : "default",
-      "build_type" : "tar",
-      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
-      "roles" : [
-        "master",
-        "ingest",
-        "data",
-        "ml"
-      ],
-      "attributes" : {
-        "ml.machine_memory" : "16277364736",
-        "xpack.installed" : "true",
-        "ml.max_open_jobs" : "20"
-      },
-      "process" : {
-        "refresh_interval_in_millis" : 1000,
-        "id" : 136,
-        "mlockall" : false
-      }
-    }
-  }
-}
------------
-
-#查看分配详细信息，可以看到分配失败原因
-GET http://192.168.13.197:9200/_cluster/allocation/explain?pretty
-{
-  "index" : "jinjianghotel_db_pro",
-  "shard" : 2,
-  "primary" : false,
-  "current_state" : "unassigned",
-  "unassigned_info" : {
-    "reason" : "ALLOCATION_FAILED",
-    "at" : "2021-04-28T05:39:05.809Z",
-    "failed_allocation_attempts" : 5,
-    "details" : "failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]",
-    "last_allocation_status" : "no_attempt"
-  },
-  "can_allocate" : "no",
-  "allocate_explanation" : "cannot allocate because allocation is not permitted to any of the nodes",
-  "node_allocation_decisions" : [
-    {
-      "node_id" : "18E6bO7URyKQUekXZPi_OQ",
-      "node_name" : "dlog-04",
-      "transport_address" : "192.168.13.197:9300",
-      "node_attributes" : {
-        "ml.machine_memory" : "8200798208",
-        "ml.max_open_jobs" : "20",
-        "xpack.installed" : "true"
-      },
-      "node_decision" : "no",
-      "deciders" : [
-        {
-          "decider" : "max_retry",
-          "decision" : "NO",
-          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
-        }
-      ]
-    },
-    {
-      "node_id" : "FKJ5nYktROmj7aLiQ9i5Fw",
-      "node_name" : "dlog-01",
-      "transport_address" : "192.168.13.160:9300",
-      "node_attributes" : {
-        "ml.machine_memory" : "16277364736",
-        "ml.max_open_jobs" : "20",
-        "xpack.installed" : "true"
-      },
-      "node_decision" : "no",
-      "deciders" : [
-        {
-          "decider" : "max_retry",
-          "decision" : "NO",
-          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
-        },
-        {
-          "decider" : "same_shard",
-          "decision" : "NO",
-          "explanation" : "the shard cannot be allocated to the same node on which a copy of the shard already exists [[jinjianghotel_db_pro][2], node[FKJ5nYktROmj7aLiQ9i5Fw], [P], s[STARTED], a[id=zFx1U41-TGmF8l0wfH5I4g]]"
-        }
-      ]
-    },
-    {
-      "node_id" : "w1f1PVrRRWWARu8M6HlPRA",
-      "node_name" : "dlog-02",
-      "transport_address" : "192.168.13.161:9300",
-      "node_attributes" : {
-        "ml.machine_memory" : "16651141120",
-        "ml.max_open_jobs" : "20",
-        "xpack.installed" : "true"
-      },
-      "node_decision" : "no",
-      "deciders" : [
-        {
-          "decider" : "max_retry",
-          "decision" : "NO",
-          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
-        }
-      ]
-    }
-  ]
-}
-注：UNASSIGNED原因是新添加集群节点未安装analysis-ik分词器插件，所以导致未分配。
-解决：
-在新节点dlog04安装analysis-ik分词器，并重启节点，节点起来后，此错误仍在，是因为master重试分配分片次数达到5次。所以需要
-执行命令来重新分配分片：
-POST /_cluster/reroute?retry_failed=true 
-注：集群会自动平均分布分片到节点，如果遇到某些节点分布数量多，而某个节点分片数量小，那么你就要看这一个节点是否有什么问题，我这里就是没有安装analysis-ik分词器，
-所以导致分布不均。当我安装完analysis-ik分词器后集群自动平均分配分片。
-```
-
-
-### elk6.5.1部署
-Author: https://github.com/spujadas/elk-docker
-```
-sebp/elk:651
-[root@TestHotelES /data/hlogelk/elasticsearch]# cat elasticsearch.yml
-node.name: hlogelk
-cluster.name: hlogelk
-network.host: 0.0.0.0
-http.port: 9200
-transport.tcp.port: 9300
-network.publish_host: 192.168.13.196
-path.repo: /var/backups
-
-#run
-[root@docker /data/hlogelk]# sysctl -a | grep vm.max_map_count
-vm.max_map_count = 262144
-
-docker run -d --restart=always --name=hlogelk  \
--p 9210:9200 \
--p 9310:9300 \
--p 80:5601 \
--e ES_CONNECT_RETRY=90 \
--e KIBANA_CONNECT_RETRY=90 \
--e LOGSTASH_START=0 \
--e ELASTICSEARCH_START=1 \
--e KIBANA_START=1 \
--e ES_HEAP_SIZE="2g" \
--e TZ="Asia/Shanghai" \
--v /data/hlogelk/kibana/kibana.yml:/opt/kibana/config/kibana.yml \
--v /data/hlogelk/elasticsearch/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
--v /data/hlogelk/es_data:/var/lib/elasticsearch \
--v /data/hlogelk/es_snapshot:/var/backups \
-192.168.13.235:8000/ops/elk:651
-
-
-
-#20210713
---------------------
-[root@TestHotelES /data/elk/es_snapshot]# chmod -R 777 /data/elk/es_snapshot/
---创建快照仓库
-PUT /_snapshot/my_repo
-{
-  "type": "fs",
-  "settings": {
-    "location": "/var/backups"
-  }
-}
---查看仓库
-GET _snapshot
-get _snapshot/_all
-
---查看全部备份快照
-get _snapshot/my_repo/_all
-
---创建所有索引快照
-PUT _snapshot/my_repo/testhoteles_20210713104400?wait_for_completion=true
---创建指定索引快照
-PUT _snapshot/my_repo/testhoteles_20210713104400?wait_for_completion=true
-{
-    "indices": "jinjianghotel_db_en_test"
-}
---查看指定快照详细信息
-get _snapshot/my_repo/testhoteles_20210713104400/_status
-
---删除快照
-DELETE _snapshot/my_backup/snapshot_3
-
-
-恢复
---从快照恢复所有
-POST _snapshot/my_backup/snapshot_1/_restore
-POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
-
---恢复所有索引（除.开头的系统索引）
-POST _snapshot/my_backup/snapshot_1/_restore 
-{"indices":"*,-.monitoring*,-.security*,-.kibana*","ignore_unavailable":"true"}
-
---将指定快照中备份的指定索引恢复到Elasticsearch集群中，并重命名。
-如果您需要在不替换现有数据的前提下，恢复旧版本的数据来验证内容，或者进行其他处理，可恢复指定的索引，并重命名该索引。
-POST /_snapshot/my_backup/snapshot_1/_restore
-{
- "indices": "index_1", 
- "rename_pattern": "index_(.+)", 
- "rename_replacement": "restored_index_$1" 
-}
-
-----查看快照恢复信息
---查看快照中，指定索引的恢复状态
-GET restored_index_3/_recovery
-
---查看集群中的所有索引的恢复信息（可能包含跟您的恢复进程无关的其他分片的恢复信息）
-GET /_recovery/
-
-----取消快照恢复
---通过DELETE命令删除正在恢复的索引，取消恢复操作。如果restored_index_3正在恢复中，以上删除命令会停止恢复，同时删除所有已经恢复到集群中的数据。
-DELETE /restored_index_3
---------------------
-
-
-#20210812
-#复制es索引到本机
-1. 列出索引名称
-[ops0799@jumpserver ~]$ curl -su ops0799 "http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200/_cat/indices" -H "Content-Type: application/json" | awk '{print $3}' | grep -Ev 'core|\..*' | tee /home/ops0799/indexNameList.txt
-Enter host password for user 'ops0799':
-youyouroom_en_db_pro
-jinjianghotelroom_db_pro
-elonghotelroom_db_pro
-jinjianghotelroom_db_en_pro
-huazhuroom_db_pro
-tepaihotelprice_db_pro
-huazhuhotel_db_pro
-qianqianhotel_en_db_pro
----------------创建索引并从源索引复制mapping到新索引----------------------
-[ops0799@jumpserver ~/es]$ cat es-configIndex.sh 
-#!/bin/sh
-
-LogFile='./es.log'
-DateTime='date +"%Y-%m-%d %H:%M:%S"'
-Suffix='_ali'
-Username='test2021'
-Password='test'
-ESAddress='http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200'
-#IndexList='cat /home/ops0799/indexNameList.txt | head -n 2'
-IndexList='cat /home/ops0799/es/indexNameList.txt | grep -E "^[a-z]|^[A-Z]|^[0-9]'
-
-# create index 
-for i in `eval ${IndexList}`;do
-	echo "`eval ${DateTime}`: start create index ${i}${Suffix} ..." >> ${LogFile}
-	curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}" -H 'Content-Type: application/json' -d'{	"settings": {		"number_of_shards": 6,		"number_of_replicas": 1,	 "analysis.analyzer.default.type": "ik_max_word"	}}' | grep 'acknowledged":true' &> /dev/null
-	[ $? == 0 ] && echo "`eval ${DateTime}`: create index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: create index ${i}${Suffix} failure......."  >> ${LogFile}
-done
-
-echo '-------------------' >> ${LogFile}
-
-# config mapping
-for i in `eval ${IndexList}`;do
-	echo "`eval ${DateTime}`: start config index mapping ${i}${Suffix} ..." >> ${LogFile}
-	curl -s -X GET -u ${Username}:${Password} "${ESAddress}/${i}/_mapping" -H 'Content-Type: application/json' | jq '."'${i}'".mappings' | curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}/_mapping" -H 'Content-Type: application/json' -d @- | grep 'acknowledged":true' &> /dev/null
-	[ $? == 0 ] && echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} failure......."  >> ${LogFile}
-done
-
-echo '-------------------' >> ${LogFile}
-
-echo '' >> ${LogFile}
------------------创建索引并从源索引复制mapping到新索引，最后复制数据到目标索引------------------------
-[ops0799@jumpserver ~/es]$ cat es-moveIndex.sh
-#!/bin/sh
-#"size": 100,表示每批索引的文档数量，默认是100，可以调整大小
-LogFile='./es.log'
-DateTime='date +"%Y-%m-%d %H:%M:%S"'
-Suffix='_ali'
-Username='test2021'
-Password='test'
-ESAddress='http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200'
-#IndexList='cat /home/ops0799/indexNameList.txt | head -n 2'
-IndexList='cat /home/ops0799/es/indexNameList.txt | grep -E "^[a-z]|^[A-Z]|^[0-9]'
-
-# create index 
-for i in `eval ${IndexList}`;do
-	echo "`eval ${DateTime}`: start create index ${i}${Suffix} ..." >> ${LogFile}
-	curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}" -H 'Content-Type: application/json' -d'{	"settings": {		"number_of_shards": 6,		"number_of_replicas": 1,	 "analysis.analyzer.default.type": "ik_max_word"	}}' | grep 'acknowledged":true' &> /dev/null
-	[ $? == 0 ] && echo "`eval ${DateTime}`: create index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: create index ${i}${Suffix} failure......."  >> ${LogFile}
-done
-
-echo '-------------------' >> ${LogFile}
-
-# config mapping
-for i in `eval ${IndexList}`;do
-	echo "`eval ${DateTime}`: start config index mapping ${i}${Suffix} ..." >> ${LogFile}
-	curl -s -X GET -u ${Username}:${Password} "${ESAddress}/${i}/_mapping" -H 'Content-Type: application/json' | jq '."'${i}'".mappings' | curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}/_mapping" -H 'Content-Type: application/json' -d @- | grep 'acknowledged":true' &> /dev/null
-	[ $? == 0 ] && echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} failure......."  >> ${LogFile}
-done
-
-echo '-------------------' >> ${LogFile}
-
-#reindex 
-for i in `eval ${IndexList}`;do
-	echo "`eval ${DateTime}`: start rename index ${i} to ${i}${Suffix} ..." >> ${LogFile}
-	curl -s -u ${Username}:${Password} -XPOST "${ESAddress}/_reindex" -H 'Content-Type: application/json' -d'{  "source": {    "index": "'${i}'", "size": 100  },  "dest": {    "index": "'${i}${Suffix}'"  }}' | grep '"status":' &> /dev/null
-	[ $? != 0 ] && echo "`eval ${DateTime}`: rename index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: rename index ${i}${Suffix} failure......."  >> ${LogFile}
-done
-
-echo '-------------------' >> ${LogFile}
-
-echo '' >> ${LogFile}
-------------------------------------------------------
-
-#创建索引
-PUT /test01
-{
-	"settings": {
-		"number_of_shards": 6,
-		"number_of_replicas": 1
-	}
-}
-#配置修改索引mapping
-PUT /huazhuhotelpricebookinfo_db_pro-backup/_mapping
-{
-"properties": {
-        "acceptedCreditCards": {
-          "properties": {
-            "cardName": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            },
-            "cardType": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            }
-          }
-        },
-        "updateTime": {
-          "type": "date"
-        }
-    }
-}
-#创建索引并配置mapping
-[jack@ubuntu:~]$ cat test01
-{
-	"settings": {
-		"number_of_shards": 6,
-		"number_of_replicas": 1
-	},
-	"mappings" : {
-    "properties": {
-        "acceptedCreditCards": {
-          "properties": {
-            "cardName": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            },
-            "cardType": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            }
-          }
-        },
-        "updateTime": {
-          "type": "date"
-        }
-    }
-	}
-}
-[jack@ubuntu:~]$ curl -XPUT "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup" -H 'Content-Type: application/json' -d @test01 
-{"acknowledged":true,"shards_acknowledged":true,"index":"huazhuhotelpricebookinfo_db_pro-backup"}
-#获取mapping
-[jack@ubuntu:~]$ curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" | jq .
-{
-  "huazhuhotelpricebookinfo_db_pro-backup": {
-    "mappings": {
-      "properties": {
-        "acceptedCreditCards": {
-          "properties": {
-            "cardName": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            },
-            "cardType": {
-              "type": "text",
-              "fields": {
-                "keyword": {
-                  "type": "keyword",
-                  "ignore_above": 256
-                }
-              }
-            }
-          }
-        },
-        "updateTime": {
-          "type": "date"
-        }
-      }
-    }
-  }
-}
-
-#从原索引复制mapping并导入到新索引中
-curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" -H 'Content-Type: application/json' | jq '."huazhuhotelpricebookinfo_db_pro-backup".mappings' | curl -XPUT "http://192.168.13.50:9401/test-backup/_mapping" -H 'Content-Type: application/json' -d @-
-
-
-#20210819
-#查看索引设置和修改设置
-get /skywalking_metrics-apdex-20210808/_settings?pretty=true&include_defaults=true
-PUT /*/_settings
-{
-  "index" : {
-    "number_of_replicas" : 0
-  }
-}
-#查看模板和修改设置，order是优先级，数值越大优先级越大
-GET /_template/all_default_template
-PUT /_template/all_default_template
-{
-  "index_patterns": "*",
-  "order" : 100,
-  "settings": {
-    "number_of_shards": "4",
-    "number_of_replicas": "0"
-  }
-}
-
-#查看和设置是否允许使用通配符，为true是禁用通配符，为false为启用通配符
-get /_cluster/settings?include_defaults=true
-PUT /_cluster/settings
-{
-    "persistent" : {
-       "action.destructive_requires_name":true }
-}
-
-#关闭索引，设置索引，打开索引
-POST /skywalking*/_close
-PUT /skywalking*/_settings?preserve_existing=true
-{  
-"index.refresh_interval" : "60s",  
-"index.number_of_shards" : "2",
-"index.number_of_replicas" : "0",
-"index.translog.durability" : "async",  
-"index.translog.flush_threshold_size" : "512mb",  
-"index.translog.sync_interval" : "30s"  
-}
-POST /skywalking*/_open
-
-
-#20210913 
-#阿里云备份到OSS中
-
-GET _snapshot
-get _snapshot/aliyun_auto_snapshot/_all
-
-IN_PROGRESS	快照正在执行。
-SUCCESS	快照执行结束，且所有shard中的数据都存储成功。
-FAILED	快照执行结束，但部分索引中的数据存储不成功。
-PARTIAL	部分数据存储成功，但至少有1个shard中的数据没有存储成功。
-INCOMPATIBLE	快照与阿里云Elasticsearch实例的版本不兼容。
-
-
-手动备份与恢复
---创建elasticsearch 访问的access_key_id和secret_access_key，开通OSS服务
---创建仓库
-PUT _snapshot/my_backup/
-{
-    "type": "oss",
-    "settings": {
-        "endpoint": "http://oss-cn-shanghai-internal.aliyuncs.com",
-        "access_key_id": "abc",
-        "secret_access_key": "12345",
-        "bucket": "dbs-backup-100000-cn-shanghai",
-        "compress": true,
-        "chunk_size": "500mb",
-        "base_path": "snapshot/"
-    }
-}
-GET _snapshot/my_backup
---备份所有索引 
-PUT _snapshot/my_backup/snapshot_1?wait_for_completion=true
---备份指定索引
-PUT _snapshot/my_backup/snapshot_202109131458?wait_for_completion=true
-{
-    "indices": "corehotel_db_pro_ali,corehotel_en_db_pro_ali,coreroom_db_pro_ali,coreroom_en_db_pro_ali"
-}
---查看所有快照信息
-GET _snapshot/my_backup/_all
---查看指定快照信息
-GET _snapshot/my_backup/snapshot_3
-GET _snapshot/my_backup/snapshot_3/_status
---删除指定的快照。如果该快照正在进行，执行以下命令，系统会中断快照进程并删除仓库中创建到一半的快照。
-DELETE _snapshot/my_backup/snapshot_3
-
-
---从快照恢复
---将指定快照中备份的所有索引恢复到Elasticsearch集群中。
-POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
---恢复所有索引（除.开头的系统索引）
-POST _snapshot/my_backup/snapshot_1/_restore 
-{"indices":"*,-.monitoring*,-.security*,-.kibana*","ignore_unavailable":"true"}
---将指定快照中备份的指定索引恢复到Elasticsearch集群中，并重命名。
-如果您需要在不替换现有数据的前提下，恢复旧版本的数据来验证内容，或者进行其他处理，可恢复指定的索引，并重命名该索引
-POST /_snapshot/my_backup/snapshot_1/_restore
-{
- "indices": "index_1", 
- "rename_pattern": "index_(.+)", 
- "rename_replacement": "restored_index_$1" 
-}
---查看快照恢复信息
-GET restored_index_3/_recovery
---查看集群中的所有索引的恢复信息（可能包含跟您的恢复进程无关的其他分片的恢复信息）。
-GET /_recovery/
-
-# 查看恢复状态
-GET /_cat/recovery
-GET /interdaolvv2_hotelstatic_db_ali_pro/_recovery
-
-
---取消快照恢复
-DELETE /restored_index_3
-
-
-##本地ES备份到阿里云OSS
-1. 阿里云开通OSS，创建bukect，授权RAM子帐户权限
-{
-    "Version": "1",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": "oss:*",
-            "Resource": [
-                "acs:oss:*:*:dbs-backup-20159124-cn-shanghai",
-                "acs:oss:*:*:dbs-backup-20159124-cn-shanghai/*",
-                "acs:oss:*:*:hs-travelreportes-data-backup",
-                "acs:oss:*:*:hs-travelreportes-data-backup/*"
-            ]
-        }
-    ]
-}
-
-2. 本地ES集群所有节点安装S3插件，并所有节点配置s3.client.default.access_key 和 s3.client.default.secret_key，最后所有节点更改/etc/elasticsearch/elasticsearch.keystore权限使elasticsearch用户有权限访问，否则无法成功创建阿里云OSS仓库，此步非常重要，之前就是卡在这步
-
-`例子`
-sh /opt/elasticsearch/bin/elasticsearch-plugin install --batch repository-s3  && 
-sh -c /bin/echo -e "HDRZ3WYIX4BFUWZNHF45" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.access_key && 
-sh -c /bin/echo -e "SERuAXJdPRkXBXA4eQEC8wbIoULoR05fihVUvems" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.secret_key && 
-sh -c /bin/echo -e "https://s3-sh-prod.fin-shine.com/" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.endpoint 
-
-
-cd /opt/elasticsearch 
-bin/elasticsearch-plugin install repository-s3
-bin/elasticsearch-keystore add s3.client.default.access_key
-bin/elasticsearch-keystore add s3.client.default.secret_key
-bin/elasticsearch-keystore list
-chown elasticsearch.elasticsearch /etc/elasticsearch/elasticsearch.keystore
-
-3. 创建仓库
-PUT _snapshot/backup/
-{
-    "type": "s3",
-    "settings": {
-        "endpoint": "https://oss-cn-shanghai.aliyuncs.com",
-        "bucket": "hs-travelreportes-data-backup",
-        "base_path": "snapshot/"
-    }
-}
-
-4. 对所有索引进行快照
-PUT _snapshot/backup/snapshot_202208161027?wait_for_completion=true
-
-output:
---------
-{
-  "snapshots" : [
-    {
-      "snapshot" : "snapshot_202208161026",
-      "uuid" : "N4ePUbH0RSetRBm6dDdzZA",
-      "version_id" : 7060199,
-      "version" : "7.6.1",
-      "indices" : [
-        "traindepartmentmonthsummary_db"
-      ],
-      "include_global_state" : true,
-      "state" : "SUCCESS",
-      "start_time" : "2022-08-16T02:26:19.733Z",
-      "start_time_in_millis" : 1660616779733,
-      "end_time" : "2022-08-16T02:26:20.933Z",
-      "end_time_in_millis" : 1660616780933,
-      "duration_in_millis" : 1200,
-      "failures" : [ ],
-      "shards" : {
-        "total" : 5,
-        "failed" : 0,
-        "successful" : 5
-      }
-    },
-    {
-      "snapshot" : "snapshot_202208161027",
-      "uuid" : "TRBccmNHRcukeTXv5Lnq9Q",
-      "version_id" : 7060199,
-      "version" : "7.6.1",
-      "indices" : [
-        "carorder_db",
-        "flightbumonthsummary_db",
-        "trainorder_db",
-        "traincompanymonthsummary_db",
-        "hoteldepartmentmonthsummary_db",
-        "ibelog",
-        "domesticflightrefund_db",
-        "flightcompanymonthsummary_db",
-        "flightdepartmentmonthsummary_db",
-        "domesticflightticket_db",
-        "trainbumonthsummary_db",
-        "internationalflightorder_db",
-        "hotelcostcentermonthsummary_db",
-        ".reporting-2021.04.25",
-        "internationalflightrefund_db",
-        "intlflightsegment_db",
-        "domesticflightsegment_db",
-        "internationalflightticket_db",
-        "hotelsalesorder_db",
-        "carcostcentermonthsummary_db",
-        "travellocation_db",
-        "hotelcompanymonthsummary_db",
-        ".reporting-2021.03.21",
-        "cardepartmentmonthsummary_db",
-        "hotelbusinesstravelgeneralintroduction_db",
-        "carbumonthsummary_db",
-        "domesticflightorder_db",
-        "traincostcentermonthsummary_db",
-        "traindepartmentmonthsummary_db",
-        "hotelbumonthsummary_db",
-        ".apm-agent-configuration",
-        "businesstravelgeneralintroduction_db",
-        ".kibana_task_manager_1",
-        ".reporting-2021.04.18",
-        "flightcostcentermonthsummary_db",
-        "carcompanymonthsummary_db",
-        ".kibana_1"
-      ],
-      "include_global_state" : true,
-      "state" : "IN_PROGRESS",								###此行表示快照还在进行中，等状态为success后则快照创建完成
-      "start_time" : "2022-08-16T02:27:02.153Z",
-      "start_time_in_millis" : 1660616822153,
-      "end_time" : "1970-01-01T00:00:00.000Z",
-      "end_time_in_millis" : 0,
-      "duration_in_millis" : -1660616822153,
-      "failures" : [ ],
-      "shards" : {
-        "total" : 0,
-        "failed" : 0,
-        "successful" : 0
-      }
-    }
-  ]
-}
-```
-
-```
-----自动化备份脚本----
-[root@prometheus shell]# cat es-travelreportes-backup.sh 
-#!/bin/sh
-
-ES_ADDRESS='http://192.168.13.160:9200'
-ES_REPO_NAME='/_snapshot/backup'
-ES_SNAPSHOT_NAME="snapshot_`date +'%Y%m%d%H%M%S'`"
-DATETIME="date +'%Y-%m-%d_%H-%M-%S'"
-LOG_FILE="./eslog.txt"
-
-
-Log(){
-	echo "`eval ${DATETIME}`: $1" >> ${LOG_FILE}
-}
-
-GetRepo(){
-	esRepoType=`curl -s -X GET "${ES_ADDRESS}${ES_REPO_NAME}" | jq .backup.type`
-	if [ -n "${esRepoType}" ];then
-		echo 1
-	else
-		echo 0
-	fi
-}
-
-Snapshot(){
-	sum=0
-	count=1800
-	# snapshot
-	Log "start snapshot ${ES_SNAPSHOT_NAME}..."
-	curl -s -X PUT "${ES_ADDRESS}${ES_REPO_NAME}/${ES_SNAPSHOT_NAME}?wait_for_completion=true" >& /dev/null
-
-	# get snapshot state
-	while [ ${sum} -lt ${count} ];do
-		snapshotState=`curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/${ES_SNAPSHOT_NAME}" | jq .snapshots[].state`
-		if [ ${snapshotState} == '"SUCCESS"' ];then
-			Log "snapshot ${ES_SNAPSHOT_NAME} success!"
-			return 0
-		fi
-		let sum+=1
-		sleep 1
-	done
-	
-	if [ ${sum} -eq ${count} ];then
-		Log "snapshot ${ES_SNAPSHOT_NAME} failure!"
-		exit 10
-	fi
-}
-
-DeleteSnapshot(){
-	# reserve snapshot number
-	reserveNumber=7
-	snapshotNameList=(`curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/_all" | jq .snapshots[].snapshot | sort -n`)
-	snapshotNumber=`echo ${#snapshotNameList[*]}`
-	if [ ${snapshotNumber} -gt ${reserveNumber} ];then
-		let i=${snapshotNumber}-${reserveNumber}-1
-		for j in `seq 0 $i`;do
-			formatSnapshotName=`echo ${snapshotNameList[$j]} | tr -dc 'a-zA-Z0-9_'`
-			Log "start delete ${formatSnapshotName}..."
-			curl -s -X DELETE "${ES_ADDRESS}${ES_REPO_NAME}/${formatSnapshotName}" >& /dev/null
-			curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/_all" | jq .snapshots[].snapshot | grep ${formatSnapshotName} && Log "delete ${formatSnapshotName} failure" || Log "delete ${formatSnapshotName} success"
-		done
-	fi
-}
-
-echo ' ' >> ${LOG_FILE}
-if [ `GetRepo` == 1 ];then
-	Snapshot
-	DeleteSnapshot
-else
-	Log "repo not exists, snapshot failure!"
-	exit 10
-fi
------------------------
-```
-
-
-#问题汇总：
-1. skywalking无法查看追踪信息，经过查看日志skywalking-oap-server.log得出原因，日志如下：
-2022-03-10 20:31:22,979 - org.apache.skywalking.oap.server.library.client.elasticsearch.ElasticSearchClient - 575 [I/O dispatcher 6] WARN  [] - Bulk [684979] executed with failures:[failure 
-[0]: index [skywalking_segment-20220310], type [_doc], id [5ebadf0d1695409f9c9bbac832ac5965.61.16469154792759280], message [ElasticsearchException[Elasticsearch exception [type=validation_exdation Failed: 1: this action would add [5] total shards, but this cluster currently has [998]/[1000] maximum shards open;]]]
-注：经过日志得出skywalking写入ES数据分片达到最大数1000，无法再写入数据，需要手动调整分布设置即可，表示临时生效，操作如下：
-curl -XPUT localhost:9200/_cluster/settings -H 'Content-type: application/json' --data-binary $'{"transient":{"cluster.max_shards_per_node":2000}}'	#临时的
-
-2. 持久化配置
-[root@docker03 /data/elasticsearch]# cat elasticsearch.yml 
-node.name: skywalking
-path.repo: /var/backups
-network.host: 0.0.0.0
-cluster.initial_master_nodes: ["skywalking"]
-cluster.max_shards_per_node: 2000
-
-
-3. kibana连接elasticsearch超时问题
-[root@opsaudit elasticsearch]# cat ../kibana/kibana.yml
-server.name: rsyslog_kibana
-server.host: "0.0.0.0"
-i18n.locale: "zh-CN"
-elasticsearch.requestTimeout: 120000	#配置为120s超时
-
-
-
-### elasticsearch 6.4.0 docker部署
+### 4.2 docker部署ES 6.4.0 
 ```
 [root@BuildImage /data/elk640]# cat es01/elasticsearch.yml es02/elasticsearch.yml es03/elasticsearch.yml 
 cluster.name: blog
@@ -3846,385 +2717,52 @@ harborrepo.hs.com/ops/elk:640
 
 
 
+### 4.3 docker部署ES 6.5.1
+[Author](https://github.com/spujadas/elk-docker)
 
-
-### 手动部署elsaticsearch 7.6.2，带x-pack认证
-
-```
-root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/elasticsearch-7.6.2-linux-x86_64.tar.gz dest=/download/'
-root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/kibana-7.6.2-linux-x86_64.tar.gz dest=/download/'
-
-##单节点es762 on x-pack
-1. 安装es
-[root@node01 local]# tar xf /download/elasticsearch-7.6.2-linux-x86_64.tar.gz -C /usr/local/
-[root@node01 local]# ln -sv elasticsearch-7.6.2/ elasticsearch
-[root@node01 local]# cd /usr/local/elasticsearch
-[root@node01 elasticsearch]# ls
-bin  config  jdk  lib  LICENSE.txt  logs  modules  NOTICE.txt  plugins  README.asciidoc
-[root@node01 elasticsearch]# vim config/elasticsearch.yml
-------------------
-cluster.name: blog-search
-node.name: blog-search-node01
-path.data: /data/elasticsearch7/data
-path.logs: /data/elasticsearch7/log
-path.repo: /data/elasticsearch7/backups
+```bash
+[root@TestHotelES /data/hlogelk/elasticsearch]# cat elasticsearch.yml
+node.name: hlogelk
+cluster.name: hlogelk
 network.host: 0.0.0.0
 http.port: 9200
 transport.tcp.port: 9300
-xpack.security.enabled: true # 这条配置表示开启xpack认证机制
-xpack.security.transport.ssl.enabled: true  #这条如果不配，es将起不来
-cluster.initial_master_nodes: ["172.168.2.17"]
-------------------
-[root@node01 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
-[root@node01 elasticsearch]# groupadd -r elasticsearch && useradd -r -M -s /sbin/nologin -g elasticsearch elasticsearch
-[root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
-[root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
-[root@node01 elasticsearch]# cat /etc/security/limits.d/99-ansible.conf
-*             soft    core            unlimited
-*             hard    core            unlimited
-*             soft    nproc           1000000
-*             hard    nproc           1000000
-*             soft    nofile          1000000
-*             hard    nofile          1000000
-*             soft    memlock         unlimited
-*             hard    memlock         unlimited
-*             soft    msgqueue        8192000
-*             hard    msgqueue        8192000
-root          soft    nproc             unlimited
-root          hard    nproc             unlimited
-[root@node01 elasticsearch]# cat /etc/sysctl.d/99-sysctl.conf
-net.ipv4.ip_local_port_range=10001 65000
-net.ipv4.ip_forward=1
-net.ipv4.tcp_syncookies=1
-net.ipv4.tcp_tw_reuse=1
-net.ipv4.tcp_tw_recycle=0
-net.ipv4.tcp_keepalive_time=1200
-net.ipv4.tcp_max_syn_backlog=8192
-net.ipv4.tcp_max_tw_buckets=5000
-net.ipv6.conf.all.disable_ipv6=1
-vm.swappiness=0
-vm.overcommit_memory=1
-vm.panic_on_oom=0
-fs.inotify.max_user_instances=8192
-fs.inotify.max_user_watches=1048576
-fs.file-max=52706963
-fs.nr_open=52706963
-vm.max_map_count=262144
-[root@node01 elasticsearch]# cat /usr/lib/systemd/system/elasticsearch.service
-[Unit]
-Description=https://elastic.co
-After=network-online.target
+network.publish_host: 192.168.13.196
+path.repo: /var/backups
 
-[Service]
-User=elasticsearch
-Group=elasticsearch
-Type=simple
-ExecStart=/usr/local/elasticsearch/bin/elasticsearch
-Restart=on-failure
-LimitNOFILE=65536
+#run
+[root@docker /data/hlogelk]# sysctl -a | grep vm.max_map_count
+vm.max_map_count = 262144
 
-[Install]
-WantedBy=multi-user.target
-----------
-[root@node01 elasticsearch]# systemctl start elasticsearch.service
-[root@node01 elasticsearch]# chown elasticsearch:elasticsearch  config/elasticsearch.keystore
-[root@node01 elasticsearch]# systemctl restart elasticsearch.service
-[root@node01 elasticsearch]# systemctl status elasticsearch.service
-
-
-
-2. 为内置账号添加密码
-ES中内置了几个管理其他集成组件的账号即：apm_system, beats_system, elastic, kibana, logstash_system, remote_monitoring_user，使用之前，首先需要添加一下密码
-[root@node01 elasticsearch]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords --help
-auto - Uses randomly generated passwords
-interactive - Uses passwords entered by a use
-
-[root@node01 elasticsearch]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords interactive
-Initiating the setup of passwords for reserved users elastic,apm_system,kibana,logstash_system,beats_system,remote_monitoring_user.
-You will be prompted to enter passwords as the process progresses.
-Please confirm that you would like to continue [y/N]y
-Enter password for [elastic]:			#homsom
-Reenter password for [elastic]:
-Enter password for [apm_system]:
-Reenter password for [apm_system]:
-Enter password for [kibana]:
-Reenter password for [kibana]:
-Enter password for [logstash_system]:
-Reenter password for [logstash_system]:
-Enter password for [beats_system]:
-Reenter password for [beats_system]:
-Enter password for [remote_monitoring_user]:
-Reenter password for [remote_monitoring_user]:
-Changed password for user [apm_system]
-Changed password for user [kibana]
-Changed password for user [logstash_system]
-Changed password for user [beats_system]
-Changed password for user [remote_monitoring_user]
-Changed password for user [elastic]		#只能此用户登录kibana，此用户是admin
----访问测试
-[root@node01 elasticsearch]# curl 172.168.2.17:9200
-{"error":{"root_cause":[{"type":"security_exception","reason":"missing authentication credentials for REST request [/]","header":{"WWW-Authenticate":"Basic realm=\"security\" charset=\"UTF-8\""}}],"type":"security_exception","reason":"missing authentication credentials for REST request [/]","header":{"WWW-Authenticate":"Basic realm=\"security\" charset=\"UTF-8\""}},"status":401}[root@node01 elasticsearch]# ^C
-[root@node01 elasticsearch]# curl -u elastic 172.168.2.17:9200
-Enter host password for user 'elastic':
-{
-  "name" : "blog-search-node01",
-  "cluster_name" : "blog-search",
-  "cluster_uuid" : "NiQXNxVBQBGaytaZJ5TRUg",
-  "version" : {
-    "number" : "7.6.2",
-    "build_flavor" : "default",
-    "build_type" : "tar",
-    "build_hash" : "ef48eb35cf30adf4db14086e8aabd07ef6fb113f",
-    "build_date" : "2020-03-26T06:34:37.794943Z",
-    "build_snapshot" : false,
-    "lucene_version" : "8.4.0",
-    "minimum_wire_compatibility_version" : "6.8.0",
-    "minimum_index_compatibility_version" : "6.0.0-beta1"
-  },
-  "tagline" : "You Know, for Search"
-}
-
-3. 配置kibana连接
-[root@node01 local]# tar xf /download/kibana-7.6.2-linux-x86_64.tar.gz -C /usr/local/
-[root@node01 local]# ln -sv /usr/local/kibana-7.6.2-linux-x86_64/ /usr/local/kibana
-[root@node01 kibana]# chown -R elasticsearch.elasticsearch /usr/local/kibana-7.6.2-linux-x86_64/
----------开启了安全认证之后，kibana连接es以及访问es都需要认证。变更kibana的配置，一共有两种方法，一种明文的，一种密文的。
-----明文配置
-server.port: 5601
-server.host: "0.0.0.0"
-server.name: "blog-search-node01"
-elasticsearch.hosts: ["http://172.168.2.17:9200"]
-kibana.index: ".kibana"
-i18n.locale: "zh-CN"
-elasticsearch.username: "kibana"
-elasticsearch.password: "homsom"
-xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"		#如果不添加这条配置，将会报错
-xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"	#如果不配置这条，将会报错
-[root@node01 kibana]# cat /usr/lib/systemd/system/kibana.service
-[Unit]
-Description=https://elastic.co
-After=network-online.target
-
-[Service]
-User=elasticsearch
-Group=elasticsearch
-Type=simple
-ExecStart=/usr/local/kibana/bin/kibana
-Restart=on-failure
-LimitNOFILE=65536
-
-[Install]
-WantedBy=multi-user.target
----
-[root@node01 kibana]# systemctl start kibana
-
-----密文配置
-[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root create
-Created Kibana keystore in /usr/local/kibana-7.6.2-linux-x86_64/data/kibana.keystore
-[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root add elasticsearch.username
-Enter value for elasticsearch.username: ******		#kibana
-[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root add elasticsearch.password
-Enter value for elasticsearch.password: ******		#homsom
-[root@node01 kibana]# cat config/kibana.yml
-server.port: 5601
-server.host: "0.0.0.0"
-server.name: "blog-search-node01"
-elasticsearch.hosts: ["http://172.168.2.17:9200"]
-kibana.index: ".kibana"
-i18n.locale: "zh-CN"
-xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"               #如果不添加这条配置，将会报错
-xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
-[root@node01 kibana]# systemctl start kibana
-
-
-
-
-
-
-########集群配置
-注：前提其它节点跟node01一样安装好elasticsearch、kibana并创建好相关目录及权限 
-[root@node02 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
-[root@node02 config]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
-[root@node03 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
-[root@node03 config]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
-[root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.18:/usr/lib/systemd/system/
-[root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.19:/usr/lib/systemd/system/
-
-
-1. 证书
-----在其中一个node节点执行即可，生成完证书传到集群其他节点即可，两条命令均一路回车即可，不需要给秘钥再添加密码。
-[root@node01 elasticsearch]# sudo -u elasticsearch /usr/local/elasticsearch/bin/elasticsearch-certutil ca
-Please enter the desired output file [elastic-stack-ca.p12]:
-Enter password for elastic-stack-ca.p12 :
-[root@node01 elasticsearch]# sudo -u elasticsearch /usr/local/elasticsearch/bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
-Enter password for CA (elastic-stack-ca.p12) :
-Please enter the desired output file [elastic-certificates.p12]:
-Enter password for elastic-certificates.p12 :
-
-[root@node01 elasticsearch]# ls
-bin  config  elastic-certificates.p12  elastic-stack-ca.p12  jdk  lib  LICENSE.txt  logs  modules  NOTICE.txt  plugins  README.asciidoc
-[root@node01 elasticsearch]# mv elastic* config
-[root@node01 elasticsearch]# cd config
-[root@node01 config]# scp elastic-* root@172.168.2.18:/usr/local/elasticsearch/config/	#复制这两个文件到其它的节点
-root@172.168.2.18's password:   
-[root@node01 config]# scp elastic-* root@172.168.2.19:/usr/local/elasticsearch/config/
-root@172.168.2.19's password:
-[root@node01 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
-[root@node02 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
-[root@node03 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
-
-2. 配置
-####node01
-[root@node01 config]# ls
-elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elasticsearch.yml.bak  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
-[root@node01 config]# cat elasticsearch.yml
-cluster.name: blog-search
-node.name: blog-search-node01
-path.data: /data/elasticsearch7/data
-path.logs: /data/elasticsearch7/log
-path.repo: /data/elasticsearch7/backups
-network.host: 0.0.0.0
-http.port: 9200
-transport.tcp.port: 9300
-discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-xpack.security.enabled: true
-xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification_mode: certificate
-xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12#只能在config目录下，否则会失败
-xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
-http.cors.enabled: true
-http.cors.allow-origin: "*"
-http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
-
-####node02
-[root@node02 config]# ls
-elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
-[root@node02 config]# cat elasticsearch.yml
-cluster.name: blog-search
-node.name: blog-search-node02
-path.data: /data/elasticsearch7/data
-path.logs: /data/elasticsearch7/log
-path.repo: /data/elasticsearch7/backups
-network.host: 0.0.0.0
-http.port: 9200
-transport.tcp.port: 9300
-discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-xpack.security.enabled: true
-xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification_mode: certificate
-xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
-xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
-http.cors.enabled: true
-http.cors.allow-origin: "*"
-http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
-
-####node03
-[root@node03 config]# ls
-elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
-[root@node03 config]# cat elasticsearch.yml
-cluster.name: blog-search
-node.name: blog-search-node03
-path.data: /data/elasticsearch7/data
-path.logs: /data/elasticsearch7/log
-path.repo: /data/elasticsearch7/backups
-network.host: 0.0.0.0
-http.port: 9200
-transport.tcp.port: 9300
-discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
-xpack.security.enabled: true
-xpack.security.transport.ssl.enabled: true
-xpack.security.transport.ssl.verification_mode: certificate
-xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
-xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
-http.cors.enabled: true
-http.cors.allow-origin: "*"
-http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
-
-###报错
-ElasticsearchException[failed to initialize SSL TrustManager - access to read truststore file [/usr/local/elasticsearch/elastic-certificates.p12] is blocked; SSL resources should be placed in the [/usr/local/elasticsearch/config] directory]; nested: AccessControlException[access denied ("java.io.FilePermission" "/usr/local/elasticsearch/elastic-certificates.p12" "read")];
-[root@node03 elasticsearch]# mv elastic-certificates.p12 elastic-stack-ca.p12 /usr/local/elasticsearch/config/
-
-
-3. 为内置账号添加密码
-[root@node03 config]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords interactive
-Initiating the setup of passwords for reserved users elastic,apm_system,kibana,logstash_system,beats_system,remote_monitoring_user.
-You will be prompted to enter passwords as the process progresses.
-Please confirm that you would like to continue [y/N]y
-Enter password for [elastic]:
-Reenter password for [elastic]:
-Enter password for [apm_system]:
-Reenter password for [apm_system]:
-Enter password for [kibana]:
-Reenter password for [kibana]:
-Enter password for [logstash_system]:
-Reenter password for [logstash_system]:
-Enter password for [beats_system]:
-Reenter password for [beats_system]:
-Enter password for [remote_monitoring_user]:
-Reenter password for [remote_monitoring_user]:
-Changed password for user [apm_system]
-Changed password for user [kibana]
-Changed password for user [logstash_system]
-Changed password for user [beats_system]
-Changed password for user [remote_monitoring_user]
-Changed password for user [elastic]
-
-[root@node03 config]# curl -u elastic:homsom 172.168.2.17:9200
-{
-  "name" : "blog-search-node01",
-  "cluster_name" : "blog-search",
-  "cluster_uuid" : "ejFR_3T_QjK4ADhDcscYaQ",
-  "version" : {
-    "number" : "7.6.2",
-    "build_flavor" : "default",
-    "build_type" : "tar",
-    "build_hash" : "ef48eb35cf30adf4db14086e8aabd07ef6fb113f",
-    "build_date" : "2020-03-26T06:34:37.794943Z",
-    "build_snapshot" : false,
-    "lucene_version" : "8.4.0",
-    "minimum_wire_compatibility_version" : "6.8.0",
-    "minimum_index_compatibility_version" : "6.0.0-beta1"
-  },
-  "tagline" : "You Know, for Search"
-}
-
-###通过elasticsearch-head查看es
-http://192.168.13.50:9900/?auth_user=elastic&auth_password=homsom	#head地址
-http://172.168.2.17:9200/		#es地址
-
-
-4. 配置kibana连接所有es节点
-[root@node01 kibana]# cat config/kibana.yml
-server.port: 5601
-server.host: "0.0.0.0"
-server.name: "blog-search-node01"
-elasticsearch.hosts: ["http://172.168.2.17:9200", "http://172.168.2.18:9200", "http://172.168.2.19:9200"]	#自动会健康检查es节点，但这些节点必须同属于一个集群
-kibana.index: ".kibana"
-i18n.locale: "zh-CN"
-xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"               #如果不添加这条配置，将会报错
-xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
-[root@node01 kibana]# systemctl start kibana
-
-[root@node02 config]# cat kibana.yml
-server.port: 5601
-server.host: "0.0.0.0"
-server.name: "blog-search-node01"
-elasticsearch.hosts: ["http://172.168.2.17:9200", "http://172.168.2.18:9200", "http://172.168.2.19:9200"]       #自动会健康检查es节点，但这些节点必须同属于一个集群
-kibana.index: ".kibana"
-i18n.locale: "zh-CN"
-xpack.reporting.encryptionKey: "aapUE8whw1eMnk2ISYjQeu4nKsXslDjz"      #如果不添加这条配置，将会报错，32位字符，可以与上面kibana不一样，但尽量保持一样
-xpack.security.encryptionKey: "aar7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
-[root@node01 kibana]# systemctl start kibana
+docker run -d --restart=always --name=hlogelk  \
+-p 9210:9200 \
+-p 9310:9300 \
+-p 80:5601 \
+-e ES_CONNECT_RETRY=90 \
+-e KIBANA_CONNECT_RETRY=90 \
+-e LOGSTASH_START=0 \
+-e ELASTICSEARCH_START=1 \
+-e KIBANA_START=1 \
+-e ES_HEAP_SIZE="2g" \
+-e TZ="Asia/Shanghai" \
+-v /data/hlogelk/kibana/kibana.yml:/opt/kibana/config/kibana.yml \
+-v /data/hlogelk/elasticsearch/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
+-v /data/hlogelk/es_data:/var/lib/elasticsearch \
+-v /data/hlogelk/es_snapshot:/var/backups \
+192.168.13.235:8000/ops/elk:651
 ```
 
 
 
-### 收集k8s日志（filebeat -> kafka -> logstash -> elasticsearch -> kibana）
 
-#### 安装zookeeper
+
+
+## 5. k8s日志收集
+filebeat -> kafka -> logstash -> elasticsearch -> kibana
+
+
+
+### 5.1 安装zookeeper
 ```
 [root@kafka download]# curl -OL https://dlcdn.apache.org/zookeeper/zookeeper-3.7.1/apache-zookeeper-3.7.1-bin.tar.gz
 [root@kafka download]# tar xf apache-zookeeper-3.7.1-bin.tar.gz -C /usr/local/
@@ -4247,7 +2785,9 @@ Mode: standalone
 LISTEN     0      50        [::]:2181                  [
 ```
 
-#### 安装kafka
+
+
+### 5.2安装kafka
 ```
 [root@kafka download]# curl -OL https://downloads.apache.org/kafka/2.2.2/kafka_2.12-2.2.2.tgz
 [root@kafka download]# tar xf kafka_2.12-2.2.2.tgz -C /usr/local/
@@ -4286,7 +2826,7 @@ test1
 hello world!
 ```
 
-#### logstash安装配置
+### 5.3 logstash安装配置
 ```
 1. 安装openjdk-11，并下载tar包解压到/usr/local即可
 2. 配置logstash
@@ -4353,7 +2893,9 @@ output {
 ----
 ```
 
-#### filebeat安装
+
+
+### 5.4 filebeat安装
 ```
 --------------------
 root@k8s-master01:~# cat filebeat.yaml
@@ -4788,10 +3330,1564 @@ metadata:
 kubectl -n ns-elk apply -f filebeat.yaml
 ```
 
-### 常见问题汇总
+
+
+
+
+## 6. 手动部署ES 7.6.2，带x-pack认证
+
+```bash
+root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/elasticsearch-7.6.2-linux-x86_64.tar.gz dest=/download/'
+root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/kibana-7.6.2-linux-x86_64.tar.gz dest=/download/'
 ```
------------------
-##创建索引生命周期策略
+
+
+
+### 6.1 单节点部署
+```
+1. 安装es
+[root@node01 local]# tar xf /download/elasticsearch-7.6.2-linux-x86_64.tar.gz -C /usr/local/
+[root@node01 local]# ln -sv elasticsearch-7.6.2/ elasticsearch
+[root@node01 local]# cd /usr/local/elasticsearch
+[root@node01 elasticsearch]# ls
+bin  config  jdk  lib  LICENSE.txt  logs  modules  NOTICE.txt  plugins  README.asciidoc
+[root@node01 elasticsearch]# vim config/elasticsearch.yml
+------------------
+cluster.name: blog-search
+node.name: blog-search-node01
+path.data: /data/elasticsearch7/data
+path.logs: /data/elasticsearch7/log
+path.repo: /data/elasticsearch7/backups
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+xpack.security.enabled: true # 这条配置表示开启xpack认证机制
+xpack.security.transport.ssl.enabled: true  #这条如果不配，es将起不来
+cluster.initial_master_nodes: ["172.168.2.17"]
+------------------
+[root@node01 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
+[root@node01 elasticsearch]# groupadd -r elasticsearch && useradd -r -M -s /sbin/nologin -g elasticsearch elasticsearch
+[root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
+[root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
+[root@node01 elasticsearch]# cat /etc/security/limits.d/99-ansible.conf
+*             soft    core            unlimited
+*             hard    core            unlimited
+*             soft    nproc           1000000
+*             hard    nproc           1000000
+*             soft    nofile          1000000
+*             hard    nofile          1000000
+*             soft    memlock         unlimited
+*             hard    memlock         unlimited
+*             soft    msgqueue        8192000
+*             hard    msgqueue        8192000
+root          soft    nproc             unlimited
+root          hard    nproc             unlimited
+[root@node01 elasticsearch]# cat /etc/sysctl.d/99-sysctl.conf
+net.ipv4.ip_local_port_range=10001 65000
+net.ipv4.ip_forward=1
+net.ipv4.tcp_syncookies=1
+net.ipv4.tcp_tw_reuse=1
+net.ipv4.tcp_tw_recycle=0
+net.ipv4.tcp_keepalive_time=1200
+net.ipv4.tcp_max_syn_backlog=8192
+net.ipv4.tcp_max_tw_buckets=5000
+net.ipv6.conf.all.disable_ipv6=1
+vm.swappiness=0
+vm.overcommit_memory=1
+vm.panic_on_oom=0
+fs.inotify.max_user_instances=8192
+fs.inotify.max_user_watches=1048576
+fs.file-max=52706963
+fs.nr_open=52706963
+vm.max_map_count=262144
+[root@node01 elasticsearch]# cat /usr/lib/systemd/system/elasticsearch.service
+[Unit]
+Description=https://elastic.co
+After=network-online.target
+
+[Service]
+User=elasticsearch
+Group=elasticsearch
+Type=simple
+ExecStart=/usr/local/elasticsearch/bin/elasticsearch
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+----------
+[root@node01 elasticsearch]# systemctl start elasticsearch.service
+[root@node01 elasticsearch]# chown elasticsearch:elasticsearch  config/elasticsearch.keystore
+[root@node01 elasticsearch]# systemctl restart elasticsearch.service
+[root@node01 elasticsearch]# systemctl status elasticsearch.service
+
+
+
+2. 为内置账号添加密码
+ES中内置了几个管理其他集成组件的账号即：apm_system, beats_system, elastic, kibana, logstash_system, remote_monitoring_user，使用之前，首先需要添加一下密码
+[root@node01 elasticsearch]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords --help
+auto - Uses randomly generated passwords
+interactive - Uses passwords entered by a use
+
+[root@node01 elasticsearch]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords interactive
+Initiating the setup of passwords for reserved users elastic,apm_system,kibana,logstash_system,beats_system,remote_monitoring_user.
+You will be prompted to enter passwords as the process progresses.
+Please confirm that you would like to continue [y/N]y
+Enter password for [elastic]:			#homsom
+Reenter password for [elastic]:
+Enter password for [apm_system]:
+Reenter password for [apm_system]:
+Enter password for [kibana]:
+Reenter password for [kibana]:
+Enter password for [logstash_system]:
+Reenter password for [logstash_system]:
+Enter password for [beats_system]:
+Reenter password for [beats_system]:
+Enter password for [remote_monitoring_user]:
+Reenter password for [remote_monitoring_user]:
+Changed password for user [apm_system]
+Changed password for user [kibana]
+Changed password for user [logstash_system]
+Changed password for user [beats_system]
+Changed password for user [remote_monitoring_user]
+Changed password for user [elastic]		#只能此用户登录kibana，此用户是admin
+---访问测试
+[root@node01 elasticsearch]# curl 172.168.2.17:9200
+{"error":{"root_cause":[{"type":"security_exception","reason":"missing authentication credentials for REST request [/]","header":{"WWW-Authenticate":"Basic realm=\"security\" charset=\"UTF-8\""}}],"type":"security_exception","reason":"missing authentication credentials for REST request [/]","header":{"WWW-Authenticate":"Basic realm=\"security\" charset=\"UTF-8\""}},"status":401}[root@node01 elasticsearch]# ^C
+[root@node01 elasticsearch]# curl -u elastic 172.168.2.17:9200
+Enter host password for user 'elastic':
+{
+  "name" : "blog-search-node01",
+  "cluster_name" : "blog-search",
+  "cluster_uuid" : "NiQXNxVBQBGaytaZJ5TRUg",
+  "version" : {
+    "number" : "7.6.2",
+    "build_flavor" : "default",
+    "build_type" : "tar",
+    "build_hash" : "ef48eb35cf30adf4db14086e8aabd07ef6fb113f",
+    "build_date" : "2020-03-26T06:34:37.794943Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.4.0",
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"
+}
+
+3. 配置kibana连接
+[root@node01 local]# tar xf /download/kibana-7.6.2-linux-x86_64.tar.gz -C /usr/local/
+[root@node01 local]# ln -sv /usr/local/kibana-7.6.2-linux-x86_64/ /usr/local/kibana
+[root@node01 kibana]# chown -R elasticsearch.elasticsearch /usr/local/kibana-7.6.2-linux-x86_64/
+---------开启了安全认证之后，kibana连接es以及访问es都需要认证。变更kibana的配置，一共有两种方法，一种明文的，一种密文的。
+----明文配置
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "blog-search-node01"
+elasticsearch.hosts: ["http://172.168.2.17:9200"]
+kibana.index: ".kibana"
+i18n.locale: "zh-CN"
+elasticsearch.username: "kibana"
+elasticsearch.password: "homsom"
+xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"		#如果不添加这条配置，将会报错
+xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"	#如果不配置这条，将会报错
+[root@node01 kibana]# cat /usr/lib/systemd/system/kibana.service
+[Unit]
+Description=https://elastic.co
+After=network-online.target
+
+[Service]
+User=elasticsearch
+Group=elasticsearch
+Type=simple
+ExecStart=/usr/local/kibana/bin/kibana
+Restart=on-failure
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+---
+[root@node01 kibana]# systemctl start kibana
+
+----密文配置
+[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root create
+Created Kibana keystore in /usr/local/kibana-7.6.2-linux-x86_64/data/kibana.keystore
+[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root add elasticsearch.username
+Enter value for elasticsearch.username: ******		#kibana
+[root@node01 kibana]# sudo -u elasticsearch /usr/local/kibana/bin/kibana-keystore --allow-root add elasticsearch.password
+Enter value for elasticsearch.password: ******		#homsom
+[root@node01 kibana]# cat config/kibana.yml
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "blog-search-node01"
+elasticsearch.hosts: ["http://172.168.2.17:9200"]
+kibana.index: ".kibana"
+i18n.locale: "zh-CN"
+xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"               #如果不添加这条配置，将会报错
+xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
+[root@node01 kibana]# systemctl start kibana
+```
+
+
+
+
+
+### 6.2 集群配置
+```
+注：前提其它节点跟node01一样安装好elasticsearch、kibana并创建好相关目录及权限 
+[root@node02 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
+[root@node02 config]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
+[root@node03 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
+[root@node03 config]# chown -R elasticsearch.elasticsearch /data/elasticsearch7/
+[root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.18:/usr/lib/systemd/system/
+[root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.19:/usr/lib/systemd/system/
+
+
+1. 证书
+----在其中一个node节点执行即可，生成完证书传到集群其他节点即可，两条命令均一路回车即可，不需要给秘钥再添加密码。
+[root@node01 elasticsearch]# sudo -u elasticsearch /usr/local/elasticsearch/bin/elasticsearch-certutil ca
+Please enter the desired output file [elastic-stack-ca.p12]:
+Enter password for elastic-stack-ca.p12 :
+[root@node01 elasticsearch]# sudo -u elasticsearch /usr/local/elasticsearch/bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+Enter password for CA (elastic-stack-ca.p12) :
+Please enter the desired output file [elastic-certificates.p12]:
+Enter password for elastic-certificates.p12 :
+
+[root@node01 elasticsearch]# ls
+bin  config  elastic-certificates.p12  elastic-stack-ca.p12  jdk  lib  LICENSE.txt  logs  modules  NOTICE.txt  plugins  README.asciidoc
+[root@node01 elasticsearch]# mv elastic* config
+[root@node01 elasticsearch]# cd config
+[root@node01 config]# scp elastic-* root@172.168.2.18:/usr/local/elasticsearch/config/	#复制这两个文件到其它的节点
+root@172.168.2.18's password:   
+[root@node01 config]# scp elastic-* root@172.168.2.19:/usr/local/elasticsearch/config/
+root@172.168.2.19's password:
+[root@node01 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
+[root@node02 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
+[root@node03 config]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
+
+2. 配置
+####node01
+[root@node01 config]# ls
+elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elasticsearch.yml.bak  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
+[root@node01 config]# cat elasticsearch.yml
+cluster.name: blog-search
+node.name: blog-search-node01
+path.data: /data/elasticsearch7/data
+path.logs: /data/elasticsearch7/log
+path.repo: /data/elasticsearch7/backups
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12#只能在config目录下，否则会失败
+xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
+
+####node02
+[root@node02 config]# ls
+elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
+[root@node02 config]# cat elasticsearch.yml
+cluster.name: blog-search
+node.name: blog-search-node02
+path.data: /data/elasticsearch7/data
+path.logs: /data/elasticsearch7/log
+path.repo: /data/elasticsearch7/backups
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
+
+####node03
+[root@node03 config]# ls
+elastic-certificates.p12  elasticsearch.keystore  elasticsearch.yml  elastic-stack-ca.p12  jvm.options  log4j2.properties  role_mapping.yml  roles.yml  users  users_roles
+[root@node03 config]# cat elasticsearch.yml
+cluster.name: blog-search
+node.name: blog-search-node03
+path.data: /data/elasticsearch7/data
+path.logs: /data/elasticsearch7/log
+path.repo: /data/elasticsearch7/backups
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+discovery.seed_hosts: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+cluster.initial_master_nodes: ["172.168.2.17:9300","172.168.2.18:9300","172.168.2.19:9300"]
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.keystore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: /usr/local/elasticsearch/config/elastic-certificates.p12
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Length
+
+###报错
+ElasticsearchException[failed to initialize SSL TrustManager - access to read truststore file [/usr/local/elasticsearch/elastic-certificates.p12] is blocked; SSL resources should be placed in the [/usr/local/elasticsearch/config] directory]; nested: AccessControlException[access denied ("java.io.FilePermission" "/usr/local/elasticsearch/elastic-certificates.p12" "read")];
+[root@node03 elasticsearch]# mv elastic-certificates.p12 elastic-stack-ca.p12 /usr/local/elasticsearch/config/
+
+
+3. 为内置账号添加密码
+[root@node03 config]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords interactive
+Initiating the setup of passwords for reserved users elastic,apm_system,kibana,logstash_system,beats_system,remote_monitoring_user.
+You will be prompted to enter passwords as the process progresses.
+Please confirm that you would like to continue [y/N]y
+Enter password for [elastic]:
+Reenter password for [elastic]:
+Enter password for [apm_system]:
+Reenter password for [apm_system]:
+Enter password for [kibana]:
+Reenter password for [kibana]:
+Enter password for [logstash_system]:
+Reenter password for [logstash_system]:
+Enter password for [beats_system]:
+Reenter password for [beats_system]:
+Enter password for [remote_monitoring_user]:
+Reenter password for [remote_monitoring_user]:
+Changed password for user [apm_system]
+Changed password for user [kibana]
+Changed password for user [logstash_system]
+Changed password for user [beats_system]
+Changed password for user [remote_monitoring_user]
+Changed password for user [elastic]
+
+[root@node03 config]# curl -u elastic:homsom 172.168.2.17:9200
+{
+  "name" : "blog-search-node01",
+  "cluster_name" : "blog-search",
+  "cluster_uuid" : "ejFR_3T_QjK4ADhDcscYaQ",
+  "version" : {
+    "number" : "7.6.2",
+    "build_flavor" : "default",
+    "build_type" : "tar",
+    "build_hash" : "ef48eb35cf30adf4db14086e8aabd07ef6fb113f",
+    "build_date" : "2020-03-26T06:34:37.794943Z",
+    "build_snapshot" : false,
+    "lucene_version" : "8.4.0",
+    "minimum_wire_compatibility_version" : "6.8.0",
+    "minimum_index_compatibility_version" : "6.0.0-beta1"
+  },
+  "tagline" : "You Know, for Search"
+}
+
+###通过elasticsearch-head查看es
+http://192.168.13.50:9900/?auth_user=elastic&auth_password=homsom	#head地址
+http://172.168.2.17:9200/		#es地址
+
+
+4. 配置kibana连接所有es节点
+[root@node01 kibana]# cat config/kibana.yml
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "blog-search-node01"
+elasticsearch.hosts: ["http://172.168.2.17:9200", "http://172.168.2.18:9200", "http://172.168.2.19:9200"]	#自动会健康检查es节点，但这些节点必须同属于一个集群
+kibana.index: ".kibana"
+i18n.locale: "zh-CN"
+xpack.reporting.encryptionKey: "sSpUE8whw1eMnk2ISYjQeu4nKsXslDjz"               #如果不添加这条配置，将会报错
+xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
+[root@node01 kibana]# systemctl start kibana
+
+[root@node02 config]# cat kibana.yml
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "blog-search-node01"
+elasticsearch.hosts: ["http://172.168.2.17:9200", "http://172.168.2.18:9200", "http://172.168.2.19:9200"]       #自动会健康检查es节点，但这些节点必须同属于一个集群
+kibana.index: ".kibana"
+i18n.locale: "zh-CN"
+xpack.reporting.encryptionKey: "aapUE8whw1eMnk2ISYjQeu4nKsXslDjz"      #如果不添加这条配置，将会报错，32位字符，可以与上面kibana不一样，但尽量保持一样
+xpack.security.encryptionKey: "aar7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果不配置这条，将会报错
+[root@node01 kibana]# systemctl start kibana
+```
+
+
+
+### 6.3 分词器安装
+
+[elasticsearch-analysis-ik-7.6.2.zip](https://github.com/medcl/elasticsearch-analysis-ik/releases/download/v7.6.2/elasticsearch-analysis-ik-7.6.2.zip)
+
+```
+docker cp analysis elasticsearch:/opt/elasticsearch/plugins
+docker exec -it elasticsearch /bin/sh
+cd /opt/elasticsearch/plugins
+chown -R elasticsearch:elasticsearch analysis
+chmod -R 755 analysis
+```
+
+
+
+
+
+## 7. 其它
+
+
+### 7.1 202104271058随手记
+```
+--快照备份恢复
+例如：在集群中每个节点挂载了NFS，并且创建了两个快照：
+PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
+{
+  "indices": "test01",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "jack",
+    "taken_because": "snapshot on 202104271018' "
+  }
+}
+PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
+{
+  "indices": "test01",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "metadata": {
+    "taken_by": "jack",
+    "taken_because": "snapshot on 202104271019' "
+  }
+}
+在恢复节点上挂载NFS，挂载目录必须对应elasticsearch的备份目录，这里为/var/backups
+mkdir /tmpelkdata; chmod -R 777 /tmpelkdata
+mount -t nfs 192.168.13.67:/elkdata /tmpelkdata
+--新建一个仓库
+put /_snapshot/test_backup
+{ 
+  "type": "fs",
+  "settings": { 
+    "location": "/var/backups"
+  }
+}
+--恢复快照1，名称和原来一样
+post /_snapshot/test_backup/snapshot_1/_restore
+{
+  "indices": "test*",   
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "rename_pattern": "test(.+)",
+  "rename_replacement": "test$1"
+}
+-- close index
+post test01/_close
+--恢复快照2
+post /_snapshot/test_backup/snapshot_2/_restore
+{
+  "indices": "test*",   
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "rename_pattern": "test(.+)",
+  "rename_replacement": "test$1"
+}
+-- open index 
+post test01/_open
+```
+
+
+### 7.2 ES集群增加节点和删除节点
+```
+--删除节点
+GET http://192.168.13.51:9200/_cat/nodes
+192.168.13.52 24 97 2 0.31 0.13 0.09 dilm - testelk-02
+192.168.13.51 30 96 8 1.00 1.03 0.89 dilm * testelk-01
+192.168.13.53 26 97 6 0.49 0.55 0.53 dilm - testelk-03
+
+1.1 移除指定节点
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.exclude._ip" : "192.168.13.52"
+  }
+}
+
+1.2 检查集群健康状态，如果没有节点relocating，则节点已经被安全剔除，可以考虑关闭节点
+GET http://192.168.13.51:9200/_cluster/health?pretty=true
+{
+  "cluster_name" : "testelk",
+  "status" : "green",
+  "timed_out" : false,
+  "number_of_nodes" : 3,
+  "number_of_data_nodes" : 3,
+  "active_primary_shards" : 23,
+  "active_shards" : 51,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 0,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 100.0
+}
+
+1.3 查看节点数据是否已迁移，都是 0 表示数据也已经迁移
+GET http://192.168.13.53:9200/_nodes/testelk-02/stats/indices?pretty
+      "indices" : {
+        "docs" : { 
+          "count" : 0,         --这里为0
+          "deleted" : 0
+        }
+
+上述三步，能保证节点稳妥删除。以下可作辅助查看：
+1.4 查看分布数量
+GET http://192.168.13.51:9200/_cat/allocation?v
+1.5 查看有没有任务挂起，若出现pening_tasks，当pending_tasks的等级>=HIGH时，存在集群无法新建索引的风险
+GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
+1.6 若集群中出现UNASSIGNED shards,检查原因，查看是否是分配策略导致无法迁移分片
+GET http://192.168.13.51:9200/_cluster/allocation/explain?pretty
+1.7 取消节点禁用策略，会使分片自动平均到各个节点
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._ip": null
+  }
+}
+--从集群中加入此节点的IP，会使除master leader节点外的节点分片到此ip地址，此参数可不用
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.include._ip" : "10.0.0.1"
+  }
+}
+```
+
+
+### 7.3 向现有集群增加节点，生产真实操作
+```bash
+[root@node01 ~/tmpelk]# cat elasticsearch.yml 
+node.name: testelk-04
+network.host: 0.0.0.0
+http.port: 9200
+transport.tcp.port: 9300
+path.repo: /var/backups
+cluster.name: testelk
+network.publish_host: 192.168.13.56
+discovery.seed_hosts: ["192.168.13.51:9300","192.168.13.52:9300","192.168.13.53:9300","192.168.13.56:9300"]
+cluster.initial_master_nodes: ["192.168.13.51"]
+node.master: true
+node.data: true
+discovery.zen.minimum_master_nodes: 2
+discovery.zen.fd.ping_timeout: 1m
+discovery.zen.fd.ping_retries: 5
+http.cors.enabled: true
+http.cors.allow-origin: "*"
+# 注：指定的master必须是当前集群的master地址，成功加入集群后，可以更改最小节点数量为3，允许失败一个节点。虽说不用更改配置文件，其它3个之前的节点discovery.seed_hosts中的主机配置没有配置新添加的节点，在整个集群重启过后仍然可以成功建立集群，建议把配置文件补充完整，以后排错也方便。
+
+[root@node01 ~/tmpelk]# cat kibana.yml 
+server.name: testelk_kibana01
+server.host: "0.0.0.0"
+i18n.locale: "zh-CN"
+[root@node01 ~/tmpelk]# cat docker_run.sh 
+docker run -d --restart=always --name=testelk-node \
+-p 9200:9200 \
+-p 9300:9300 \
+-p 5601:5601 \
+-e ES_CONNECT_RETRY=60 \
+-e KIBANA_CONNECT_RETRY=60 \
+-e LOGSTASH_START=0 \
+-e ELASTICSEARCH_START=1 \
+-e KIBANA_START=1 \
+-e ES_HEAP_SIZE="1g" \
+-e TZ="Asia/Shanghai" \
+-v /root/tmpelk/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
+-v /root/tmpelk/kibana.yml:/opt/kibana/config/kibana.yml \
+-v /root/tmpelk/es_data:/var/lib/elasticsearch \
+-v /tmpelkdata:/var/backups \
+192.168.13.235:8000/ops/elk:761
+-- 设置最小master为3个--此参数应该写入到配置文件，否则不会持久生效。
+curl -XPUT '192.168.13.56:9200/_cluster/settings' -d'
+{
+  "transient": {
+    "discovery.zen.minimum_master_nodes": 3
+  }
+}
+```
+
+
+
+### 7.4 向现有集群删除节点
+```
+--执行删除前
+GET http://192.168.13.56:9200/_cluster/health?pretty=true
+{
+  "cluster_name" : "testelk",
+  "status" : "green",
+  "timed_out" : false,
+  "number_of_nodes" : 4,
+  "number_of_data_nodes" : 4,
+  "active_primary_shards" : 23,
+  "active_shards" : 51,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 0,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 100.0
+}
+
+GET http://192.168.13.56:9200/_cat/nodes
+192.168.13.53 21 95 6 0.24 0.35 0.52 dilm - testelk-03
+192.168.13.52 31 97 2 0.16 0.21 0.22 dilm - testelk-02
+192.168.13.51 28 95 9 1.03 0.68 0.68 dilm - testelk-01
+192.168.13.56 20 96 7 0.40 0.61 0.69 dilm * testelk-04
+
+GET http://192.168.13.51:9200/_cat/allocation?v
+shards disk.indices disk.used disk.avail disk.total disk.percent host          ip            node
+    12       44.2kb     6.3gb     92.6gb     98.9gb            6 192.168.13.53 192.168.13.53 testelk-03
+    13       48.4kb     6.6gb     92.3gb     98.9gb            6 192.168.13.51 192.168.13.51 testelk-01
+    13         82kb     6.3gb     92.6gb     98.9gb            6 192.168.13.52 192.168.13.52 testelk-02
+    13       86.5kb       7gb     91.8gb     98.9gb            7 192.168.13.56 192.168.13.56 testelk-04
+
+GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
+{
+  "tasks" : [ ]
+}
+
+
+--执行删除后
+PUT _cluster/settings
+{
+  "transient" : {
+    "cluster.routing.allocation.exclude._ip" : "192.168.13.52"
+  }
+}
+get /_cluster/settings
+-------
+{
+  "persistent" : { },
+  "transient" : {
+    "cluster" : {
+      "routing" : {
+        "allocation" : {
+          "exclude" : {
+            "_ip" : "192.168.13.52"
+          }
+        }
+      }
+    }
+  }
+}
+-------
+GET http://192.168.13.56:9200/_cluster/health?pretty=true
+{
+  "cluster_name" : "testelk",
+  "status" : "green",
+  "timed_out" : false,
+  "number_of_nodes" : 4,
+  "number_of_data_nodes" : 4,
+  "active_primary_shards" : 23,
+  "active_shards" : 51,
+  "relocating_shards" : 0,    --这里为0就说明分片分离成功,等到为0才可进行下一步
+  "initializing_shards" : 0,
+  "unassigned_shards" : 0,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 100.0
+}
+GET http://192.168.13.56:9200/_cat/nodes
+192.168.13.53 26 96  6 0.53 0.36 0.49 dilm - testelk-03
+192.168.13.52 11 97  2 0.30 0.21 0.22 dilm - testelk-02
+192.168.13.51 26 95 11 0.61 0.66 0.67 dilm - testelk-01
+192.168.13.56 12 97  6 0.10 0.39 0.59 dilm * testelk-04
+GET http://192.168.13.51:9200/_cat/allocation?v
+shards disk.indices disk.used disk.avail disk.total disk.percent host          ip            node
+    17       61.7kb     6.6gb     92.3gb     98.9gb            6 192.168.13.51 192.168.13.51 testelk-01
+    17        103kb     6.3gb     92.6gb     98.9gb            6 192.168.13.53 192.168.13.53 testelk-03
+    17        103kb       7gb     91.8gb     98.9gb            7 192.168.13.56 192.168.13.56 testelk-04
+     0           0b     6.3gb     92.6gb     98.9gb            6 192.168.13.52 192.168.13.52 testelk-02
+GET http://192.168.13.51:9200/_cluster/pending_tasks?pretty
+{
+  "tasks" : [ ]
+}
+GET http://192.168.13.51:9200/_nodes/testelk-02/stats/indices?pretty
+--------
+      "indices" : {
+        "docs" : {
+          "count" : 0,   --这里为0说明此节点数据已经分离到其它节点成功，此时可以关闭此节点的服务进行移除了
+          "deleted" : 0
+        }
+--------
+注：当节点成功添加和移除，记得要更新配置文件，为现有的节点，另外要仔细检查配置文件，防止最后配置更改错误导致集群起不来。
+```
+
+
+
+### 7.5 一次UNASSIGNED_FAILED事件原因解决
+```
+#查看集群状态
+GET http://192.168.13.160:9200/_cluster/health?pretty
+{
+  "cluster_name" : "dlog",
+  "status" : "yellow",
+  "timed_out" : false,
+  "number_of_nodes" : 3,
+  "number_of_data_nodes" : 3,
+  "active_primary_shards" : 255,
+  "active_shards" : 485,
+  "relocating_shards" : 0,
+  "initializing_shards" : 0,
+  "unassigned_shards" : 31,
+  "delayed_unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0,
+  "number_of_in_flight_fetch" : 0,
+  "task_max_waiting_in_queue_millis" : 0,
+  "active_shards_percent_as_number" : 93.9922480620155
+}
+#查看分片分配情况
+http://192.168.13.197:9200/_cat/allocation?v
+shards disk.indices disk.used disk.avail disk.total disk.percent host           ip             node
+   241       67.4gb   129.5gb    258.6gb    388.1gb           33 192.168.13.160 192.168.13.160 dlog-01
+    92       19.2gb    24.5gb    174.3gb    198.8gb           12 192.168.13.197 192.168.13.197 dlog-04
+   152       64.8gb    80.1gb    318.6gb    398.8gb           20 192.168.13.161 192.168.13.161 dlog-02
+    31                                                                                         UNASSIGNED
+#查看unassigned失败原因
+GET http://192.168.13.160:9200/_cat/shards?h=index,shard,prirep,state,unassigned.reason
+#查看集群节点ID详细信息
+GET http://192.168.13.160:9200/_nodes/process?pretty
+-----------
+{
+  "_nodes" : {
+    "total" : 3,
+    "successful" : 3,
+    "failed" : 0
+  },
+  "cluster_name" : "dlog",
+  "nodes" : {
+    "18E6bO7URyKQUekXZPi_OQ" : {
+      "name" : "dlog-04",
+      "transport_address" : "192.168.13.197:9300",
+      "host" : "192.168.13.197",
+      "ip" : "192.168.13.197",
+      "version" : "7.6.1",
+      "build_flavor" : "default",
+      "build_type" : "tar",
+      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
+      "roles" : [
+        "master",
+        "ingest",
+        "data",
+        "ml"
+      ],
+      "attributes" : {
+        "ml.machine_memory" : "8200798208",
+        "ml.max_open_jobs" : "20",
+        "xpack.installed" : "true"
+      },
+      "process" : {
+        "refresh_interval_in_millis" : 1000,
+        "id" : 130,
+        "mlockall" : false
+      }
+    },
+    "w1f1PVrRRWWARu8M6HlPRA" : {
+      "name" : "dlog-02",
+      "transport_address" : "192.168.13.161:9300",
+      "host" : "192.168.13.161",
+      "ip" : "192.168.13.161",
+      "version" : "7.6.1",
+      "build_flavor" : "default",
+      "build_type" : "tar",
+      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
+      "roles" : [
+        "master",
+        "ingest",
+        "data",
+        "ml"
+      ],
+      "attributes" : {
+        "ml.machine_memory" : "16651141120",
+        "ml.max_open_jobs" : "20",
+        "xpack.installed" : "true"
+      },
+      "process" : {
+        "refresh_interval_in_millis" : 1000,
+        "id" : 126,
+        "mlockall" : false
+      }
+    },
+    "FKJ5nYktROmj7aLiQ9i5Fw" : {
+      "name" : "dlog-01",
+      "transport_address" : "192.168.13.160:9300",
+      "host" : "192.168.13.160",
+      "ip" : "192.168.13.160",
+      "version" : "7.6.1",
+      "build_flavor" : "default",
+      "build_type" : "tar",
+      "build_hash" : "aa751e09be0a5072e8570670309b1f12348f023b",
+      "roles" : [
+        "master",
+        "ingest",
+        "data",
+        "ml"
+      ],
+      "attributes" : {
+        "ml.machine_memory" : "16277364736",
+        "xpack.installed" : "true",
+        "ml.max_open_jobs" : "20"
+      },
+      "process" : {
+        "refresh_interval_in_millis" : 1000,
+        "id" : 136,
+        "mlockall" : false
+      }
+    }
+  }
+}
+-----------
+
+#查看分配详细信息，可以看到分配失败原因
+GET http://192.168.13.197:9200/_cluster/allocation/explain?pretty
+{
+  "index" : "jinjianghotel_db_pro",
+  "shard" : 2,
+  "primary" : false,
+  "current_state" : "unassigned",
+  "unassigned_info" : {
+    "reason" : "ALLOCATION_FAILED",
+    "at" : "2021-04-28T05:39:05.809Z",
+    "failed_allocation_attempts" : 5,
+    "details" : "failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]",
+    "last_allocation_status" : "no_attempt"
+  },
+  "can_allocate" : "no",
+  "allocate_explanation" : "cannot allocate because allocation is not permitted to any of the nodes",
+  "node_allocation_decisions" : [
+    {
+      "node_id" : "18E6bO7URyKQUekXZPi_OQ",
+      "node_name" : "dlog-04",
+      "transport_address" : "192.168.13.197:9300",
+      "node_attributes" : {
+        "ml.machine_memory" : "8200798208",
+        "ml.max_open_jobs" : "20",
+        "xpack.installed" : "true"
+      },
+      "node_decision" : "no",
+      "deciders" : [
+        {
+          "decider" : "max_retry",
+          "decision" : "NO",
+          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
+        }
+      ]
+    },
+    {
+      "node_id" : "FKJ5nYktROmj7aLiQ9i5Fw",
+      "node_name" : "dlog-01",
+      "transport_address" : "192.168.13.160:9300",
+      "node_attributes" : {
+        "ml.machine_memory" : "16277364736",
+        "ml.max_open_jobs" : "20",
+        "xpack.installed" : "true"
+      },
+      "node_decision" : "no",
+      "deciders" : [
+        {
+          "decider" : "max_retry",
+          "decision" : "NO",
+          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
+        },
+        {
+          "decider" : "same_shard",
+          "decision" : "NO",
+          "explanation" : "the shard cannot be allocated to the same node on which a copy of the shard already exists [[jinjianghotel_db_pro][2], node[FKJ5nYktROmj7aLiQ9i5Fw], [P], s[STARTED], a[id=zFx1U41-TGmF8l0wfH5I4g]]"
+        }
+      ]
+    },
+    {
+      "node_id" : "w1f1PVrRRWWARu8M6HlPRA",
+      "node_name" : "dlog-02",
+      "transport_address" : "192.168.13.161:9300",
+      "node_attributes" : {
+        "ml.machine_memory" : "16651141120",
+        "ml.max_open_jobs" : "20",
+        "xpack.installed" : "true"
+      },
+      "node_decision" : "no",
+      "deciders" : [
+        {
+          "decider" : "max_retry",
+          "decision" : "NO",
+          "explanation" : "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2021-04-28T05:39:05.809Z], failed_attempts[5], failed_nodes[[18E6bO7URyKQUekXZPi_OQ]], delayed=false, details[failed shard on node [18E6bO7URyKQUekXZPi_OQ]: failed to create index, failure IllegalArgumentException[Unknown analyzer type [ik_max_word] for [default]]], allocation_status[no_attempt]]]"
+        }
+      ]
+    }
+  ]
+}
+注：UNASSIGNED原因是新添加集群节点未安装analysis-ik分词器插件，所以导致未分配。
+解决：
+在新节点dlog04安装analysis-ik分词器，并重启节点，节点起来后，此错误仍在，是因为master重试分配分片次数达到5次。所以需要
+执行命令来重新分配分片：
+POST /_cluster/reroute?retry_failed=true 
+注：集群会自动平均分布分片到节点，如果遇到某些节点分布数量多，而某个节点分片数量小，那么你就要看这一个节点是否有什么问题，我这里就是没有安装analysis-ik分词器，
+所以导致分布不均。当我安装完analysis-ik分词器后集群自动平均分配分片。
+```
+
+
+
+
+### 7.6 20210713随手记
+```bash
+[root@TestHotelES /data/elk/es_snapshot]# chmod -R 777 /data/elk/es_snapshot/
+--创建快照仓库
+PUT /_snapshot/my_repo
+{
+  "type": "fs",
+  "settings": {
+    "location": "/var/backups"
+  }
+}
+--查看仓库
+GET _snapshot
+get _snapshot/_all
+
+--查看全部备份快照
+get _snapshot/my_repo/_all
+
+--创建所有索引快照
+PUT _snapshot/my_repo/testhoteles_20210713104400?wait_for_completion=true
+--创建指定索引快照
+PUT _snapshot/my_repo/testhoteles_20210713104400?wait_for_completion=true
+{
+    "indices": "jinjianghotel_db_en_test"
+}
+--查看指定快照详细信息
+get _snapshot/my_repo/testhoteles_20210713104400/_status
+
+--删除快照
+DELETE _snapshot/my_backup/snapshot_3
+
+
+恢复
+--从快照恢复所有
+POST _snapshot/my_backup/snapshot_1/_restore
+POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
+
+--恢复所有索引（除.开头的系统索引）
+POST _snapshot/my_backup/snapshot_1/_restore 
+{"indices":"*,-.monitoring*,-.security*,-.kibana*","ignore_unavailable":"true"}
+
+--将指定快照中备份的指定索引恢复到Elasticsearch集群中，并重命名。
+如果您需要在不替换现有数据的前提下，恢复旧版本的数据来验证内容，或者进行其他处理，可恢复指定的索引，并重命名该索引。
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+ "indices": "index_1", 
+ "rename_pattern": "index_(.+)", 
+ "rename_replacement": "restored_index_$1" 
+}
+
+----查看快照恢复信息
+--查看快照中，指定索引的恢复状态
+GET restored_index_3/_recovery
+
+--查看集群中的所有索引的恢复信息（可能包含跟您的恢复进程无关的其他分片的恢复信息）
+GET /_recovery/
+
+----取消快照恢复
+--通过DELETE命令删除正在恢复的索引，取消恢复操作。如果restored_index_3正在恢复中，以上删除命令会停止恢复，同时删除所有已经恢复到集群中的数据。
+DELETE /restored_index_3
+--------------------
+```
+
+
+
+### 7.7 20210812随手记
+```
+#复制es索引到本机
+1. 列出索引名称
+[ops0799@jumpserver ~]$ curl -su ops0799 "http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200/_cat/indices" -H "Content-Type: application/json" | awk '{print $3}' | grep -Ev 'core|\..*' | tee /home/ops0799/indexNameList.txt
+Enter host password for user 'ops0799':
+youyouroom_en_db_pro
+jinjianghotelroom_db_pro
+elonghotelroom_db_pro
+jinjianghotelroom_db_en_pro
+huazhuroom_db_pro
+tepaihotelprice_db_pro
+huazhuhotel_db_pro
+qianqianhotel_en_db_pro
+---------------创建索引并从源索引复制mapping到新索引----------------------
+[ops0799@jumpserver ~/es]$ cat es-configIndex.sh 
+#!/bin/sh
+
+LogFile='./es.log'
+DateTime='date +"%Y-%m-%d %H:%M:%S"'
+Suffix='_ali'
+Username='test2021'
+Password='test'
+ESAddress='http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200'
+#IndexList='cat /home/ops0799/indexNameList.txt | head -n 2'
+IndexList='cat /home/ops0799/es/indexNameList.txt | grep -E "^[a-z]|^[A-Z]|^[0-9]'
+
+# create index 
+for i in `eval ${IndexList}`;do
+	echo "`eval ${DateTime}`: start create index ${i}${Suffix} ..." >> ${LogFile}
+	curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}" -H 'Content-Type: application/json' -d'{	"settings": {		"number_of_shards": 6,		"number_of_replicas": 1,	 "analysis.analyzer.default.type": "ik_max_word"	}}' | grep 'acknowledged":true' &> /dev/null
+	[ $? == 0 ] && echo "`eval ${DateTime}`: create index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: create index ${i}${Suffix} failure......."  >> ${LogFile}
+done
+
+echo '-------------------' >> ${LogFile}
+
+# config mapping
+for i in `eval ${IndexList}`;do
+	echo "`eval ${DateTime}`: start config index mapping ${i}${Suffix} ..." >> ${LogFile}
+	curl -s -X GET -u ${Username}:${Password} "${ESAddress}/${i}/_mapping" -H 'Content-Type: application/json' | jq '."'${i}'".mappings' | curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}/_mapping" -H 'Content-Type: application/json' -d @- | grep 'acknowledged":true' &> /dev/null
+	[ $? == 0 ] && echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} failure......."  >> ${LogFile}
+done
+
+echo '-------------------' >> ${LogFile}
+
+echo '' >> ${LogFile}
+-----------------创建索引并从源索引复制mapping到新索引，最后复制数据到目标索引------------------------
+[ops0799@jumpserver ~/es]$ cat es-moveIndex.sh
+#!/bin/sh
+#"size": 100,表示每批索引的文档数量，默认是100，可以调整大小
+LogFile='./es.log'
+DateTime='date +"%Y-%m-%d %H:%M:%S"'
+Suffix='_ali'
+Username='test2021'
+Password='test'
+ESAddress='http://es-cn-6ja23a4j8004kwmyl.elasticsearch.aliyuncs.com:9200'
+#IndexList='cat /home/ops0799/indexNameList.txt | head -n 2'
+IndexList='cat /home/ops0799/es/indexNameList.txt | grep -E "^[a-z]|^[A-Z]|^[0-9]'
+
+# create index 
+for i in `eval ${IndexList}`;do
+	echo "`eval ${DateTime}`: start create index ${i}${Suffix} ..." >> ${LogFile}
+	curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}" -H 'Content-Type: application/json' -d'{	"settings": {		"number_of_shards": 6,		"number_of_replicas": 1,	 "analysis.analyzer.default.type": "ik_max_word"	}}' | grep 'acknowledged":true' &> /dev/null
+	[ $? == 0 ] && echo "`eval ${DateTime}`: create index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: create index ${i}${Suffix} failure......."  >> ${LogFile}
+done
+
+echo '-------------------' >> ${LogFile}
+
+# config mapping
+for i in `eval ${IndexList}`;do
+	echo "`eval ${DateTime}`: start config index mapping ${i}${Suffix} ..." >> ${LogFile}
+	curl -s -X GET -u ${Username}:${Password} "${ESAddress}/${i}/_mapping" -H 'Content-Type: application/json' | jq '."'${i}'".mappings' | curl -s -u ${Username}:${Password} -XPUT "${ESAddress}/${i}${Suffix}/_mapping" -H 'Content-Type: application/json' -d @- | grep 'acknowledged":true' &> /dev/null
+	[ $? == 0 ] && echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: config index mapping ${i}${Suffix} failure......."  >> ${LogFile}
+done
+
+echo '-------------------' >> ${LogFile}
+
+#reindex 
+for i in `eval ${IndexList}`;do
+	echo "`eval ${DateTime}`: start rename index ${i} to ${i}${Suffix} ..." >> ${LogFile}
+	curl -s -u ${Username}:${Password} -XPOST "${ESAddress}/_reindex" -H 'Content-Type: application/json' -d'{  "source": {    "index": "'${i}'", "size": 100  },  "dest": {    "index": "'${i}${Suffix}'"  }}' | grep '"status":' &> /dev/null
+	[ $? != 0 ] && echo "`eval ${DateTime}`: rename index ${i}${Suffix} successful......."  >> ${LogFile} || echo "`eval ${DateTime}`: rename index ${i}${Suffix} failure......."  >> ${LogFile}
+done
+
+echo '-------------------' >> ${LogFile}
+
+echo '' >> ${LogFile}
+------------------------------------------------------
+
+#创建索引
+PUT /test01
+{
+	"settings": {
+		"number_of_shards": 6,
+		"number_of_replicas": 1
+	}
+}
+#配置修改索引mapping
+PUT /huazhuhotelpricebookinfo_db_pro-backup/_mapping
+{
+"properties": {
+        "acceptedCreditCards": {
+          "properties": {
+            "cardName": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "cardType": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        },
+        "updateTime": {
+          "type": "date"
+        }
+    }
+}
+#创建索引并配置mapping
+[jack@ubuntu:~]$ cat test01
+{
+	"settings": {
+		"number_of_shards": 6,
+		"number_of_replicas": 1
+	},
+	"mappings" : {
+    "properties": {
+        "acceptedCreditCards": {
+          "properties": {
+            "cardName": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "cardType": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        },
+        "updateTime": {
+          "type": "date"
+        }
+    }
+	}
+}
+[jack@ubuntu:~]$ curl -XPUT "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup" -H 'Content-Type: application/json' -d @test01 
+{"acknowledged":true,"shards_acknowledged":true,"index":"huazhuhotelpricebookinfo_db_pro-backup"}
+#获取mapping
+[jack@ubuntu:~]$ curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" | jq .
+{
+  "huazhuhotelpricebookinfo_db_pro-backup": {
+    "mappings": {
+      "properties": {
+        "acceptedCreditCards": {
+          "properties": {
+            "cardName": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            },
+            "cardType": {
+              "type": "text",
+              "fields": {
+                "keyword": {
+                  "type": "keyword",
+                  "ignore_above": 256
+                }
+              }
+            }
+          }
+        },
+        "updateTime": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+#从原索引复制mapping并导入到新索引中
+curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" -H 'Content-Type: application/json' | jq '."huazhuhotelpricebookinfo_db_pro-backup".mappings' | curl -XPUT "http://192.168.13.50:9401/test-backup/_mapping" -H 'Content-Type: application/json' -d @-
+```
+
+
+
+### 7.8 20210819随手记
+```
+#查看索引设置和修改设置
+get /skywalking_metrics-apdex-20210808/_settings?pretty=true&include_defaults=true
+PUT /*/_settings
+{
+  "index" : {
+    "number_of_replicas" : 0
+  }
+}
+#查看模板和修改设置，order是优先级，数值越大优先级越大
+GET /_template/all_default_template
+PUT /_template/all_default_template
+{
+  "index_patterns": "*",
+  "order" : 100,
+  "settings": {
+    "number_of_shards": "4",
+    "number_of_replicas": "0"
+  }
+}
+
+#查看和设置是否允许使用通配符，为true是禁用通配符，为false为启用通配符
+get /_cluster/settings?include_defaults=true
+PUT /_cluster/settings
+{
+    "persistent" : {
+       "action.destructive_requires_name":true }
+}
+
+#关闭索引，设置索引，打开索引
+POST /skywalking*/_close
+PUT /skywalking*/_settings?preserve_existing=true
+{  
+"index.refresh_interval" : "60s",  
+"index.number_of_shards" : "2",
+"index.number_of_replicas" : "0",
+"index.translog.durability" : "async",  
+"index.translog.flush_threshold_size" : "512mb",  
+"index.translog.sync_interval" : "30s"  
+}
+POST /skywalking*/_open
+```
+
+
+
+### 7.9 备份阿里云ES到OSS中
+
+20210913随手记
+
+
+**阿里云Elasticsearch和Kibana权限分配**
+```
+Aliyun Elasticsearch Product:	
+Common User Add Privileges: kibana-system,kibana-admin,homsom_readuser	
+Program User Add Privileges: kibana-system,kibana-admin,homsom_commonuser	
+Admin User Add Privileges: superuser
+
+Real Privileges Detail:	
+homsom-readuser: read,view_index_metadata,monitor
+homsom_commonuser: all	
+superuser: System Built-in
+Match Parttern Index:	*
+```
+
+备份阿里云ES到OSS中
+```
+GET _snapshot
+get _snapshot/aliyun_auto_snapshot/_all
+
+IN_PROGRESS	快照正在执行。
+SUCCESS	快照执行结束，且所有shard中的数据都存储成功。
+FAILED	快照执行结束，但部分索引中的数据存储不成功。
+PARTIAL	部分数据存储成功，但至少有1个shard中的数据没有存储成功。
+INCOMPATIBLE	快照与阿里云Elasticsearch实例的版本不兼容。
+
+
+手动备份与恢复
+--创建elasticsearch 访问的access_key_id和secret_access_key，开通OSS服务
+--创建仓库
+PUT _snapshot/my_backup/
+{
+    "type": "oss",
+    "settings": {
+        "endpoint": "http://oss-cn-shanghai-internal.aliyuncs.com",
+        "access_key_id": "abc",
+        "secret_access_key": "12345",
+        "bucket": "dbs-backup-100000-cn-shanghai",
+        "compress": true,
+        "chunk_size": "500mb",
+        "base_path": "snapshot/"
+    }
+}
+GET _snapshot/my_backup
+--备份所有索引 
+PUT _snapshot/my_backup/snapshot_1?wait_for_completion=true
+--备份指定索引
+PUT _snapshot/my_backup/snapshot_202109131458?wait_for_completion=true
+{
+    "indices": "corehotel_db_pro_ali,corehotel_en_db_pro_ali,coreroom_db_pro_ali,coreroom_en_db_pro_ali"
+}
+--查看所有快照信息
+GET _snapshot/my_backup/_all
+--查看指定快照信息
+GET _snapshot/my_backup/snapshot_3
+GET _snapshot/my_backup/snapshot_3/_status
+--删除指定的快照。如果该快照正在进行，执行以下命令，系统会中断快照进程并删除仓库中创建到一半的快照。
+DELETE _snapshot/my_backup/snapshot_3
+
+
+--从快照恢复
+--将指定快照中备份的所有索引恢复到Elasticsearch集群中。
+POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
+--恢复所有索引（除.开头的系统索引）
+POST _snapshot/my_backup/snapshot_1/_restore 
+{"indices":"*,-.monitoring*,-.security*,-.kibana*","ignore_unavailable":"true"}
+--将指定快照中备份的指定索引恢复到Elasticsearch集群中，并重命名。
+如果您需要在不替换现有数据的前提下，恢复旧版本的数据来验证内容，或者进行其他处理，可恢复指定的索引，并重命名该索引
+POST /_snapshot/my_backup/snapshot_1/_restore
+{
+ "indices": "index_1", 
+ "rename_pattern": "index_(.+)", 
+ "rename_replacement": "restored_index_$1" 
+}
+--查看快照恢复信息
+GET restored_index_3/_recovery
+--查看集群中的所有索引的恢复信息（可能包含跟您的恢复进程无关的其他分片的恢复信息）。
+GET /_recovery/
+
+# 查看恢复状态
+GET /_cat/recovery
+GET /interdaolvv2_hotelstatic_db_ali_pro/_recovery
+
+
+--取消快照恢复
+DELETE /restored_index_3
+```
+
+
+
+### 7.10 本地ES备份到阿里云OSS
+```
+1. 阿里云开通OSS，创建bukect，授权RAM子帐户权限
+{
+    "Version": "1",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "oss:*",
+            "Resource": [
+                "acs:oss:*:*:dbs-backup-20159124-cn-shanghai",
+                "acs:oss:*:*:dbs-backup-20159124-cn-shanghai/*",
+                "acs:oss:*:*:hs-travelreportes-data-backup",
+                "acs:oss:*:*:hs-travelreportes-data-backup/*"
+            ]
+        }
+    ]
+}
+
+2. 本地ES集群所有节点安装S3插件，并所有节点配置s3.client.default.access_key 和 s3.client.default.secret_key，最后所有节点更改/etc/elasticsearch/elasticsearch.keystore权限使elasticsearch用户有权限访问，否则无法成功创建阿里云OSS仓库，此步非常重要，之前就是卡在这步
+
+`例子`
+sh /opt/elasticsearch/bin/elasticsearch-plugin install --batch repository-s3  && 
+sh -c /bin/echo -e "HDRZ3WYIX4BFUWZNHF45" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.access_key && 
+sh -c /bin/echo -e "SERuAXJdPRkXBXA4eQEC8wbIoULoR05fihVUvems" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.secret_key && 
+sh -c /bin/echo -e "https://s3-sh-prod.fin-shine.com/" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.endpoint 
+
+
+cd /opt/elasticsearch 
+bin/elasticsearch-plugin install repository-s3
+bin/elasticsearch-keystore add s3.client.default.access_key
+bin/elasticsearch-keystore add s3.client.default.secret_key
+bin/elasticsearch-keystore list
+chown elasticsearch.elasticsearch /etc/elasticsearch/elasticsearch.keystore
+
+3. 创建仓库
+PUT _snapshot/backup/
+{
+    "type": "s3",
+    "settings": {
+        "endpoint": "https://oss-cn-shanghai.aliyuncs.com",
+        "bucket": "hs-travelreportes-data-backup",
+        "base_path": "snapshot/"
+    }
+}
+
+4. 对所有索引进行快照
+PUT _snapshot/backup/snapshot_202208161027?wait_for_completion=true
+
+output:
+--------
+{
+  "snapshots" : [
+    {
+      "snapshot" : "snapshot_202208161026",
+      "uuid" : "N4ePUbH0RSetRBm6dDdzZA",
+      "version_id" : 7060199,
+      "version" : "7.6.1",
+      "indices" : [
+        "traindepartmentmonthsummary_db"
+      ],
+      "include_global_state" : true,
+      "state" : "SUCCESS",
+      "start_time" : "2022-08-16T02:26:19.733Z",
+      "start_time_in_millis" : 1660616779733,
+      "end_time" : "2022-08-16T02:26:20.933Z",
+      "end_time_in_millis" : 1660616780933,
+      "duration_in_millis" : 1200,
+      "failures" : [ ],
+      "shards" : {
+        "total" : 5,
+        "failed" : 0,
+        "successful" : 5
+      }
+    },
+    {
+      "snapshot" : "snapshot_202208161027",
+      "uuid" : "TRBccmNHRcukeTXv5Lnq9Q",
+      "version_id" : 7060199,
+      "version" : "7.6.1",
+      "indices" : [
+        "carorder_db",
+        "flightbumonthsummary_db",
+        "trainorder_db",
+        "traincompanymonthsummary_db",
+        "hoteldepartmentmonthsummary_db",
+        "ibelog",
+        "domesticflightrefund_db",
+        "flightcompanymonthsummary_db",
+        "flightdepartmentmonthsummary_db",
+        "domesticflightticket_db",
+        "trainbumonthsummary_db",
+        "internationalflightorder_db",
+        "hotelcostcentermonthsummary_db",
+        ".reporting-2021.04.25",
+        "internationalflightrefund_db",
+        "intlflightsegment_db",
+        "domesticflightsegment_db",
+        "internationalflightticket_db",
+        "hotelsalesorder_db",
+        "carcostcentermonthsummary_db",
+        "travellocation_db",
+        "hotelcompanymonthsummary_db",
+        ".reporting-2021.03.21",
+        "cardepartmentmonthsummary_db",
+        "hotelbusinesstravelgeneralintroduction_db",
+        "carbumonthsummary_db",
+        "domesticflightorder_db",
+        "traincostcentermonthsummary_db",
+        "traindepartmentmonthsummary_db",
+        "hotelbumonthsummary_db",
+        ".apm-agent-configuration",
+        "businesstravelgeneralintroduction_db",
+        ".kibana_task_manager_1",
+        ".reporting-2021.04.18",
+        "flightcostcentermonthsummary_db",
+        "carcompanymonthsummary_db",
+        ".kibana_1"
+      ],
+      "include_global_state" : true,
+      "state" : "IN_PROGRESS",								###此行表示快照还在进行中，等状态为success后则快照创建完成
+      "start_time" : "2022-08-16T02:27:02.153Z",
+      "start_time_in_millis" : 1660616822153,
+      "end_time" : "1970-01-01T00:00:00.000Z",
+      "end_time_in_millis" : 0,
+      "duration_in_millis" : -1660616822153,
+      "failures" : [ ],
+      "shards" : {
+        "total" : 0,
+        "failed" : 0,
+        "successful" : 0
+      }
+    }
+  ]
+}
+```
+
+
+
+### 7.11 自动化备份脚本
+```bash
+[root@prometheus shell]# cat es-travelreportes-backup.sh 
+#!/bin/sh
+
+ES_ADDRESS='http://192.168.13.160:9200'
+ES_REPO_NAME='/_snapshot/backup'
+ES_SNAPSHOT_NAME="snapshot_`date +'%Y%m%d%H%M%S'`"
+DATETIME="date +'%Y-%m-%d_%H-%M-%S'"
+LOG_FILE="./eslog.txt"
+
+
+Log(){
+	echo "`eval ${DATETIME}`: $1" >> ${LOG_FILE}
+}
+
+GetRepo(){
+	esRepoType=`curl -s -X GET "${ES_ADDRESS}${ES_REPO_NAME}" | jq .backup.type`
+	if [ -n "${esRepoType}" ];then
+		echo 1
+	else
+		echo 0
+	fi
+}
+
+Snapshot(){
+	sum=0
+	count=1800
+	# snapshot
+	Log "start snapshot ${ES_SNAPSHOT_NAME}..."
+	curl -s -X PUT "${ES_ADDRESS}${ES_REPO_NAME}/${ES_SNAPSHOT_NAME}?wait_for_completion=true" >& /dev/null
+
+	# get snapshot state
+	while [ ${sum} -lt ${count} ];do
+		snapshotState=`curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/${ES_SNAPSHOT_NAME}" | jq .snapshots[].state`
+		if [ ${snapshotState} == '"SUCCESS"' ];then
+			Log "snapshot ${ES_SNAPSHOT_NAME} success!"
+			return 0
+		fi
+		let sum+=1
+		sleep 1
+	done
+	
+	if [ ${sum} -eq ${count} ];then
+		Log "snapshot ${ES_SNAPSHOT_NAME} failure!"
+		exit 10
+	fi
+}
+
+DeleteSnapshot(){
+	# reserve snapshot number
+	reserveNumber=7
+	snapshotNameList=(`curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/_all" | jq .snapshots[].snapshot | sort -n`)
+	snapshotNumber=`echo ${#snapshotNameList[*]}`
+	if [ ${snapshotNumber} -gt ${reserveNumber} ];then
+		let i=${snapshotNumber}-${reserveNumber}-1
+		for j in `seq 0 $i`;do
+			formatSnapshotName=`echo ${snapshotNameList[$j]} | tr -dc 'a-zA-Z0-9_'`
+			Log "start delete ${formatSnapshotName}..."
+			curl -s -X DELETE "${ES_ADDRESS}${ES_REPO_NAME}/${formatSnapshotName}" >& /dev/null
+			curl -s -XGET "${ES_ADDRESS}${ES_REPO_NAME}/_all" | jq .snapshots[].snapshot | grep ${formatSnapshotName} && Log "delete ${formatSnapshotName} failure" || Log "delete ${formatSnapshotName} success"
+		done
+	fi
+}
+
+echo ' ' >> ${LOG_FILE}
+if [ `GetRepo` == 1 ];then
+	Snapshot
+	DeleteSnapshot
+else
+	Log "repo not exists, snapshot failure!"
+	exit 10
+fi
+```
+
+
+
+### 7.12 常用命令
+```
+# 查看繁忙的线程
+GET /_nodes/hot_threads?interval=500ms&threads=20
+# 查看指定索引慢日志的操作
+GET /fuxunhotel_db_pro_ali/slowlog/_settings?pretty
+# 查看节点CPU、内存、磁盘状态
+GET /_nodes/stats/process?pretty
+GET /_nodes/stats/jvm?pretty
+GET /_nodes/stats/fs?pretty
+# 查看集群健康状态
+GET /_cluster/health?pretty
+# 查看索引健康状态 
+GET /_cluster/health?level=indices 
+```
+
+
+
+### 7.13 索引生命周期策略
+```
+# 创建索引生命周期策略
 PUT _ilm/policy/auto_delete_index
 {
   "policy": {
@@ -4806,7 +4902,7 @@ PUT _ilm/policy/auto_delete_index
   }
 }
 
-##配置logstash创建索引的默认分片及引用索引生命周期策略
+# 配置logstash创建索引的默认分片及引用索引生命周期策略
 PUT /_template/logstash
 {
   "index_patterns" : [
@@ -4822,7 +4918,7 @@ PUT /_template/logstash
   }
 }
 
-##配置生命周期策略每10分钟执行一次
+# 配置生命周期策略每10分钟执行一次
 PUT _cluster/settings
 {
   "transient": {
@@ -4835,14 +4931,183 @@ get _ilm/status
 POST _ilm/start
 get /_template/logstash
 get /_cluster/settings
------------------
 ```
 
 
 
 
-####k8s部署elasticsearch 6.4.0
-部署：3节点es集群，经过测试，一主两备，当备节点down掉一个后，es集群不受影响，当主节点down掉后有1分钟左右的时间故障。
+## 8. 常见问题汇总
+
+
+
+### 问题1-集群索引量大影响搜索性能
+
+问题：集群索引量大会影响搜索性能
+**在调整refresh_interval时，请注意以下几点：**
+* 在进行大量数据导入时，将refresh_interval设置为-1可以加快数据导入速度。这是因为关闭索引刷新可以减少I/O操作和磁盘空间的使用量。一旦数据导入完成，你可以将refresh_interval重新设置为一个正数，以恢复正常的索引刷新操作。
+* 调整refresh_interval时要权衡性能和实时性需求。较短的refresh_interval可以提高查询的响应速度，但会增加I/O负载和磁盘空间的使用量。相反，较长的refresh_interval可以减少I/O负载和磁盘空间的使用量，但可能会降低查询的响应速度。
+* 在调整refresh_interval之前，建议先监控Elasticsearch集群的性能指标，如CPU使用率、内存使用率、磁盘I/O等。这将帮助你了解集群的负载情况，并更好地调整相关参数以优化性能。
+* 除了refresh_interval外，还有其他一些参数可以影响Elasticsearch的性能和响应时间，如index.shard.recovery.concurrent_streams和indices.recovery.max_bytes_per_sec等。合理配置这些参数也可以帮助优化Elasticsearch的性能。
+* 总之，了解refresh_interval的工作原理并根据实际需求进行合理设置是优化Elasticsearch性能的重要步骤之一。通过调整refresh_interval和其他相关参数，你可以在实时性和性能之间找到最佳平衡点，以满足你的应用场景需求。
+
+
+解决：
+```
+# 配置索引模板
+PUT _template/custom_index_refresh_interval_template
+{
+  "index_patterns": ["*"],  // 匹配所有索引
+  "order" : 50,
+  "settings": {
+    "index.refresh_interval": "30s"  // 设置刷新间隔为60秒
+  }
+}
+
+
+# 设置索引刷新间隔时间
+PUT student/_settings
+{
+    "index" : {
+        "refresh_interval" : "30s"
+    }
+}
+
+
+# 清除索引刷新间隔设置
+PUT student/_settings
+{
+    "index" : {
+        "refresh_interval" : null
+    }
+}
+
+
+# index.refresh_interval，默认是10s
+
+# 查看所有索引配置
+GET /_all/_settings?pretty
+
+# API即时生效，仅针对单个索引
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "15s"
+  }
+}
+
+# API即时生效，批量更改所有索引 
+PUT /_all/_settings
+{
+  "settings": {
+    "index.refresh_interval": "30s"
+  }
+}
+
+
+# 全局生效，需要重启ES服务，仅针对新创建索引生效
+index.refresh_interval: 15s
+
+#index.memory.index_buffer_size，主要提高写入效率的问题，
+默认是ES堆内存的10%，这里面ES堆内存为16G，计算结果为1.6G，从 Elasticsearch 5.x 到 Elasticsearch 7.x，该设置已经被弃用并不再使用。替代方案见转录日志（translog）
+
+
+# 查看全部索引配置
+GET /_all/_settings?pretty
+
+# API即时生效，仅针对单个索引
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.memory.index_buffer_size": "20%"
+  }
+}
+
+# API即时生效，批量更改所有索引 
+PUT /_all/_settings
+{
+  "settings": {
+    "index.memory.index_buffer_size": "20%"
+  }
+}
+
+# 全局生效，需要重启ES服务，仅针对新创建索引生效
+index.memory.index_buffer_size: 15%
+
+
+
+# index.memory.index_buffer_size替代方案，主要提高写入效率的问题
+索引缓冲区的大小与刷新间隔（refresh_interval）以及转录日志（translog）设置有更直接的关联。
+
+**关键设置：**
+* index.translog.durability：控制转录日志的持久性。async 表示异步写入，request 表示每个写入操作都等待同步确认。
+	* 对于批量写入：建议使用 async，这样可以提高写入吞吐量。
+	* 对于更高的持久性：使用 request。
+
+* index.translog.sync_interval：控制转录日志的刷写频率，默认为 5s。
+	* 对于高写入负载，可以考虑将 sync_interval 设置为较短时间（如 1 秒），以更频繁地将数据持久化到磁盘。
+	* 对于批量导入数据，可以增加同步间隔，减少磁盘 I/O。
+
+* index.translog.flush_threshold_size：控制当转录日志大小达到一定阈值时，自动刷新到磁盘。
+	* 可以根据集群内存和磁盘容量调整此阈值，以平衡性能和持久性。
+
+# 高吞吐量的批量写入（如数据导入）：
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "-1",  // 禁用刷新，直到数据导入完毕
+    "index.translog.durability": "async",  // 异步写入提高吞吐量
+    "index.translog.sync_interval": "30s",  // 延长同步间隔，减少磁盘 I/O
+    "index.translog.flush_threshold_size": "512mb"  // 增加阈值，减少转录日志刷新频率
+  }
+}
+
+# 需要快速查询的场景（低延迟）
+PUT /my_index/_settings
+{
+  "settings": {
+    "index.refresh_interval": "1s",  // 每秒刷新一次，确保快速数据可见
+    "index.translog.durability": "request",  // 每次写入操作都同步到磁盘
+    "index.translog.sync_interval": "5s",  // 每 5 秒同步一次转录日志
+    "index.translog.flush_threshold_size": "256mb"  // 较低阈值，确保快速数据持久化
+  }
+}
+```
+
+
+
+### 问题2-分片达到最大数1000
+```
+skywalking无法查看追踪信息，经过查看日志skywalking-oap-server.log得出原因，日志如下：
+2022-03-10 20:31:22,979 - org.apache.skywalking.oap.server.library.client.elasticsearch.ElasticSearchClient - 575 [I/O dispatcher 6] WARN  [] - Bulk [684979] executed with failures:[failure 
+[0]: index [skywalking_segment-20220310], type [_doc], id [5ebadf0d1695409f9c9bbac832ac5965.61.16469154792759280], message [ElasticsearchException[Elasticsearch exception [type=validation_exdation Failed: 1: this action would add [5] total shards, but this cluster currently has [998]/[1000] maximum shards open;]]]
+```
+> 原因：经过日志得出skywalking写入ES数据分片达到最大数1000
+> 解决方法：无法再写入数据，需要手动调整分布设置即可，如下操作表示临时生效：
+>
+> ```
+> curl -XPUT localhost:9200/_cluster/settings -H 'Content-type: application/json' --data-binary $'{"transient":{"cluster.max_shards_per_node":2000}}'
+> ```
+>
+> 永久生效
+>
+> ```[root@docker03 /data/elasticsearch]# cat elasticsearch.yml 
+> node.name: skywalking
+> path.repo: /var/backups
+> network.host: 0.0.0.0
+> cluster.initial_master_nodes: ["skywalking"]
+> cluster.max_shards_per_node: 2000```
+
+
+
+
+### 问题3-kibana连接elasticsearch超时问题
+```
+[root@opsaudit elasticsearch]# cat ../kibana/kibana.yml
+server.name: rsyslog_kibana
+server.host: "0.0.0.0"
+i18n.locale: "zh-CN"
+elasticsearch.requestTimeout: 120000	#配置为120s超时
+```
 
 
 
@@ -4850,13 +5115,7 @@ get /_cluster/settings
 
 
 
-
-</pre>
-
-
-
-## elasticsearch7 问题小记
-
+### 问题4-任务挂起
 问题：挂起任务"number_of_pending_tasks" : 2
 ```bash
 curl -X GET http://192.168.13.99:9200/_cluster/health?pretty=true
@@ -4926,7 +5185,10 @@ curl -X GET http://192.168.13.99:9200/_cluster/pending_tasks?pretty=true
 解决：我将该分片副本改为1后，pending任务就没有了
 
 
-问题：Elasticsearch breakers tripped大于0，解决断路器
+
+
+### 问题5-breakers tripped大于0
+问题：Elasticsearch breakers tripped大于0，断路器触发了
 curl -X GET http://192.168.13.234:9200/_nodes/stats/breaker?pretty
 ```bash
         "parent" : {
@@ -4945,12 +5207,13 @@ curl -X GET http://192.168.13.234:9200/_nodes/stats/breaker?pretty
 
 
 
-
+### 问题6-阿里云服务大量查询无法连接ES
 问题：报错如下，阿里云服务大量查询无法连接ES
 ```
 System.Exception: ServerError: 429Type: search_phase_execution_exception Reason: "all shards failed" CausedBy: "Type: es_rejected_execution_exception Reason: "rejected execution of org.elasticsearch.common.util.concurrent.TimedRunnable@3f9a0659 on QueueResizingEsThreadPoolExecutor[name = hotel01/search, queue capacity = 1000, min queue capacity = 1000, max queue capacity = 1000, frame size = 2000, targeted response rate = 1s,task execution EWMA = 422.3micros, adjustment amount = 50, org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor@1706f25f[Running, pool size = 13, active threads = 13, queued tasks = 1000, completed tasks = 1164701926]]" CausedBy: "Type: es_rejected_execution_exception Reason: "rejected execution of org.elasticsearch.common.util.concurrent.TimedRunnable@3f9a0659 on QueueResizingEsThreadPoolExecutor[name =hotel01/search, queue capacity = 1000, min queue capacity = 1000, max queue capacity = 1000, frame size = 2000, targeted response rate = 1s, task execution EWMA = 422.3micros, adjustment amount = 50, org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor@1706f25f[Running, pool size = 13, active threads = 13, queued tasks = 1000, completed tasks = 1164701926]]"""
 ```
 
+解决：
 ```
 # 查看集群健康状态
 GET /_cluster/health?pretty
@@ -4987,159 +5250,8 @@ thread_pool.search.max_queue_size: 3000
 
 
 
-问题：集群索引量大会影响搜索性能
-**在调整refresh_interval时，请注意以下几点：**
-* 在进行大量数据导入时，将refresh_interval设置为-1可以加快数据导入速度。这是因为关闭索引刷新可以减少I/O操作和磁盘空间的使用量。一旦数据导入完成，你可以将refresh_interval重新设置为一个正数，以恢复正常的索引刷新操作。
-* 调整refresh_interval时要权衡性能和实时性需求。较短的refresh_interval可以提高查询的响应速度，但会增加I/O负载和磁盘空间的使用量。相反，较长的refresh_interval可以减少I/O负载和磁盘空间的使用量，但可能会降低查询的响应速度。
-* 在调整refresh_interval之前，建议先监控Elasticsearch集群的性能指标，如CPU使用率、内存使用率、磁盘I/O等。这将帮助你了解集群的负载情况，并更好地调整相关参数以优化性能。
-* 除了refresh_interval外，还有其他一些参数可以影响Elasticsearch的性能和响应时间，如index.shard.recovery.concurrent_streams和indices.recovery.max_bytes_per_sec等。合理配置这些参数也可以帮助优化Elasticsearch的性能。
-* 总之，了解refresh_interval的工作原理并根据实际需求进行合理设置是优化Elasticsearch性能的重要步骤之一。通过调整refresh_interval和其他相关参数，你可以在实时性和性能之间找到最佳平衡点，以满足你的应用场景需求。
 
 
-```
-# 配置索引模板
-PUT _template/custom_index_refresh_interval_template
-{
-  "index_patterns": ["*"],  // 匹配所有索引
-  "order" : 50,
-  "settings": {
-    "index.refresh_interval": "30s"  // 设置刷新间隔为60秒
-  }
-}
-
-
-# 设置索引刷新间隔时间
-PUT student/_settings
-{
-    "index" : {
-        "refresh_interval" : "30s"
-    }
-}
-
-
-# 清除索引刷新间隔设置
-PUT student/_settings
-{
-    "index" : {
-        "refresh_interval" : null
-    }
-}
-```
-
-## index.refresh_interval，默认是10s
-```
-# 查看所有索引配置
-GET /_all/_settings?pretty
-
-# API即时生效，仅针对单个索引
-PUT /my_index/_settings
-{
-  "settings": {
-    "index.refresh_interval": "15s"
-  }
-}
-
-# API即时生效，批量更改所有索引 
-PUT /_all/_settings
-{
-  "settings": {
-    "index.refresh_interval": "30s"
-  }
-}
-```
-
-```yaml
-# 全局生效，需要重启ES服务，仅针对新创建索引生效
-index.refresh_interval: 15s
-```
-
-
-## index.memory.index_buffer_size，主要提高写入效率的问题，
-默认是ES堆内存的10%，这里面ES堆内存为16G却1.6G，从 Elasticsearch 5.x 到 Elasticsearch 7.x，该设置已经被弃用并不再使用。替代方案见转录日志（translog）
-
-```
-# 查看全部索引配置
-GET /_all/_settings?pretty
-
-# API即时生效，仅针对单个索引
-PUT /my_index/_settings
-{
-  "settings": {
-    "index.memory.index_buffer_size": "20%"
-  }
-}
-
-# API即时生效，批量更改所有索引 
-PUT /_all/_settings
-{
-  "settings": {
-    "index.memory.index_buffer_size": "20%"
-  }
-}
-```
-
-```yaml
-# 全局生效，需要重启ES服务，仅针对新创建索引生效
-index.memory.index_buffer_size: 15%
-```
-
-
-
-
-## index.memory.index_buffer_size替代方案，主要提高写入效率的问题
-索引缓冲区的大小与刷新间隔（refresh_interval）以及转录日志（translog）设置有更直接的关联。
-
-**关键设置：**
-* index.translog.durability：控制转录日志的持久性。async 表示异步写入，request 表示每个写入操作都等待同步确认。
-	* 对于批量写入：建议使用 async，这样可以提高写入吞吐量。
-	* 对于更高的持久性：使用 request。
-
-* index.translog.sync_interval：控制转录日志的刷写频率，默认为 5s。
-	* 对于高写入负载，可以考虑将 sync_interval 设置为较短时间（如 1 秒），以更频繁地将数据持久化到磁盘。
-	* 对于批量导入数据，可以增加同步间隔，减少磁盘 I/O。
-
-* index.translog.flush_threshold_size：控制当转录日志大小达到一定阈值时，自动刷新到磁盘。
-	* 可以根据集群内存和磁盘容量调整此阈值，以平衡性能和持久性。
-
-```
-# 高吞吐量的批量写入（如数据导入）：
-PUT /my_index/_settings
-{
-  "settings": {
-    "index.refresh_interval": "-1",  // 禁用刷新，直到数据导入完毕
-    "index.translog.durability": "async",  // 异步写入提高吞吐量
-    "index.translog.sync_interval": "30s",  // 延长同步间隔，减少磁盘 I/O
-    "index.translog.flush_threshold_size": "512mb"  // 增加阈值，减少转录日志刷新频率
-  }
-}
-
-# 需要快速查询的场景（低延迟）
-PUT /my_index/_settings
-{
-  "settings": {
-    "index.refresh_interval": "1s",  // 每秒刷新一次，确保快速数据可见
-    "index.translog.durability": "request",  // 每次写入操作都同步到磁盘
-    "index.translog.sync_interval": "5s",  // 每 5 秒同步一次转录日志
-    "index.translog.flush_threshold_size": "256mb"  // 较低阈值，确保快速数据持久化
-  }
-}
-```
-
-## CPU和磁盘繁忙故障排错、原因查找 
-```
-# 查看繁忙的线程
-GET /_nodes/hot_threads?interval=500ms&threads=20
-# 查看指定索引慢日志的操作
-GET /fuxunhotel_db_pro_ali/slowlog/_settings?pretty
-# 查看节点CPU、内存、磁盘状态
-GET /_nodes/stats/process?pretty
-GET /_nodes/stats/jvm?pretty
-GET /_nodes/stats/fs?pretty
-# 查看集群健康状态
-GET /_cluster/health?pretty
-# 查看索引健康状态 
-GET /_cluster/health?level=indices 
-```
 
 
 
@@ -5148,7 +5260,7 @@ GET /_cluster/health?level=indices
 # 网络设备日志收集
 
 
-## elasticsearch-7.17.23
+## 1. elasticsearch-7.17.23
 
 ```
 [root@opsaudit /usr/local]# cat elasticsearch/config/elasticsearch.yml 
@@ -5186,7 +5298,7 @@ WantedBy=multi-user.target
 
 
 
-## kibana-7.17.23
+## 2. kibana-7.17.23
 
 ```
 [root@opsaudit /usr/local]# cat kibana/config/kibana.yml 
@@ -5240,7 +5352,7 @@ PUT /_template/indx_default_template
 
 
 
-## rsyslog
+## 3. rsyslog
 
 ```
 [root@opsaudit /var/log]# grep -Ev '#|^$' /etc/rsyslog-remote.conf
@@ -5322,7 +5434,7 @@ logrotate -vf /etc/logrotate.d/homsom_audit.conf
 
 
 
-## filebeat-7.17.23
+## 4. filebeat-7.17.23
 
 ```bash
 #### centos6
@@ -5562,7 +5674,7 @@ WantedBy=multi-user.target
 
 
 
-## 收集nginx日志
+## 5. 收集nginx日志
 
 ```
 filebeat.inputs:
@@ -5643,7 +5755,7 @@ logging.level: error
 
 
 
-## filebeat收集centos7主机日志
+## 6. filebeat收集centos7主机日志
 
 ```bash
 # 配置索引模板
@@ -5683,7 +5795,7 @@ logging.level: error
 
 
 
-## filebeat收集ubuntu18主机日志
+## 7. filebeat收集ubuntu18主机日志
 
 ```bash
 filebeat.config.modules.path: ${path.config}/modules.d/*.yml
@@ -5714,7 +5826,7 @@ logging.level: error
 
 
 
-## filebeat收集lvs日志
+## 8. filebeat收集lvs日志
 
 ```bash
 [root@lvs02 ~]# cat /usr/local/filebeat/filebeat.yml
@@ -5775,7 +5887,7 @@ logging.level: error
 
 
 
-## filebeat收集mysql日志
+## 9. filebeat收集mysql日志
 
 ```bash
 filebeat.inputs:
@@ -5860,7 +5972,7 @@ logging.level: error
 
 
 
-## 交换机配置日志收集命令
+## 10. 交换机配置日志收集命令
 
 ```
 # 华为日志配置
@@ -5970,7 +6082,7 @@ logging 192.168.13.198
 
 
 
-## filebeat for windows安装
+## 11. filebeat for windows安装
 [filebeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.17.23-windows-x86_64.zip)
 
 ```powershell
@@ -6122,7 +6234,7 @@ PS C:\Program Files\filebeat> stop-service filebeat
 
 
 
-## winlogbeat安装
+## 12. winlogbeat安装
 
 [winlogbeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-7.17.23-windows-x86_64.zip)
 
