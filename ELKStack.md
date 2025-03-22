@@ -5934,13 +5934,12 @@ output.elasticsearch:
    - index: "hosts-linux_%{+yyyy.MM.dd}"
      when.contains:
        tags: "linux"
-   - index: "mysql"
+   - index: "mysql_%{+yyyy.MM.dd}"
      when.contains:
        tags: "mysql"
   template:
     name: "ops_template"
     pattern: "*"
-logging.level: error
 ```
 
 **mysql日志轮替**
