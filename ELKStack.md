@@ -5354,7 +5354,7 @@ PUT /_template/indx_default_template
 
 ## 3. rsyslog
 
-```
+```bash
 [root@opsaudit /var/log]# grep -Ev '#|^$' /etc/rsyslog-remote.conf
 $ModLoad imudp
 $UDPServerRun 514
@@ -5420,16 +5420,15 @@ udp6       0      0 :::514                  :::*                                
 
 
 # 立即执行轮替
-logrotate -vf /etc/logrotate.d/homsom_audit.conf
+[root@opsaudit /var/log/rsyslog-remote]# logrotate -vf /etc/logrotate.d/homsom_audit.conf
 [root@opsaudit /var/log/rsyslog-remote]# ls backup_logs/
 172.168.2.31.log-20240815.gz  172.168.2.35.log-20240815.gz   192.168.102.15.log-20240815.gz  192.168.10.253.log-20240815.gz  192.168.16.251.log-20240815.gz
 172.168.2.32.log-20240815.gz  172.168.2.36.log-20240815.gz   192.168.102.1.log-20240815.gz   192.168.102.7.log-20240815.gz   192.168.16.252.log-20240815.gz
 172.168.2.33.log-20240815.gz  172.168.2.37.log-20240815.gz   192.168.102.2.log-20240815.gz   192.168.103.10.log-20240815.gz  192.168.16.253.log-20240815.gz
 172.168.2.34.log-20240815.gz  192.168.101.1.log-20240815.gz  192.168.10.252.log-20240815.gz  192.168.103.9.log-20240815.gz   192.168.16.254.log-20240815.gz
 
-# 或者编辑/var/lib/logrotate/logrotate.status文件，将需要轮替的文件时间往前调小，如果将要轮替的文件记录删除将不起作用。
-# 执行命令即可
-/etc/cron.daily/logrotate
+# 如果将要轮替的文件记录删除将不起作用，编辑/var/lib/logrotate/logrotate.status文件，将需要轮替的文件时间往前调小，然后执行命令即可。
+[root@opsaudit /var/log/rsyslog-remote]# /etc/cron.daily/logrotate
 ```
 
 
@@ -5761,7 +5760,7 @@ logging.level: error
 # 配置索引模板
 PUT _template/ops_template
 {
-  "index_patterns": ["hosts-*","sangfor-*","huawei-*","switch*","filebeat-*","winlogbeat-*","nginx*"],
+  "index_patterns": ["hosts-*","sangfor-*","huawei-*","switch*","filebeat-*","winlogbeat-*","nginx*","mysql*","lvs"],
   "settings": {
     "number_of_shards": 1,  
     "number_of_replicas": 0 
