@@ -733,3 +733,11 @@ To github.com:jacknotes/job.git
 
 
 ```
+
+
+```bash
+# 递归地从 Git 暂存区（索引）中移除文件或目录，但保留本地文件（不删除物理文件）
+# -r 参数表示递归处理目录及其子目录；--cached 表示仅操作暂存区，不影响工作区
+# 配合 .gitignore 生效，若文件已被 Git 跟踪，仅更新 .gitignore 无效，需先用此命令解除跟踪
+$ git rm -r --cached 
+```

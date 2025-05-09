@@ -5252,6 +5252,33 @@ thread_pool.search.max_queue_size: 3000
 
 
 
+### 问题7：kibana搜索时报`Discover: Bad Gateway`
+
+因为访问kibana是通过nginx反向代理的，所以访问大量请求访问时会报`Discover: Bad Gateway`
+
+排错步骤：
+
+* 通过直接访问Kibana服务，不通过nginx跳转，则是无问题的
+* 通过nginx跳转访问则是有问题的，说明问明在于nginx，最终定位问题在于nginx有个配置未配置（ `proxy_read_timeout 300s;`），nginx配置如下
+
+```nginx
+                location / {
+                        root   html;
+                        index  index.html index.htm;
+                        proxy_redirect off;
+                        proxy_set_header Host $host;
+                        proxy_set_header X-Real-IP $remote_addr;
+                        proxy_set_header X-Real-Port $remote_port;
+                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                        proxy_pass http://192.168.13.196;
+                        proxy_read_timeout 300s;
+                }
+```
+
+
+
+
+
 
 
 
