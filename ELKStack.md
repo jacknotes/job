@@ -3332,6 +3332,139 @@ kubectl -n ns-elk apply -f filebeat.yaml
 
 
 
+### 5.5 logstash二进制安装
+
+[logstash download](https://artifacts.elastic.co/downloads/logstash/logstash-7.9.3.tar.gz)
+
+[logstash-exporter download](https://github.com/kuskoman/logstash-exporter/releases/download/v1.9.0/logstash-exporter-linux)
+
+```bash
+[root@logstash02 /usr/local/src]# java -version
+java version "1.8.0_201"
+Java(TM) SE Runtime Environment (build 1.8.0_201-b09)
+Java HotSpot(TM) 64-Bit Server VM (build 25.201-b09, mixed mode)
+[root@logstash02 /usr/local/src]# ls logstash-7.9.3.tar.gz
+logstash-7.9.3.tar.gz
+[root@logstash02 /usr/local/src]# tar xf logstash-7.9.3.tar.gz -C /usr/local/
+[root@logstash02 /usr/local/src]# ln -sv /usr/local/logstash-7.9.3 /usr/local/logstash
+[root@logstash02 /usr/local/src]# chmod -R 755 /usr/local/logstash-7.9.3/
+[root@logstash02 /usr/local/src]# cat /etc/profile.d/logstash.sh
+#!/bin/sh
+export LOGSTASH_HOME=/usr/local/logstash
+export PATH=$PATH:$LOGSTASH_HOME/bin
+[root@logstash02 /usr/local/src]# source /etc/profile.d/logstash.sh
+[root@logstash02 /usr/local/src]# cat /usr/local/logstash/config/logstash.conf
+# Sample Logstash configuration for creating a simple
+# Beats -> Logstash -> Elasticsearch pipeline.
+
+input {
+  beats {
+    port => 5044
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://localhost:9200"]
+    index => "%{[@metadata][beat]}-%{[@metadata][version]}-%{+YYYY.MM.dd}"
+    #user => "elastic"
+    #password => "changeme"
+  }
+}
+[root@logstash02 /usr/local/src]# systemctl cat logstash.service
+# /usr/lib/systemd/system/logstash.service
+[Unit]
+Description=logstash service
+After=network.target
+
+[Service]
+Type=simple
+Environment="JAVA_HOME=/usr/local/jdk"
+Environment="LS_SETTINGS_DIR=/usr/local/logstash/config"
+Environment="LS_JAVA_OPTS=-Xmx768m -Xms768m"
+ExecStart=/usr/local/logstash/bin/logstash --path.settings $LS_SETTINGS_DIR -f $LS_SETTINGS_DIR/logstash.conf
+Restart=on-failure
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+
+[root@logstash02 /usr/local/logstash/config]# mv /usr/local/logstash/config/pipelines.yml{,.bak}
+[root@logstash02 /usr/local/src]# systemctl daemon-reload && systemctl enable logstash.service && systemctl restart logstash.service
+```
+
+
+
+**监控logstash.service服务状态**
+
+```bash
+[root@logstash02 /usr/local/logstash/config]# systemctl cat node_exporter.service
+# /usr/lib/systemd/system/node_exporter.service
+[Unit]
+Description=https://prometheus.io
+After=network-online.target
+
+[Service]
+User=prometheus
+Group=prometheus
+Type=simple
+ExecStart=/usr/local/node_exporter/node_exporter --collector.systemd --collector.systemd.unit-include=(ssh.+|auditd|logstash|zookeeper|kafka|elasticsearch).service  --collector.systemd.enable-task-metrics --collector.systemd.enable-
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+[root@logstash02 /usr/local/logstash/config]# systemctl daemon-reload
+[root@logstash02 /usr/local/logstash/config]# systemctl restart node_exporter.service
+[root@logstash02 ~]# curl -s http://localhost:9100/metrics | grep systemd
+node_scrape_collector_duration_seconds{collector="systemd"} 0.01355226
+node_scrape_collector_success{collector="systemd"} 1
+# HELP node_systemd_system_running Whether the system is operational (see 'systemctl is-system-running')
+# TYPE node_systemd_system_running gauge
+node_systemd_system_running 1
+# HELP node_systemd_unit_start_time_seconds Start time of the unit since unix epoch in seconds.
+# TYPE node_systemd_unit_start_time_seconds gauge
+node_systemd_unit_start_time_seconds{name="auditd.service"} 1.745483885407274e+09
+node_systemd_unit_start_time_seconds{name="logstash.service"} 1.748424206254039e+09
+node_systemd_unit_start_time_seconds{name="sshd.service"} 1.745483986818371e+09
+# HELP node_systemd_unit_state Systemd unit
+# TYPE node_systemd_unit_state gauge
+node_systemd_unit_state{name="auditd.service",state="activating",type="forking"} 0
+node_systemd_unit_state{name="auditd.service",state="active",type="forking"} 1
+node_systemd_unit_state{name="auditd.service",state="deactivating",type="forking"} 0
+node_systemd_unit_state{name="auditd.service",state="failed",type="forking"} 0
+node_systemd_unit_state{name="auditd.service",state="inactive",type="forking"} 0
+node_systemd_unit_state{name="logstash.service",state="activating",type="simple"} 0
+node_systemd_unit_state{name="logstash.service",state="active",type="simple"} 1
+node_systemd_unit_state{name="logstash.service",state="deactivating",type="simple"} 0
+node_systemd_unit_state{name="logstash.service",state="failed",type="simple"} 0
+node_systemd_unit_state{name="logstash.service",state="inactive",type="simple"} 0
+node_systemd_unit_state{name="sshd.service",state="activating",type="forking"} 0
+node_systemd_unit_state{name="sshd.service",state="active",type="forking"} 1
+node_systemd_unit_state{name="sshd.service",state="deactivating",type="forking"} 0
+node_systemd_unit_state{name="sshd.service",state="failed",type="forking"} 0
+node_systemd_unit_state{name="sshd.service",state="inactive",type="forking"} 0
+# HELP node_systemd_units Summary of systemd unit states
+# TYPE node_systemd_units gauge
+node_systemd_units{state="activating"} 0
+node_systemd_units{state="active"} 132
+node_systemd_units{state="deactivating"} 0
+node_systemd_units{state="failed"} 0
+node_systemd_units{state="inactive"} 95
+# HELP node_systemd_version Detected systemd version
+# TYPE node_systemd_version gauge
+node_systemd_version{version="219"} 219
+```
+
+> 参数`--collector.systemd.unit-include=(ssh.+|auditd|logstash|zookeeper|kafka|elasticsearch).service`
+>
+> * 在systemd服务配置文件中`不加引号`，否则不生效。
+> * 在命令行中使用时需要`加引号`，否则会报错。
+
+
+
+
+
 
 
 ## 6. 手动部署ES 7.6.2，带x-pack认证
