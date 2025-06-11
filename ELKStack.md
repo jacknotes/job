@@ -2721,6 +2721,9 @@ harborrepo.hs.com/ops/elk:640
 [Author](https://github.com/spujadas/elk-docker)
 
 ```bash
+[root@TestHotelES /data/hlogelk/elasticsearch]# cat kibana.yml
+server.host: "0.0.0.0"
+
 [root@TestHotelES /data/hlogelk/elasticsearch]# cat elasticsearch.yml
 node.name: hlogelk
 cluster.name: hlogelk
@@ -2749,7 +2752,7 @@ docker run -d --restart=always --name=hlogelk  \
 -v /data/hlogelk/elasticsearch/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
 -v /data/hlogelk/es_data:/var/lib/elasticsearch \
 -v /data/hlogelk/es_snapshot:/var/backups \
-192.168.13.235:8000/ops/elk:651
+harborrepo.hs.com/ops/elk:651
 ```
 
 
