@@ -334,9 +334,16 @@ other::r-x
 
 
 
+
+
+
+
+
+
 # Samba
 
 OS: ubuntu18
+
 
 
 ## 1.安装
@@ -347,6 +354,7 @@ root@repo:/data/syncthing# samba -V
 Version 4.7.6-Ubuntu
 
 ```
+
 
 
 ## 2. 配置Samba共享及权限
@@ -581,6 +589,7 @@ LISTEN   0         50                     [::]:139                 [::]:*       
 LISTEN   0         50                     [::]:445                 [::]:*        users:(("smbd",pid=965,fd=32))      
 
 ```
+
 
 
 ## 4. 查看smbd状态
