@@ -2753,6 +2753,29 @@ docker run -d --restart=always --name=hlogelk  \
 -v /data/hlogelk/es_data:/var/lib/elasticsearch \
 -v /data/hlogelk/es_snapshot:/var/backups \
 harborrepo.hs.com/ops/elk:651
+
+
+
+
+# RockyLinux9运行
+docker run -d --restart=always --name=hlog  \
+--ulimit nofile=1000000:1000000 \
+--ulimit nproc=1000000:1000000 \
+-p 9200:9200 \
+-p 9300:9300 \
+-p 5601:5601 \
+-e ES_CONNECT_RETRY=180 \
+-e KIBANA_CONNECT_RETRY=180 \
+-e LOGSTASH_START=0 \
+-e ELASTICSEARCH_START=1 \
+-e KIBANA_START=1 \
+-e ES_HEAP_SIZE="2g" \
+-e TZ="Asia/Shanghai" \
+-v /data/hlog/kibana/kibana.yml:/opt/kibana/config/kibana.yml \
+-v /data/hlog/elasticsearch/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
+-v /data/hlog/es_data:/var/lib/elasticsearch \
+-v /data/hlog/es_snapshot:/var/backups \
+harborrepo.hs.com/ops/elk:651
 ```
 
 
