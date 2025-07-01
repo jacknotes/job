@@ -6555,3 +6555,47 @@ PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 
 
 
+
+
+## 13. k8s日志收集
+
+```bash
+[root@prometheus filebeat]# cat filebeat.yaml 
+filebeat.config.modules.path: ${path.config}/modules.d/*.yml
+filebeat.inputs:
+  - type: journald
+    id: everything
+    ignore_older: 72h
+    tags: ["linux"]
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/containers/*
+    symlinks: true
+    tags: ["k8s"]
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - drop_fields:
+      fields: ["ecs","input","agent"]
+      ignore_missing: false
+output.elasticsearch:
+  hosts: ["172.168.2.199:9200"]
+  username: "user"
+  password: "pass"
+  indices:
+    - index: "k8s_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "k8s"
+    - index: "hosts-linux_%{+yyyy.MM.dd}"
+      when.contains:
+        tags: "linux"
+  template:
+    name: "ops_template"
+    pattern: "*"
+logging.level: error
+
+```
+
+
+

@@ -666,3 +666,61 @@ $ sudo docker inspect alipro_hotelryinglv_test
         },
 ```
 
+
+
+# docker容器迁移
+
+```bash
+# 源机器操作
+# 需要迁移的镜像
+[root@hw-blog ~]# docker ps -a | grep 5230 
+0b6ef6a85cb6   neosmemo/memos:stable             "./memos"                5 months ago    Up 2 days             0.0.0.0:5230->5230/tcp, :::5230->5230/tcp       memos
+# 查看数据挂载
+[root@hw-blog ~]# docker inspect memos | grep -A 10 -i mounts
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/root/memos",
+                "Destination": "/var/opt/memos",
+                "Mode": "",
+                "RW": true,
+                "Propagation": "rprivate"
+            }
+        ],
+        "Config": {
+# 查看运行容器的命令
+[root@hw-blog tmp]# pip3 install runlike
+[root@hw-blog tmp]# runlike memos | tee /tmp/docker_run_memos.sh
+docker run --name=memos --hostname=0b6ef6a85cb6 --mac-address=02:42:ac:11:00:04 --volume /root/memos:/var/opt/memos --network=bridge --workdir=/usr/local/memos -p 5230:5230 --runtime=runc --detach=true neosmemo/memos:stable
+
+
+
+# 目标机器操作
+# 保存容器镜像为 tar 包
+[root@hw-blog ~]# docker commit memos memos-image
+sha256:e7fca771728de08275e264d6186864847dc036a4a633ac141157450d750e7f8f
+[root@hw-blog ~]# docker save -o /tmp/memos-image.tar memos-image
+# 复制数据到目标服务器
+[root@hw-blog tmp]# tar -czvf data_and_image.tar.gz /root/memos /tmp/docker_run_memos.sh memos-image.tar 
+[root@hw-blog tmp]# scp -P 8022 data_and_image.tar.gz root@hw3.test.cn:/tmp/
+
+# 目标机器还原
+## 还原数据
+[root@hw3 /tmp]# tar xf data_and_image.tar.gz 
+[root@hw3 /tmp]# mv -f root/memos/* /root/memos/
+## 还原镜像
+[root@hw3 /tmp]# docker load -i memos-image.tar 
+# 运行容器
+[root@hw3 /tmp]# cat /tmp/docker_run_memos.sh 
+docker run --name=memos --hostname=0b6ef6a85cb6 --mac-address=02:42:ac:11:00:04 --volume /root/memos:/var/opt/memos --network=bridge --workdir=/usr/local/memos -p 5230:5230 --runtime=runc --detach=true neosmemo/memos:stable
+[root@hw3 /tmp]# docker run --name=memos --volume /root/memos:/var/opt/memos  -p 5230:5230 --detach=true memos-image:latest
+ae58591f58d30be0593a445da5947c8ad6cb9ca9b15100e404c2a52ff94c6a47
+
+# 查看容器运行状态及检查服务
+[root@hw3 /tmp]# docker ps -a 
+CONTAINER ID   IMAGE                COMMAND     CREATED          STATUS          PORTS                                       NAMES
+ae58591f58d3   memos-image:latest   "./memos"   16 seconds ago   Up 15 seconds   0.0.0.0:5230->5230/tcp, :::5230->5230/tcp   memos
+
+
+
+```
