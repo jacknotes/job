@@ -1694,7 +1694,7 @@ output.elasticsearch:
     - index: "httpd_%{+yyyy.MM.dd}"
       when.contains:
         tags: "httpd"
-  username: "jack"
+  username: "user"
   password: "123456"
 -------------------------------------------------
 
@@ -2061,7 +2061,7 @@ PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "jack",
+    "taken_by": "user",
     "taken_because": "20200405 backup index 'test-2020.04.15' "
   }
 }
@@ -2126,8 +2126,8 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
   "ignore_unavailable": false,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "jack",
-    "taken_because": "20200405 backup index 'system-jack-2020.04.15' "
+    "taken_by": "user",
+    "taken_because": "20200405 backup index 'system-user-2020.04.15' "
   }
 }
 ---
@@ -2138,7 +2138,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
     "version_id" : 7010199,
     "version" : "7.1.1",
     "indices" : [
-      "system-jack-2020.04.15"
+      "system-user-2020.04.15"
     ],
     "include_global_state" : false,
     "state" : "SUCCESS",
@@ -2162,7 +2162,7 @@ PUT /_snapshot/my_backup/snapshot_3
   "ignore_unavailable": true,    #其设置为true将会导致快照创建期间不存在的索引被忽略
   "include_global_state": false,
   "metadata": {
-    "taken_by": "jack",
+    "taken_by": "user",
     "taken_because": "20200405 backup index all "
   }
 }
@@ -2223,7 +2223,7 @@ POST /_snapshot/my_backup/snapshot_3/_restore?wait_for_completion=true
   "snapshot" : {
     "snapshot" : "snapshot_3",
     "indices" : [
-      "restored_system_-jack-2020.04.15"
+      "restored_system_-user-2020.04.15"
     ],
     "shards" : {
       "total" : 1,
@@ -2265,7 +2265,7 @@ POST /_reindex
     "index": "newdon_2020.11.26"
   },
   "dest": {
-    "index": "newdon_jack"
+    "index": "newdon_user"
   }
 }
 
@@ -2546,7 +2546,7 @@ filebeat.inputs:
     - index: "linux_host_%{+yyyy.MM.dd}"
       when.contains:
         tags: "linux_host"
-      #username: "jack"
+      #username: "user"
       #password: "123456"
 ---
 注：可用nginx进行htpasswd对es进行认证，反向代理es。在本机上配置iptables防火墙，只允许指定主机无密码访问es9200（一般指nginx反向代理），其它主机全部拒绝。如果是本机nginx代理本机docker，则无须进行只允许本机访问这条策略，因为防火墙只对外部有用，对同一个宿主机上的内部通信则不能控制。但是其它主机全部拒绝依旧配置。
@@ -3901,7 +3901,7 @@ PUT /_snapshot/my_backup/snapshot_1?wait_for_completion=true
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "jack",
+    "taken_by": "user",
     "taken_because": "snapshot on 202104271018' "
   }
 }
@@ -3911,7 +3911,7 @@ PUT /_snapshot/my_backup/snapshot_2?wait_for_completion=true
   "ignore_unavailable": true,
   "include_global_state": false,
   "metadata": {
-    "taken_by": "jack",
+    "taken_by": "user",
     "taken_because": "snapshot on 202104271019' "
   }
 }
@@ -4590,7 +4590,7 @@ PUT /huazhuhotelpricebookinfo_db_pro-backup/_mapping
     }
 }
 #创建索引并配置mapping
-[jack@ubuntu:~]$ cat test01
+[user@ubuntu:~]$ cat test01
 {
 	"settings": {
 		"number_of_shards": 6,
@@ -4626,10 +4626,10 @@ PUT /huazhuhotelpricebookinfo_db_pro-backup/_mapping
     }
 	}
 }
-[jack@ubuntu:~]$ curl -XPUT "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup" -H 'Content-Type: application/json' -d @test01 
+[user@ubuntu:~]$ curl -XPUT "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup" -H 'Content-Type: application/json' -d @test01 
 {"acknowledged":true,"shards_acknowledged":true,"index":"huazhuhotelpricebookinfo_db_pro-backup"}
 #获取mapping
-[jack@ubuntu:~]$ curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" | jq .
+[user@ubuntu:~]$ curl -s -X GET "http://192.168.13.50:9401/huazhuhotelpricebookinfo_db_pro-backup/_mapping" | jq .
 {
   "huazhuhotelpricebookinfo_db_pro-backup": {
     "mappings": {
