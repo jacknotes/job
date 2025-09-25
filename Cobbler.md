@@ -1,5 +1,9 @@
 # Cobbler
 
+[cobbler官方文档](https://cobbler.github.io/)
+
+[cobbler文档](https://zread.ai/cobbler/cobbler/12-settings-reference)
+
 
 
 
@@ -794,6 +798,8 @@ $yum_config_stanza
 $1$homsom$oWsW1QF8cEyRzolABzsLC/
 
 # 添加PXE菜单设置时需要的密码
+# cobbler3.x版本文件是/etc/cobbler/boot_loader_conf/pxe_menu.template
+# 这里版本是cobbler2.x
 [root@prometheus rules]# cat /etc/cobbler/pxe/pxedefault.template 
 DEFAULT menu
 PROMPT 0
@@ -813,7 +819,7 @@ $pxe_menu_items
 MENU end
 
 
-# 添加安装系统时的密码，当启用PXE密码时则此选项不生效。
+# 添加安装系统时的密码，当启用PXE密码时则此选项不生效。这个实测有效
 [root@prometheus kickstarts]# cat /var/lib/tftpboot/pxelinux.cfg/default 
 [root@prometheus rules]# cat /etc/cobbler/pxe/pxeprofile.template 
 LABEL $profile_name
