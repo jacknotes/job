@@ -724,3 +724,47 @@ ae58591f58d3   memos-image:latest   "./memos"   16 seconds ago   Up 15 seconds  
 
 
 ```
+
+
+
+**查看镜像版本**
+```bash
+# 列出镜像版本
+[root@prometheus02 ~]# yum install -y skopeo
+[root@prometheus02 ~]# skopeo -v
+skopeo version 1.18.1
+[root@prometheus02 ~]# skopeo list-tags docker://ghcr.io/justwatchcom/sql_exporter 
+{
+    "Repository": "ghcr.io/justwatchcom/sql_exporter",
+    "Tags": [
+        "master",
+        "v0.4.7",
+        "latest",
+        "philippdefner-update-to-dockerx",
+        "v0.4.9",
+        "v0.5.0",
+        "v.0.5.1",
+        "v.0.5.2",
+        "v0.5.1",
+        "v0.5.2",
+        "v0.5.4",
+        "v0.5.5",
+        "v0.5.6",
+        "v0.5.7",
+        "v0.5.8",
+        "v0.5.9",
+        "v0.6",
+        "v0.7",
+        "v0.8",
+        "v0.9"
+    ]
+}
+# 只要是https镜像就可以查看版本号
+[root@prometheus02 ~]# skopeo list-tags docker://harbor.homsom.com/public/gitlab/gitlab-ce 
+{
+    "Repository": "harbor.homsom.com/public/gitlab/gitlab-ce",
+    "Tags": [
+        "18.2.6-ce.0"
+    ]
+}
+```
