@@ -5582,12 +5582,12 @@ thread_pool.search.max_queue_size: 3000
 
 
 
-# 网络设备日志收集
+# 运维日志收集
 
 
 ## 1. elasticsearch-7.17.23
 
-```
+```bash
 [root@opsaudit /usr/local]# cat elasticsearch/config/elasticsearch.yml 
 cluster.name: rsyslog
 node.name: log01
@@ -5618,14 +5618,13 @@ LimitNOFILE=1000000
 
 [Install]
 WantedBy=multi-user.target
-
 ```
 
 
 
 ## 2. kibana-7.17.23
 
-```
+```bash
 [root@opsaudit /usr/local]# cat kibana/config/kibana.yml 
 server.port: 5601
 server.host: "0.0.0.0"
@@ -5670,14 +5669,12 @@ PUT /_template/indx_default_template
     "number_of_replicas": "0"
   }
 }
-
-
 ```
 
 
 
 
-## 3. rsyslog
+## 3. rsyslog部署
 
 ```bash
 [root@opsaudit /var/log]# grep -Ev '#|^$' /etc/rsyslog-remote.conf
@@ -5758,10 +5755,12 @@ udp6       0      0 :::514                  :::*                                
 
 
 
-## 4. filebeat-7.17.23
+## 4. filebeat收集rsyslog日志
+
+**centos6 /etc/init/filebeat**
 
 ```bash
-#### centos6
+#### centos6 /etc/init/filebeat
 #!/bin/bash
 #
 # filebeat    Start/Stop the filebeat service
@@ -5843,8 +5842,11 @@ esac
 exit 0
 ```
 
+
+
+**filebeat收集rsyslog的网络设备日志**
+
 ```bash
-# syslog收集网络设备日志
 [root@opsaudit /usr/local/filebeat]# grep -Ev '#|^$' filebeat.yml
 filebeat.inputs:
 - type: log
@@ -5993,12 +5995,11 @@ WantedBy=multi-user.target
 [root@opsaudit /usr/local/filebeat]# systemctl daemon-reload 
 [root@opsaudit /usr/local/filebeat]# systemctl restart filebeat
 [root@opsaudit /usr/local/filebeat]# systemctl status filebeat
-
 ```
 
 
 
-## 5. 收集nginx日志
+## 5. filebeat收集nginx日志
 
 ```
 filebeat.inputs:
@@ -6699,7 +6700,6 @@ PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 ## 13. k8s日志收集
 
 ```bash
-[root@prometheus filebeat]# cat filebeat.yaml 
 filebeat.config.modules.path: ${path.config}/modules.d/*.yml
 filebeat.inputs:
   - type: journald
@@ -6709,21 +6709,22 @@ filebeat.inputs:
   - type: log
     enabled: true
     paths:
-      - /var/log/containers/*
+      - /var/log/containers/pro-java*
+      - /var/log/containers/pro-dotnet*
     symlinks: true
     tags: ["k8s"]
 processors:
   - add_host_metadata: ~
   - add_cloud_metadata: ~
   - drop_fields:
-      fields: ["ecs","input","agent"]
+      fields: ["ecs","input","agent","host.mac","process","syslog","host.id","systemd","log.offset","log.syslog.facility.code","log.syslog.priority","journald.process.executable","journald.process.capabilities","journald.host.boot_id","journald.custom.stream_id","event","host.architecture","host.containerized","host.os.name","host.name","journald.custom.selinux_context","journald.process.name","user"]
       ignore_missing: false
 output.elasticsearch:
   hosts: ["172.168.2.199:9200"]
-  username: "user"
+  username: "filebeat"
   password: "pass"
   indices:
-    - index: "k8s_%{+yyyy.MM.dd}"
+    - index: "k8s_%{+yyyy.MM.dd.HH}"
       when.contains:
         tags: "k8s"
     - index: "hosts-linux_%{+yyyy.MM.dd}"
@@ -6732,9 +6733,89 @@ output.elasticsearch:
   template:
     name: "ops_template"
     pattern: "*"
+  bulk_max_size: 2048
+  flush_interval: 5s
 logging.level: error
-
 ```
 
 
+
+
+
+## 14. 索引模板优化
+
+**查看节点性能日志**
+
+```
+http://172.168.2.199:9200/_tasks?detailed=true&human
+http://172.168.2.199:9200/_nodes/hot_threads
+http://172.168.2.199:9200/_nodes/stats
+```
+
+
+
+**索引模板**
+
+```bash
+PUT _template/ops_template
+{
+  "index_patterns": [
+    "hosts-*",
+    "sangfor-*",
+    "huawei-*",
+    "switch*",
+    "filebeat-*",
+    "winlogbeat-*",
+    "nginx*",
+    "mysql*",
+    "lvs",
+    "k8s*"
+  ],
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "index.translog.durability": "async",
+    "index.translog.sync_interval": "5s",
+    "index.refresh_interval": "30s"
+  }
+}
+```
+
+1. `index_patterns`
+
+- 匹配以这些前缀命名的索引（如 `nginx-access-2025.11.10`、`filebeat-8.9.0-2025.11.10` 等）。
+- 非常适合集中管理运维/日志类索引。
+
+2. `number_of_shards: 1`
+
+- **优点**：节省资源，避免小索引分片过多（“分片爆炸”问题）。
+- **适用**：单节点集群、测试环境、或写入量不大的日志场景。
+- **注意**：一旦创建无法更改；如果未来数据量激增（> 几十 GB），可能成为性能瓶颈。
+
+3. `number_of_replicas: 0`
+
+- **优点**：节省存储和 CPU/内存开销（无副本复制）。
+- **风险**：**无高可用性**！节点宕机将导致数据不可用甚至丢失。
+- **建议**：仅用于**可重建的日志数据**（如 Filebeat 日志），或单节点开发/测试环境。
+
+4. `index.translog.durability: "async"`
+
+- 默认是 `request`（每次请求都 fsync 到磁盘）。
+- 设为 `async` 后，依赖 `translog.sync_interval` 定期刷盘。
+- **效果**：提升写入吞吐，但**极端情况下（如断电）可能丢失最多 5 秒数据**。
+- **适用**：对数据可靠性要求不高、追求写入性能的日志场景。
+
+5. `index.translog.sync_interval: "5s"`
+
+- 配合 `async` 使用，每 5 秒强制将 translog 刷到磁盘。
+- 可调范围：100ms ~ 数秒。5s 是较宽松的值，进一步提升写入性能。
+
+6. `index.refresh_interval: "30s"`
+
+- 默认是 `1s`（近实时搜索）。
+- 改为 30s 后：
+  - **写入性能显著提升**（减少 segment 创建和合并开销）；
+  - **搜索延迟增加**（新数据最多 30 秒后才能被搜到）。
+
+>  **非常适合后台日志分析**，用户通常不要求“秒级可见”。
 

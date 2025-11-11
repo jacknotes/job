@@ -1,11 +1,11 @@
-# Samba·şÎñÆ÷°²×°
+# SambaæœåŠ¡å™¨å®‰è£…
 
 
 
-1. ×¼±¸×öRAIDµÄ´ÅÅÌ£¬¶Ô´ÅÅÌ½øĞĞLVM·ÖÇø£¨ÔÚLinuxÏµÍ³ÖĞ£¬ÀıÈçCentOS,ÓÃfdisk /dev/sdaÃüÁî½øÈë£¬ĞÂ½¨Ò»¸ö·ÖÇø²¢Ö¸¶¨´óĞ¡£¬È»ºó°´t°Ñ·ÖÇø¸ñÊ½ÓÉ83¸Ä³ÉLVMµÄ¸ñÊ½8e£¬×îºó°´w±£´æ²¢ÍË³ö£¬ÍË³öºóÓÃÃüÁîpartprobe»òÖØÆôÊ¹·ÖÇøÁ¢¼´ÉúĞ§£©
-2. ·ÖÇø½¨Á¢ºÃºó£¬¾ÍÒªĞÂ½¨pvÁË£¬ÓÃpvcreate /dev/sda7;ÓÉÓÚÒÑ¾­ÓĞLVM·ÖÇøÁË£¬ËùÒÔ¾Í²»ÓÃvgcreateĞÂ½¨ÁË£¬ÒªÓÃvgextendÌí¼Óµ½ÏÖÓĞµÄvgÖĞ£¬Ê¹ÓÃpvdisplay,vgdisplay²é¿´pv,vg×´Ì¬£¬ÒªÏë×îºó³É¹¦Ìí¼Óµ½LVM,ÔòÒª×îºóÌí¼Óµ½lv,Ê¹ÓÃlvresize -L +12.58G /dev/myvg/mylvÀ´Ìí¼Ó12.58GÈİÁ¿µ½ÏÖÓĞµÄmylvÖĞ£¬×îºóÊ¹ÓÃresize2fsÀ´À©Õ¹ÎÄ¼şÏµÍ³
-3. °²×°samba,samba-client,samba-commonÈı¸öÈí¼ş£¬²¢ÉèÖÃ¿ªÆô×Ô¶¯Æô¶¯smb,nmb·şÎñ£¬chkconfig --level 35 smb on; chkconfig --level 35 nmb on;È»ºóÊ¹ÓÃ½Å±¾ÉèÖÃlinuxÕÊ»§ºÍsmbÕÊ»§£¬Ê×ÏÈ´´½¨ĞèÒªµÄÈº×é£¬Ê¹ÓÃsys-groups.sh¿É´´½¨£¬sys-groupsdel.sh¿ÉÉ¾³ıÈº×é£¬ÉèÖÃlinuxÕÊ»§Ê±²»Òª´´½¨¼ÒÄ¿Â¼£¬´´½¨ÃÜÂëÊ±Ê¹ÓÃmkpassword´´½¨Ëæ»úÃÜÂë£¬ÕâÀïÊ¹ÓÃ½Å±¾sys-users.sh¿ÉÒÔ×Ô¶¯´´½¨£¬Òà¿ÉÊ¹ÓÃsys-usersdel.sh×Ô¶¯É¾³ılinuxÕÊ»§ºÍsmbÕÊ»§£¬Ê×ÏÈµÃ´´½¨ÓÃ»§ĞÅÏ¢ÔÚsys-usersinfoÀïÃæ¡£
-4. ±à¼­smbÅäÖÃÎÄ¼ş/etc/samba/smb.cnfÎÄ¼ş£¬ÉèÖÃÈçÏÂ£¬²¢ÒÀÀıĞÅÏ¢²¿ÉèÖÃ¸÷²¿ÃÅÎÄ¼ş¼Ğ£¬ÉèÖÃÌØ¶¨µÄ²¿ÃÅÈº×é¿É¶ÁĞ´£¬ĞÂ½¨ÎÄµµÄ¬ÈÏÈ¨ÏŞ£¬ĞÂ½¨Ä¿Â¼Ä¬ÈÏÈ¨ÏŞ¡£
+1. å‡†å¤‡åšRAIDçš„ç£ç›˜ï¼Œå¯¹ç£ç›˜è¿›è¡ŒLVMåˆ†åŒºï¼ˆåœ¨Linuxç³»ç»Ÿä¸­ï¼Œä¾‹å¦‚CentOS,ç”¨fdisk /dev/sdaå‘½ä»¤è¿›å…¥ï¼Œæ–°å»ºä¸€ä¸ªåˆ†åŒºå¹¶æŒ‡å®šå¤§å°ï¼Œç„¶åæŒ‰tæŠŠåˆ†åŒºæ ¼å¼ç”±83æ”¹æˆLVMçš„æ ¼å¼8eï¼Œæœ€åæŒ‰wä¿å­˜å¹¶é€€å‡ºï¼Œé€€å‡ºåç”¨å‘½ä»¤partprobeæˆ–é‡å¯ä½¿åˆ†åŒºç«‹å³ç”Ÿæ•ˆï¼‰
+2. åˆ†åŒºå»ºç«‹å¥½åï¼Œå°±è¦æ–°å»ºpväº†ï¼Œç”¨pvcreate /dev/sda7;ç”±äºå·²ç»æœ‰LVMåˆ†åŒºäº†ï¼Œæ‰€ä»¥å°±ä¸ç”¨vgcreateæ–°å»ºäº†ï¼Œè¦ç”¨vgextendæ·»åŠ åˆ°ç°æœ‰çš„vgä¸­ï¼Œä½¿ç”¨pvdisplay,vgdisplayæŸ¥çœ‹pv,vgçŠ¶æ€ï¼Œè¦æƒ³æœ€åæˆåŠŸæ·»åŠ åˆ°LVM,åˆ™è¦æœ€åæ·»åŠ åˆ°lv,ä½¿ç”¨lvresize -L +12.58G /dev/myvg/mylvæ¥æ·»åŠ 12.58Gå®¹é‡åˆ°ç°æœ‰çš„mylvä¸­ï¼Œæœ€åä½¿ç”¨resize2fsæ¥æ‰©å±•æ–‡ä»¶ç³»ç»Ÿ
+3. å®‰è£…samba,samba-client,samba-commonä¸‰ä¸ªè½¯ä»¶ï¼Œå¹¶è®¾ç½®å¼€å¯è‡ªåŠ¨å¯åŠ¨smb,nmbæœåŠ¡ï¼Œchkconfig --level 35 smb on; chkconfig --level 35 nmb on;ç„¶åä½¿ç”¨è„šæœ¬è®¾ç½®linuxå¸æˆ·å’Œsmbå¸æˆ·ï¼Œé¦–å…ˆåˆ›å»ºéœ€è¦çš„ç¾¤ç»„ï¼Œä½¿ç”¨sys-groups.shå¯åˆ›å»ºï¼Œsys-groupsdel.shå¯åˆ é™¤ç¾¤ç»„ï¼Œè®¾ç½®linuxå¸æˆ·æ—¶ä¸è¦åˆ›å»ºå®¶ç›®å½•ï¼Œåˆ›å»ºå¯†ç æ—¶ä½¿ç”¨mkpasswordåˆ›å»ºéšæœºå¯†ç ï¼Œè¿™é‡Œä½¿ç”¨è„šæœ¬sys-users.shå¯ä»¥è‡ªåŠ¨åˆ›å»ºï¼Œäº¦å¯ä½¿ç”¨sys-usersdel.shè‡ªåŠ¨åˆ é™¤linuxå¸æˆ·å’Œsmbå¸æˆ·ï¼Œé¦–å…ˆå¾—åˆ›å»ºç”¨æˆ·ä¿¡æ¯åœ¨sys-usersinfoé‡Œé¢ã€‚
+4. ç¼–è¾‘smbé…ç½®æ–‡ä»¶/etc/samba/smb.cnfæ–‡ä»¶ï¼Œè®¾ç½®å¦‚ä¸‹ï¼Œå¹¶ä¾ä¾‹ä¿¡æ¯éƒ¨è®¾ç½®å„éƒ¨é—¨æ–‡ä»¶å¤¹ï¼Œè®¾ç½®ç‰¹å®šçš„éƒ¨é—¨ç¾¤ç»„å¯è¯»å†™ï¼Œæ–°å»ºæ–‡æ¡£é»˜è®¤æƒé™ï¼Œæ–°å»ºç›®å½•é»˜è®¤æƒé™ã€‚
 ```bash
    [global] 
    	workgroup = jackligroup
@@ -24,26 +24,26 @@
     security = user
         passdb backend = tdbsam
     load printers = no
-   [ĞÅÏ¢²¿]			#¹²ÏíÃû³Æ
-        comment = Information	#ÃèÊöĞÅÏ¢
-        path = /Share/Info	#ÕæÊµÄ¿Â¼Â·¾¶
+   [ä¿¡æ¯éƒ¨]			#å…±äº«åç§°
+        comment = Information	#æè¿°ä¿¡æ¯
+        path = /Share/Info	#çœŸå®ç›®å½•è·¯å¾„
         browseable = yes
         writable = yes
-        valid users = @Info	#ÓĞĞ§Èº×é
+        valid users = @Info	#æœ‰æ•ˆç¾¤ç»„
         create mode = 0664
         directory mode = 0775
 ```
-5. Ê¹ÓÃtestparmÀ´²âÊÔÅäÖÃÎÄ¼şÊÇ·ñÕıÈ·£¬¿ÉÒÔÅÅ½â£¬Òà¿ÉÊ¹ÓÃtestparm -vÀ´ÏêÏ¸²âÊÔ£¬»¹Òª¶Ô¹²ÏíµÄÄ¿Â¼½øĞĞsetfaclÀ´ÉèÖÃ¸úsmb.cnf
-ÎÄ¼şÖĞÒ»ÑùµÄÈ¨ÏŞ£¬ÕâÑù²ÅÄÜÊ¹smb·şÎñÈ¨ÏŞÉúĞ§£¬·ñÔò»áÔì³ÉÎŞ·¨Ğ´Èë£¬Íêºó³ÉÓÃ»§¿ÉÒÔÊ¹ÓÃ\\IPµÄ·½Ê½À´·ÃÎÊsmb·şÎñÆ÷ÁË£¬
-¶øsmb·şÎñÆ÷¿ÉÒÔÊ¹ÓÃsmbstatusÀ´¹Û²ì¿Í»§¶ËÇé¿ö¡£
+5. ä½¿ç”¨testparmæ¥æµ‹è¯•é…ç½®æ–‡ä»¶æ˜¯å¦æ­£ç¡®ï¼Œå¯ä»¥æ’è§£ï¼Œäº¦å¯ä½¿ç”¨testparm -væ¥è¯¦ç»†æµ‹è¯•ï¼Œè¿˜è¦å¯¹å…±äº«çš„ç›®å½•è¿›è¡Œsetfaclæ¥è®¾ç½®è·Ÿsmb.cnf
+æ–‡ä»¶ä¸­ä¸€æ ·çš„æƒé™ï¼Œè¿™æ ·æ‰èƒ½ä½¿smbæœåŠ¡æƒé™ç”Ÿæ•ˆï¼Œå¦åˆ™ä¼šé€ æˆæ— æ³•å†™å…¥ï¼Œå®Œåæˆç”¨æˆ·å¯ä»¥ä½¿ç”¨\\IPçš„æ–¹å¼æ¥è®¿é—®smbæœåŠ¡å™¨äº†ï¼Œ
+è€ŒsmbæœåŠ¡å™¨å¯ä»¥ä½¿ç”¨smbstatusæ¥è§‚å¯Ÿå®¢æˆ·ç«¯æƒ…å†µã€‚
 
-> ×¢Òâ£ºÊ¹ÓÃsmbpasswordÀ´¸ü¸ÄsmbÕÊ»§ÃÜÂë£¬Ê¹ÓÃpdbedit -a user --Ôö¼Ó¡¢pdbedit -x user --É¾³ı
-
-
+> æ³¨æ„ï¼šä½¿ç”¨smbpasswordæ¥æ›´æ”¹smbå¸æˆ·å¯†ç ï¼Œä½¿ç”¨pdbedit -a user --å¢åŠ ã€pdbedit -x user --åˆ é™¤
 
 
 
-# ËæÊÖ¼Ç
+
+
+# éšæ‰‹è®°
 
 **202104211550**
 
@@ -346,7 +346,7 @@ OS: ubuntu18
 
 
 
-## 1.°²×°
+## 1.å®‰è£…
 
 ```bash
 root@repo:/data/syncthing# apt install samba samba-common cifs-utils smbclient -y
@@ -357,16 +357,16 @@ Version 4.7.6-Ubuntu
 
 
 
-## 2. ÅäÖÃSamba¹²Ïí¼°È¨ÏŞ
+## 2. é…ç½®Sambaå…±äº«åŠæƒé™
 
 ```bash
-# ´´½¨sambaÄ¿Â¼
+# åˆ›å»ºsambaç›®å½•
 root@repo:/data/syncthing# mkdir -p /data/syncthing/samba/iisbackup
 
-# ´´½¨ÓÃ»§×é
+# åˆ›å»ºç”¨æˆ·ç»„
 root@repo:/data/syncthing/samba/iisbackup# groupadd -r ops
 
-# ´´½¨sambaµÇÂ¼ÓÃ»§
+# åˆ›å»ºsambaç™»å½•ç”¨æˆ·
 root@repo:/data/syncthing# useradd smb_ops -s /usr/sbin/nologin
 root@repo:/data/syncthing/samba/iisbackup# usermod -aG ops smb_ops 
 root@repo:/data/syncthing/samba/iisbackup# id smb_ops
@@ -377,7 +377,7 @@ Retype new SMB password:
 Added user smb_ops.
 
 
-# °²×°setfacl¡¢getfactl¹¤¾ß
+# å®‰è£…setfaclã€getfactlå·¥å…·
 root@repo:/data/syncthing/samba# apt install acl -y
 root@repo:/data/syncthing/samba# getfacl iisbackup/
 # file: iisbackup/
@@ -387,20 +387,20 @@ user::rwx
 group::r-x
 other::r-x
 
-# setfaclÊ¹ÓÃ²ÎÊı
--b Çå¿ÕÀ©Õ¹·ÃÎÊ¿ØÖÆÁĞ±í²ßÂÔ  
--P ÕÒµ½·ûºÅÁ´½Ó¶ÔÓ¦µÄÎÄ¼ş
--m ¸ü¸ÄÎÄ¼ş·ÃÎÊ¿ØÖÆÁĞ±í²ßÂÔ
--d Ó¦ÓÃµ½Ä¬ÈÏ·ÃÎÊ¿ØÖÆÁĞ±í
--k ÒÆ³ıÄ¬ÈÏ·ÃÎÊ¿ØÖÆÁĞ±í
--R µİ¹é´¦ÀíËùÓĞ×ÓÎÄ¼ş
--x ¸ù¾İÎÄ¼şÖĞµÄ·ÃÎÊ¿ØÖÆÁĞ±íÒÆ³ıÖ¸¶¨²ßÂÔ
--L ¸ú×Ù·ûºÅÁ´½ÓÎÄ¼ş
---vesion ÏÔÊ¾°æ±¾ĞÅÏ¢
---help ÏÔÊ¾°ïÖúĞÅÏ¢
+# setfaclä½¿ç”¨å‚æ•°
+-b æ¸…ç©ºæ‰©å±•è®¿é—®æ§åˆ¶åˆ—è¡¨ç­–ç•¥  
+-P æ‰¾åˆ°ç¬¦å·é“¾æ¥å¯¹åº”çš„æ–‡ä»¶
+-m æ›´æ”¹æ–‡ä»¶è®¿é—®æ§åˆ¶åˆ—è¡¨ç­–ç•¥
+-d åº”ç”¨åˆ°é»˜è®¤è®¿é—®æ§åˆ¶åˆ—è¡¨
+-k ç§»é™¤é»˜è®¤è®¿é—®æ§åˆ¶åˆ—è¡¨
+-R é€’å½’å¤„ç†æ‰€æœ‰å­æ–‡ä»¶
+-x æ ¹æ®æ–‡ä»¶ä¸­çš„è®¿é—®æ§åˆ¶åˆ—è¡¨ç§»é™¤æŒ‡å®šç­–ç•¥
+-L è·Ÿè¸ªç¬¦å·é“¾æ¥æ–‡ä»¶
+--vesion æ˜¾ç¤ºç‰ˆæœ¬ä¿¡æ¯
+--help æ˜¾ç¤ºå¸®åŠ©ä¿¡æ¯
 
 
-# ÅäÖÃÄ¿Â¼È¨ÏŞ£¬ÅäÖÃÓÃ»§×éops¾ßÓĞrwxÈ¨ÏŞ
+# é…ç½®ç›®å½•æƒé™ï¼Œé…ç½®ç”¨æˆ·ç»„opså…·æœ‰rwxæƒé™
 root@repo:/data/syncthing/samba# setfacl -d -m g:ops:rwx iisbackup/
 root@repo:/data/syncthing/samba# getfacl iisbackup/
 # file: iisbackup/
@@ -415,7 +415,7 @@ default:group:ops:rwx
 default:mask::rwx
 default:other::r-x
 
-# ´´½¨Ö»¶ÁÓÃ»§smb_dev
+# åˆ›å»ºåªè¯»ç”¨æˆ·smb_dev
 root@repo:/data/syncthing/samba# useradd smb_dev -s /usr/sbin/nologin
 root@repo:/data/syncthing/samba# groupadd -r dev
 root@repo:/data/syncthing/samba# usermod -aG dev smb_dev
@@ -425,7 +425,7 @@ root@repo:/data/syncthing/samba# smbpasswd -a smb_dev
 New SMB password:			# 666666
 Retype new SMB password:
 Added user smb_dev.
-# ¸ü¸ÄÓÃ»§ÃÜÂë
+# æ›´æ”¹ç”¨æˆ·å¯†ç 
 root@repo:/data/syncthing/samba# smbpasswd smb_dev
 New SMB password:			# 888888
 Retype new SMB password:
@@ -444,13 +444,13 @@ default:group:ops:rwx
 default:mask::rwx
 default:other::r-x
 
-# ´ËÊ±¶ÁĞ´ÓÃ»§smb_ops£¬Ö»¶ÁÓÃ»§smb_dev²»ÄÜÔÚ¹²ÏíaliyunÖĞ´´½¨ÈÎºÎÎÄ¼ş
+# æ­¤æ—¶è¯»å†™ç”¨æˆ·smb_opsï¼Œåªè¯»ç”¨æˆ·smb_devä¸èƒ½åœ¨å…±äº«aliyunä¸­åˆ›å»ºä»»ä½•æ–‡ä»¶
 root@repo:/data/syncthing/samba# ll
 total 0
 drwxr-xr-x  3 root root      23 May 13 09:52 ./
 drwxrwxr-x  4 root syncthing 43 May 13 09:52 ../
-drwxr-xr-x+ 4 root root      28 May 13 15:33 iisbackup/		#´ËÄ¿Â¼±¾ÉíÊÇ755£¬¶ø´ËÊ±smb_opsºÍsmb_devÊÇÊôÓÚotherµÄ
-# ÅäÖÃ´ËÄ¿Â¼±¾ÉíÈ¨ÏŞ£¬Ê¹ops×éÓĞ¶ÁĞ´Ö´ĞĞÈ¨ÏŞ£¬´ËÏîÅäÖÃºÃºó¹²Ïí²Å¿ÉÕı³£Ê¹ÓÃ£¬·Ç³£ÖØÒª
+drwxr-xr-x+ 4 root root      28 May 13 15:33 iisbackup/		#æ­¤ç›®å½•æœ¬èº«æ˜¯755ï¼Œè€Œæ­¤æ—¶smb_opså’Œsmb_devæ˜¯å±äºotherçš„
+# é…ç½®æ­¤ç›®å½•æœ¬èº«æƒé™ï¼Œä½¿opsç»„æœ‰è¯»å†™æ‰§è¡Œæƒé™ï¼Œæ­¤é¡¹é…ç½®å¥½åå…±äº«æ‰å¯æ­£å¸¸ä½¿ç”¨ï¼Œéå¸¸é‡è¦
 root@repo:/data/syncthing/samba# setfacl -m g:ops:rwx iisbackup/
 root@repo:/data/syncthing/samba# getfacl iisbackup/
 # file: iisbackup/
@@ -470,7 +470,7 @@ default:other::r-x
 
 
 
-# É¾³ıÌØ¶¨ÓÃÈ¨ÏŞ
+# åˆ é™¤ç‰¹å®šç”¨æƒé™
 root@repo:/data/syncthing/samba# getfacl iisbackup/
 # file: iisbackup/
 # owner: root
@@ -510,13 +510,13 @@ default:other::r-x
 
 
 
-## 3. ÅäÖÃSamba·şÎñ
+## 3. é…ç½®SambaæœåŠ¡
 
 ```bash
 root@repo:/etc/samba# vim /etc/samba/smb.conf 
 
 root@repo:/data/syncthing/samba# grep -Ev '#|^$|^;' /etc/samba/smb.conf
-# map to guest = bad user²»ÄÜÅäÖÃ£¬windowsÎŞ·¨´ò¿ª¹²Ïí
+# map to guest = bad userä¸èƒ½é…ç½®ï¼Œwindowsæ— æ³•æ‰“å¼€å…±äº«
 [global]
    workgroup = WORKGROUP
    server string = %h server (Samba, Ubuntu)
@@ -558,7 +558,7 @@ root@repo:/data/syncthing/samba# grep -Ev '#|^$|^;' /etc/samba/smb.conf
    directory mode = 0775  
 
    
-# Æô¶¯·şÎñ
+# å¯åŠ¨æœåŠ¡
 root@repo:/etc/samba# systemctl start smbd
 root@repo:/etc/samba# systemctl status smbd
 * smbd.service - Samba SMB Daemon
@@ -592,10 +592,10 @@ LISTEN   0         50                     [::]:445                 [::]:*       
 
 
 
-## 4. ²é¿´smbd×´Ì¬
+## 4. æŸ¥çœ‹smbdçŠ¶æ€
 
 ```bash
-# ¼ì²âsmbdÅäÖÃÎÄ¼ş
+# æ£€æµ‹smbdé…ç½®æ–‡ä»¶
 root@repo:/etc/samba# testparm 
 Load smb config files from /etc/samba/smb.conf
 WARNING: The "syslog" option is deprecated
@@ -647,7 +647,7 @@ Press enter to see a dump of your service definitions
 	read only = No
 	valid users = @ops
 
-# ²é¿´smb×´Ì¬
+# æŸ¥çœ‹smbçŠ¶æ€
 root@repo:/data/syncthing/samba# smbstatus --share
 
 Samba version 4.7.6-Ubuntu
@@ -682,25 +682,24 @@ aliyun       2083    192.168.13.236 Mon May 13 03:56:12 PM 2024 CST  -          
 IPC$         1444    172.168.2.219 Mon May 13 03:07:43 PM 2024 CST  -            -           
 aliyun       1853    192.168.13.182 Mon May 13 03:32:27 PM 2024 CST  -            -      
 
-# kill¹²Ïí»á»°1853
+# killå…±äº«ä¼šè¯1853
 ```
 
 
 
 
 
-## 5.ÎÊÌâ»ã×Ü
+## 5.é—®é¢˜æ±‡æ€»
 
-### 5.1·şÎñÆ÷ÆôÓÃÃÜÂë²ßÂÔºó´øÀ´µÄÎÊÌâ
+### 5.1æœåŠ¡å™¨å¯ç”¨å¯†ç ç­–ç•¥åå¸¦æ¥çš„é—®é¢˜
 
-* ÌáÊ¾ÃÜÂë¹ıÆÚ£¬ĞèÒª¸ü¸ÄÃÜÂë
-* Ê¹ÓÃsmbpassword¸ü¸ÄÃÜÂëºó£¬ÌáÊ¾ÓÃ»§Ê×´ÎµÇÂ¼ĞèÒª¸ü¸ÄÃÜÂë
-* ÔÙ´ÎÊ¹ÓÃpasswdÀ´¸ü¸ÄÃÜÂë
+* æç¤ºå¯†ç è¿‡æœŸï¼Œéœ€è¦æ›´æ”¹å¯†ç ï¼Œä½¿ç”¨chpasswdæ¥æ›´æ”¹å¯†ç 
+* ä½¿ç”¨smbpasswordæ›´æ”¹å¯†ç ï¼ˆå¯é€‰ï¼‰
 
 ```bash
-# µÚÒ»²½¸ü¸ÄÓÃ»§ÃÜÂë
+# ç¬¬ä¸€æ­¥æ›´æ”¹ç”¨æˆ·å¯†ç 
 root@repo:~# echo smb_ops:ops@Linux111 | chpasswd
-# µÚ¶ş²½¸ü¸ÄsmbÃÜÂëºó£¬¼´¿ÉÕı³£·ÃÎÊ
+# ç¬¬äºŒæ­¥æ›´æ”¹smbå¯†ç åï¼Œå³å¯æ­£å¸¸è®¿é—®
 root@repo:~# smbpasswd smb_ops
 New SMB password:
 Retype new SMB password:
