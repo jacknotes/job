@@ -5488,6 +5488,7 @@ curl -X GET http://192.168.13.99:9200/_cluster/pending_tasks?pretty=true
 ### 问题5-breakers tripped大于0
 问题：Elasticsearch breakers tripped大于0，断路器触发了
 curl -X GET http://192.168.13.234:9200/_nodes/stats/breaker?pretty
+
 ```bash
         "parent" : {
           "limit_size_in_bytes" : 2958183628,
@@ -5512,7 +5513,7 @@ System.Exception: ServerError: 429Type: search_phase_execution_exception Reason:
 ```
 
 解决：
-```
+```bash
 # 查看集群健康状态
 GET /_cluster/health?pretty
 
@@ -5572,6 +5573,138 @@ thread_pool.search.max_queue_size: 3000
                         proxy_read_timeout 300s;
                 }
 ```
+
+
+
+
+
+### 问题8：hlog突然有大量读，排查步骤
+
+**一、查看当前正在执行的任务（活跃请求）**
+
+使用 `_tasks` API 查看当前所有节点上正在运行的任务：
+
+```http
+GET /_tasks?detailed=true&actions=*search*,*bulk*,*index*
+```
+
+- 可重点关注 `search` 类型任务。
+- 如果有大量慢查询，会在这里看到。
+
+> 注意：Elasticsearch 6 的 `_tasks` API 支持有限，但基本的搜索/写入任务是可以看到的。
+
+
+
+**二、查看热点索引和分片的读取情况**
+
+1. 查看各索引的存储和读写统计
+
+```http
+GET /_stats?filter_path=indices.*.total.store,indices.*.total.search,indices.*.total.get
+```
+
+或者
+
+```http
+1GET /_nodes/stats/indices?pretty
+```
+
+这会返回每个节点上每个索引的：
+
+- `search.query_total` / `search.query_time_in_millis`
+- `get.total` / `get.time_in_millis`
+- `segments.count` 和 `segments.memory`
+
+如果某个索引的 `search.query_total` 突增，可能是它在大量读数据。
+
+**2. 查看分片级别读取（shard stats）**s
+
+```http
+GET /_cat/shards?v&h=index,shard,prirep,node,store,search.query_count
+```
+
+> 注意：`_cat/shards` 在 ES6 中不直接提供 query_count，但可通过 `_nodes/stats` 获取分片级指标。
+
+------
+
+
+
+**三、检查是否在做段合并（merge）**
+
+段合并会大量读写磁盘。查看合并状态：
+
+```http
+GET /_cat/nodes?v&h=name,disk.used_percent,heap.percent,cpu
+```
+
+再结合：
+
+```http
+GET /_nodes/stats?filter_path=**.merges
+```
+
+返回示例字段：
+
+- `merges.current`：当前正在进行的合并数
+- `merges.total_size_in_bytes`：合并的数据量
+- `merges.total_time_in_millis`：合并耗时
+
+如果 `merges.current > 0` 且 `total_size` 很大，说明正在合并大段，会导致高 IO。
+
+
+
+**四、检查是否有强制刷新或大量 refresh**
+
+频繁的 refresh 会导致新段生成，进而触发读取（如 doc values 加载）：
+
+```http
+GET /_nodes/stats?filter_path=**.refresh
+```
+
+关注 `refresh.total` 和 `refresh.total_time_in_millis` 是否突增。
+
+
+
+**五、使用系统级工具辅助分析（需登录服务器）**
+
+如果你能访问 ES 所在服务器，可以使用以下命令：
+
+**1. 查看哪个进程在大量读磁盘**
+
+```bash
+iotop -o
+```
+
+找到 `java` 进程（即 ES）是否在大量 read。
+
+**2. 查看具体文件读取（高级）**
+
+```bash
+lsof +D /path/to/elasticsearch/data
+```
+
+或使用 `fatrace`（Linux）监控文件访问：
+
+```bash
+sudo fatrace | grep elasticsearch
+```
+
+------
+
+
+
+**六、开启慢查询日志（事后分析）**
+
+在 `elasticsearch.yml` 中配置：
+
+```yaml
+index.search.slowlog.threshold.query.warn: 5s
+index.search.slowlog.threshold.query.info: 2s
+```
+
+然后查看日志文件（默认在 `logs/集群名_index_search_slowlog.log`），可发现哪些查询导致大量读。
+
+> 注意：此方法是**事后追溯**，对实时排查帮助有限，但对长期优化很有用。
 
 
 
