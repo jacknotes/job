@@ -523,7 +523,7 @@ update harbor_user set password='c999cbeae74a90282c8fa7c48894fb00', salt='nmgxu7
 1. 安装两个harbor服务器，内网使用部署http模式即可。
 2. 访问harbor WEB进行配置，在"同步管理"中添加进行配置，同步模式为"Push-based"，触发模式为"事件驱动"，并允许覆盖
 3. 配置HA，可使用LVS或者HAproxy，例如HAproxy，配置一个服务组，并且基于源IP进行调度，并且对服务进行健康检查，如下：
-listen haproxy
+	listen haproxy
 	mode tcp
 	bind 0.0.0.0:8888
 	balance source
@@ -562,17 +562,17 @@ docker network create -d macvlan \
 #注：parent选项=宿主机网络接口名称，当不使用子接口时，则表示跟宿主机属于当一个vlan,如果使用子接口则表示属于特定vlan,例如eth0.10则表示属于vlan10
 #创建macvlan网络，属于vlan10
 docker network create \
-  --driver macvlan \
-  --subnet=10.10.0.0/24 \
-  --gateway=10.10.0.253 \
-  -o parent=eth0.10 macvlan10
+    --driver macvlan \
+    --subnet=10.10.0.0/24 \
+    --gateway=10.10.0.253 \
+    -o parent=eth0.10 macvlan10
 #创建macvlan网络，属于vlan20
 docker network create \
-  --driver macvlan \
-  --subnet=192.10.0.0/24 \
-  --gateway=192.10.0.253 \
-  -o parent=eth0.20 \
-  -o macvlan_mode=bridge macvlan20
+    --driver macvlan \
+    --subnet=192.10.0.0/24 \
+    --gateway=192.10.0.253 \
+    -o parent=eth0.20 \
+    -o macvlan_mode=bridge macvlan20
 #注：macvlan_mode默认是macvlan_mode=bridge，要创建属于特定vlan模式，则宿主机连接的交换机端口必须是trunk模式或者Hybrid模式，不能是access模式
 
 
@@ -640,7 +640,9 @@ WARNING: No swap limit support
 ```
 
 
+
 ## docker健康检查
+
 ```bash
 $ sudo docker run -d --name alipro_hotelryinglv_test -e JAVA_ENVIRONMENT=pro -p 12941:80 -m 2147483648 --health-cmd "curl -sf http://localhost/doc.html || exit 1" --health-start-period=2m --health-interval=30s --health-timeout=1s --health-retries=3 --restart always registry.cn-shanghai.aliyuncs.com/aliyun/hotelryinglv.service.hs.com:v20250117144201 
 
@@ -768,3 +770,14 @@ skopeo version 1.18.1
     ]
 }
 ```
+
+
+
+# docker运行wiki
+
+```bash
+[root@harbor /tmp]# docker run -d -p 3000:3000 --name faq-homsom --restart unless-stopped -e "DB_TYPE=postgres" -e "DB_HOST=192.168.13.235" -e "DB_PORT=5432" -e "DB_USER=faq" -e "DB_PASS=wiki01HS" -e "DB_NAME=faq" requarks/wiki:2
+```
+
+
+
