@@ -259,7 +259,7 @@ subnet 192.168.1.0 netmask 255.255.255.0 {
 mount -t iso9660 /dev/cdrom /mnt/
 13. cobbler import --path=/mount/ --name=CentOS-7-x86_64 --arch=x86_64
 14. cobbler profile  # 可查看镜像的命令
-Cobbler profile report  # 查看详细的参数信息
+cobbler profile report  # 查看详细的参数信息
 # 导入kickstart文件，作用是指定CentOS7系统镜像的kickstart文件配置，事先要导入到这个默认位置
 cobbler profile edit --name=CentOS-7-x86_64 --kickstart=/var/lib/cobbler/kickstarts/CentOS-7-x86_64.cfg   
 cobbler profile edit --name=CentOS-7-x86_64 --kopts='net.ifnames=0 biosdevname=0'  # 使自动化安装Centos7更改linux内核参数，使网卡名称为eth0、eth1
