@@ -1,4 +1,4 @@
-﻿# RabbitMQ
+# RabbitMQ
 
 
 
@@ -449,6 +449,45 @@ Starting node rabbit@node2 ...
  completed with 3 plugins.
 ```
 
+> #### **`ha-sync-mode: automatic` 的影响**
+>
+> - `automatic`：新加入的镜像节点会**自动同步主副本上的所有消息**（包括历史消息）。
+> - 缺点：如果队列很大，同步过程会消耗大量内存和网络带宽，可能导致节点 OOM 或阻塞。
+> - 替代方案：`manual`（默认），需手动执行 `rabbitmqctl sync_queue` 触发同步。
+>
+> > 📌 生产环境建议：
+> >
+> > - 小队列可用 `automatic`
+> > - 大队列建议用 `manual` + 监控同步状态
+>
+> #### **Mirrored Queues 已被弃用（重要！）**
+>
+> - RabbitMQ 自 **3.8.0 起推荐使用 Quorum Queues** 替代 Mirrored Queues。
+> - Mirrored Queues 在未来版本中可能被移除。
+> - Quorum Queues 提供更强一致性、更可靠故障恢复。
+>
+> ✅ 如果你使用的是 RabbitMQ ≥ 3.8，**建议改用 Quorum Queue**：
+>
+> ```bash
+> # 声明 quorum queue（通过客户端或 rabbitmqadmin）
+> # 或设置策略（仅适用于新声明的队列）：
+> rabbitmqctl set_policy -p my_vhost quorum-policy ".*" '{"queue-type":"quorum"}' --apply-to queues
+> 
+> 
+> # 最终推荐命令（Classic Mirrored Queue 场景）
+> rabbitmqctl set_policy -p my_vhost ha-all ".*" '{"ha-mode":"all","ha-sync-mode":"manual"}' --priority 10 --apply-to queues
+> # 对关键队列手动同步
+> rabbitmqctl sync_queue -p my_vhost your_queue_name
+> # 验证策略是否生效
+> rabbitmqctl list_policies -p my_vhost
+> # 查看队列副本
+> rabbitmqctl list_queues -p my_vhost name slave_pids synchronised_slave_pids
+> ```
+
+
+
+
+
 
 
 
@@ -748,8 +787,6 @@ rabbitmqctl list_users
 ```
 
 
-
-> 
 
 
 
