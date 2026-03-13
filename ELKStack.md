@@ -5225,6 +5225,60 @@ GET /clog/_search
 }
 ```
 
+**其它查询示例**
+
+```bash
+$ curl -s -XGET "http://blog.hs.com:9200/homsom_log/_search?size=10&pretty" -H 'Content-Type: application/json' -d'
+{
+  "_source": ["OrderId","Content"], 
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "Appid.keyword": "1339"
+          }
+        },
+        {
+          "match_phrase": {
+            "Content": "PNR由"
+          }
+        }
+      ]
+    }
+  }
+}' | grep '"OrderId"' | tr -d -c '0-9\n'  > /tmp/blog.hs.com.txt
+$ cat /tmp/blog.hs.com.txt | sort | uniq | wc -l
+1748
+
+
+
+# 排除 Content 含PNR由【】的 OrderId，只显示其余的 OrderId
+$ curl -s -XGET "http://blog.hs.com:9200/homsom_log/_search?size=10000" -H 'Content-Type: application/json' -d'
+{
+  "_source": [
+    "OrderId",
+    "Content"
+  ],
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "term": {
+            "Appid.keyword": "1339"
+          }
+        },
+        {
+          "match_phrase": {
+            "Content": "PNR由"
+          }
+        }
+      ]
+    }
+  }
+}' | jq -r '.hits.hits[] | select((.["_source"].Content | contains("PNR由【】") | not)) | .["_source"].OrderId ' > /tmp/blog.hs.com.txt
+```
+
 
 
 
@@ -6952,3 +7006,197 @@ PUT _template/ops_template
 
 >  **非常适合后台日志分析**，用户通常不要求“秒级可见”。
 
+
+
+
+
+
+
+## 15. 冻结索引
+
+**当索引 GREEN 时 freeze 一次，下次重启还需要重新 freeze 吗？**
+不需要！freeze 是持久化状态。这个状态会被写入集群元数据并持久化到磁盘。下次 Elasticsearch 重启时，冻结的索引不会被加载到内存，启动速度极快，状态自动保持为 frozen（只读）。
+
+
+
+**freeze和close的区别：**
+
+* freeze后索引只能读不能写，相比正常索引首次读会慢点
+* close后索引不能读不能写
+
+> k8s_2026.02.27.10索引大小为6G，经过多次查看还是没有刷新出来
+
+
+
+```bash
+# 执行freeze，冻结索引
+[root@prometheus ~]# curl -s -X POST -u "elastic:pass" "http://172.168.2.199:9200/k8s_2026.02.27.10/_freeze" 
+{"acknowledged":true,"shards_acknowledged":true}
+# 查看索引状态
+[root@prometheus ~]# curl -s -u "elastic:pass" "http://172.168.2.199:9200/k8s_2026.02.27.10?pretty"
+{
+  "k8s_2026.02.27.10" : {
+    "aliases" : { },
+    "mappings" : {
+      "properties" : {
+        "@timestamp" : {
+          "type" : "date"
+        },
+        "host" : {
+          "properties" : {
+            "hostname" : {
+              "type" : "text",
+              "fields" : {
+                "keyword" : {
+                  "type" : "keyword",
+                  "ignore_above" : 256
+                }
+              }
+            },
+            "ip" : {
+              "type" : "text",
+              "fields" : {
+                "keyword" : {
+                  "type" : "keyword",
+                  "ignore_above" : 256
+                }
+              }
+            },
+            "os" : {
+              "properties" : {
+                "codename" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                },
+                "family" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                },
+                "kernel" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                },
+                "platform" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                },
+                "type" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                },
+                "version" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "log" : {
+          "properties" : {
+            "file" : {
+              "properties" : {
+                "path" : {
+                  "type" : "text",
+                  "fields" : {
+                    "keyword" : {
+                      "type" : "keyword",
+                      "ignore_above" : 256
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "message" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        },
+        "tags" : {
+          "type" : "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword",
+              "ignore_above" : 256
+            }
+          }
+        }
+      }
+    },
+    "settings" : {
+      "index" : {
+        "routing" : {
+          "allocation" : {
+            "include" : {
+              "_tier_preference" : "data_content"
+            }
+          }
+        },
+        "search" : {
+          "throttled" : "true"
+        },
+        "refresh_interval" : "30s",
+        "number_of_shards" : "1",
+        "translog" : {
+          "sync_interval" : "5s",
+          "durability" : "async"
+        },
+        "blocks" : {
+          "write" : "true"
+        },
+        "provided_name" : "k8s_2026.02.27.10",
+        "frozen" : "true",
+        "creation_date" : "1772157613430",
+        "number_of_replicas" : "0",
+        "uuid" : "HDw7ka6FREi8tU5vgJ7DDg",
+        "version" : {
+          "created" : "7172399"
+        }
+      }
+    }
+  }
+}
+
+# 取消冻结索引
+curl -s -X POST -u "elastic:pass" "http://172.168.2.199:9200/k8s_2026.02.27.10/_unfreeze"
+```
+
+![](./images/elk/01.png)
+
+![](./images/elk/02.png)
