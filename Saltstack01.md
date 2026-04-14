@@ -543,7 +543,7 @@ linux-node1:
 [root@SaltstackServer ~]# salt -S 192.168.1.235 test.ping
 SaltstackServer.com:
     True
-^[[A[root@SaltstackServer ~]# salt -S 192.168.1.0/24 test.ping
+[root@SaltstackServer ~]# salt -S 192.168.1.0/24 test.ping
 SaltstackServer.com:
     True
 linux-node1:
@@ -610,7 +610,7 @@ linux-node1:
     -rw-r--r-- 1 root root 158 Oct 21 14:11 /tmp/hi
 #cp模块 --可从master分发文件到指定minion(默认开启),也可从指定minion上传文件到master(默认不开启)，
 cp.get_fle  --复制文件到minion,只能是文件
-cp.get_fle makedirs=True   --同上，加了makedirs=True后，如果目录不存在则会主同建立目录
+cp.get_fle makedirs=True   --同上，加了makedirs=True后，如果目录不存在则会建立目录
 cp.get_dir  --复制目录
 cp.push  --默认不开启
 --复制文件

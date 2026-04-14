@@ -1,0 +1,1079 @@
+# salt概要
+
+
+## salt minio和master交互
+[root@salt /etc/salt]# tree  pki/
+pki/
+├── master
+│   ├── master.pem
+│   ├── master.pub
+│   ├── minions
+│   │   ├── 192.168.13.163
+│   │   ├── BuildImage.jenkins.hs.com
+│   │   ├── centos7-node01
+│   │   ├── centos7-node02
+│   │   ├── centos7-node03
+│   │   ├── centos7-node04
+│   │   ├── devmysql.xen08.rack06.idc01.hs.com
+│   │   ├── docker03.esxi01.rack05.idc01.hs.com
+│   │   ├── es01.esxi01.rack05.idc01.hs.com
+│   │   ├── harbor.hs.com
+│   │   ├── NFSServer.xen09.rack06.idc01.hs.com
+│   │   ├── prometheus
+│   │   ├── redis-master
+│   │   ├── redis-slave1
+│   │   ├── redis-slave2
+│   │   ├── reverse02.xen08.rack06.idc01.hs.com
+│   │   ├── salt
+│   │   ├── TestHotelES.xen03.rack06.idc01.hs.com
+│   │   ├── testnginx.hs.com
+│   │   ├── test.ops.hs.com
+│   │   └── ubuntu-node01
+│   ├── minions_autosign
+│   ├── minions_denied
+│   ├── minions_pre
+│   │   └── docker04.xen11.rack06.idc01.hs.com
+│   ├── minions_rejected
+│   └── ssh
+│       ├── salt-ssh.rsa
+│       └── salt-ssh.rsa.pub
+└── minion
+    ├── minion_master.pub
+    ├── minion.pem
+    └── minion.pub
+
+8 directories, 29 files
+[root@salt /etc/salt]# salt-key -L
+Accepted Keys:
+192.168.13.163
+BuildImage.jenkins.hs.com
+NFSServer.xen09.rack06.idc01.hs.com
+TestHotelES.xen03.rack06.idc01.hs.com
+centos7-node01
+centos7-node02
+centos7-node03
+centos7-node04
+devmysql.xen08.rack06.idc01.hs.com
+docker03.esxi01.rack05.idc01.hs.com
+es01.esxi01.rack05.idc01.hs.com
+harbor.hs.com
+prometheus
+redis-master
+redis-slave1
+redis-slave2
+reverse02.xen08.rack06.idc01.hs.com
+salt
+test.ops.hs.com
+testnginx.hs.com
+ubuntu-node01
+Denied Keys:
+Unaccepted Keys:
+docker04.xen11.rack06.idc01.hs.com
+Rejected Keys:
+
+
+
+# 命令
+salt-key -a
+salt-key -A
+salt-key -l test.ops.hs.com
+salt-key -L
+salt-key -r test.ops.hs.com
+salt-key -R
+salt '*' cmd.run 'w'
+salt '*' test.ping
+
+
+# minion id
+[root@salt /etc/salt]# cat minion_id
+salt
+
+
+# master配置管理
+#模块分为两种：1. 执行模块（远程执行用） 2. 状态模块（配置管理用）
+#base名称不能更改，salt规定，dev和prod可以更改
+[root@salt /srv/salt/base]# grep -Ev '#|^$' /etc/salt/master
+file_recv: True
+file_recv_max_size: 100
+file_roots:
+  base:
+    - /srv/salt/base
+  dev:
+    - /srv/salt/dev
+  prod:
+    - /srv/salt/prod
+pillar_roots:
+  base:
+    - /srv/pillar/base
+  dev:
+    - /srv/pillar/dev
+  prod:
+    - /srv/pillar/prod
+
+# 配置管理工作流程
+[root@salt /srv/salt/base]# grep -Ev '#|^$' top.sls
+base:
+  'devmysql.xen08.rack06.idc01.hs.com':
+    - init.init
+prod:
+  'devmysql.xen08.rack06.idc01.hs.com':
+    - lnmp.mysql.install
+
+[root@salt /srv/salt/base]# cat init/init.sls
+include:
+  - init.dns
+  - init.hosts
+  - init.history
+  - init.sysctl
+  - init.firewall
+  - init.ssh
+  - init.postfix
+  - init.tty-timeout
+  - init.ntp-client
+  - init.selinux
+  - init.tty-style
+  - init.repo-clear
+  - init.repo
+  - init.basePkg
+  - init.python-pip
+  - init.axel
+
+[root@salt /srv/salt/base]# cat ../prod/lnmp/mysql/install.sls
+include:
+  - lnmp.user.mysql
+  - lnmp.pkg.make
+
+remove-mariadb:
+   pkg.removed:
+    - pkgs:
+      - mariadb
+
+data-mysql:
+  file.directory:
+    - name: /data/mysql
+    - user: mysql
+    - group: mysql
+    - mode: 755
+    - makedirs: True
+
+mysql-source-install:
+  file.managed:
+    - name: /usr/local/src/mysql-5.7.33-linux-glibc2.12-x86_64.tar.gz
+    - source: salt://lnmp/mysql/files/mysql-5.7.33-linux-glibc2.12-x86_64.tar.gz
+    - user: root
+    - group: root
+    - mode: 755
+  cmd.run:
+    - name: cd /usr/local/src && tar zxf mysql-5.7.33-linux-glibc2.12-x86_64.tar.gz -C /usr/local && chmod -R 775 /usr/local/mysql-5.7.33-linux-glibc2.12-x86_64 && chown -R root:mysql /usr/local/mysql-5.7.33-linux-glibc2.12-x86_64 && chown -R mysql:mysql /data/mysql && ln -sv /usr/local/mysql-5.7.33-linux-glibc2.12-x86_64 /usr/local/mysql && cd /usr/local/mysql-5.7.33-linux-glibc2.12-x86_64 && ./bin/mysqld --initialize --user=mysql --datadir=/data/mysql --basedir=/usr/local/mysql && echo /usr/local/mysql/lib/ >> /etc/ld.so.conf.d/mysqld.conf && ldconfig && ln -sv /usr/local/mysql/include /usr/include/mysql && echo 'export PATH=$PATH:/usr/local/mysql/bin/' > /etc/profile.d/mysqld.sh
+    - unless: test -f /etc/profile.d/mysqld.sh
+    - require:
+      - user: mysql-user-group
+      - pkg: make-pkg
+      - file: data-mysql
+      - file: mysql-source-install
+
+config-mysql:
+  file.managed:
+    - name: /etc/my.cnf
+    - source: salt://lnmp/mysql/files/my.cnf
+    - user: root
+    - group: root
+    - mode: 644
+    - require:
+      - cmd: mysql-source-install
+
+init-mysql:
+  file.managed:
+    - name: /etc/init.d/mysqld
+    - source: salt://lnmp/mysql/files/mysqld
+    - user: root
+    - group: mysql
+    - mode: 775
+    - require:
+      - cmd: mysql-source-install
+  cmd.run:
+    - name: /usr/sbin/chkconfig --add mysqld
+    - unless: chkconfig --list | grep mysqld
+    - require:
+      - file: init-mysql
+
+serveice-mysql:
+  service.running:
+    - name: mysqld
+    - enable: True
+    - require:
+      - cmd: init-mysql
+    - watch:
+      - file: config-mysql
+
+
+# 执行指定描述文件
+[root@salt /srv/salt/base]# cat init/repo.sls
+/etc/yum.repos.d/epel-7.repo:
+  file.managed:
+    - source: salt://init/files/epel-7.repo
+    - user: root
+    - group: root
+    - mode: 644
+
+/etc/yum.repos.d/Centos-7.repo:
+  file.managed:
+    - source: salt://init/files/Centos-7.repo
+    - user: root
+    - group: root
+    - mode: 644
+[root@salt /srv/salt/base]# cat init/files/epel-7.repo
+[epel]
+name=Extra Packages for Enterprise Linux 7 - $basearch
+baseurl=http://mirrors.aliyun.com/epel/7/$basearch
+failovermethod=priority
+enabled=1
+gpgcheck=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-7
+
+[epel-debuginfo]
+name=Extra Packages for Enterprise Linux 7 - $basearch - Debug
+baseurl=http://mirrors.aliyun.com/epel/7/$basearch/debug
+failovermethod=priority
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-7
+gpgcheck=0
+
+[epel-source]
+name=Extra Packages for Enterprise Linux 7 - $basearch - Source
+baseurl=http://mirrors.aliyun.com/epel/7/SRPMS
+failovermethod=priority
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-7
+gpgcheck=0
+
+[root@salt /srv/salt/base]# salt "*" state.sls init.repo
+
+
+# 执行top file
+#test=True表示进行测试，state.highstate表示执行top file
+[root@salt /srv/salt/base]# salt '*' state.highstate test=True  
+
+
+
+
+# salt 数据系统
+Grains：静态数据
+* 当Minion启动的时候才收集Minion本地的相关信息。例如：操作系统版本，内核版本，CPU,内存，硬盘，设备型号，序列号。
+* 使用场景：
+1. 资产管理。信息查询。
+2. 用于目标选择
+3. 配置管理中使用
+* Grains优先级：
+1. 系统自带
+2. /etc/salt/minion配置文件（非全局）
+3. /srv/salt/base/_grains/配置文件（全局）
+* pillar用命令选项-I 来选择，grains用命令选项-G来选择
+
+
+
+# Grains命令行使用案例
+[root@salt /srv/salt/base]# salt 'salt' grains.ls
+[root@salt /srv/salt/base]# salt 'salt' grains.items
+[root@salt /srv/salt/base]# salt 'salt' grains.item username
+salt:
+    ----------
+    username:
+        root
+[root@salt /srv/salt/base]# salt 'salt' grains.item os
+salt:
+    ----------
+    os:
+        CentOS
+[root@salt /srv/salt/base]# salt -G 'os:Centos' test.ping
+salt:
+    True
+reverse02.xen08.rack06.idc01.hs.com:
+    Minion did not return. [Not connected]
+test.ops.hs.com:
+    Minion did not return. [Not connected]
+
+
+## 自定义grains item
+#查看roles的value，因为没有所以值为空
+[root@salt /srv/salt/base]# salt salt grains.item roles
+salt:
+    ----------
+    roles:
+#在需要配置的minio上配置，这个并非是全局grains配置
+[root@salt /srv/salt/base]# grep -Ev '#|^$' /etc/salt/minion
+master: 172.168.2.222
+grains:
+  roles:
+    - saltserver
+    - ansible
+#在master上对特定minion或者所有minion进行刷新最新grains数据到master
+[root@salt /srv/salt/base]# salt 'salt' saltutil.sync_grains
+salt:
+# 再次查看roles的value，已经有自定义的值了
+[root@salt /srv/salt/base]# salt salt grains.item roles
+salt:
+    ----------
+    roles:
+        - saltserver
+        - ansible
+
+
+
+# Grains配置管理使用案例
+[root@salt /srv/salt/base]# cat init/hosts.sls
+/etc/hosts:
+  file.managed:
+    - source: salt://init/files/hosts
+    - user: root
+    - group: root
+    - mode: 644
+[root@salt /srv/salt/base]# cat init/files/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+172.168.2.219   jack
+[root@salt /srv/salt/base]# cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+199.16.156.40 github.global.ssl.fastly.net
+185.199.108.153 assets-cdn.github.com
+192.168.13.51 k8sMaster01.hs.com master01
+192.168.13.52 k8sNode01.hs.com node01
+192.168.13.53 k8sNode02.hs.com node02
+
+10.10.10.230  saltaliyun
+192.168.13.57 hotelresourcejinjiang.hs.com
+
+# 配置top.sls
+[root@salt /srv/salt/base]# grep -Ev '#|^$' top.sls
+base:
+  'roles:saltserver':
+    - match: grain
+    - init.hosts
+# 执行top.sls，先进行测试
+[root@salt /srv/salt/base]# salt 'salt' state.highstate test=True
+salt:
+----------
+          ID: /etc/hosts
+    Function: file.managed
+      Result: None
+     Comment: The file /etc/hosts is set to be changed
+              Note: No changes made, actual changes may
+              be different due to other states.
+     Started: 11:59:23.660140
+    Duration: 84.768 ms
+     Changes:
+              ----------
+              diff:
+                  ---
+                  +++
+                  @@ -1,11 +1,5 @@
+                   127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+                   ::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+                  -199.16.156.40 github.global.ssl.fastly.net
+                  -185.199.108.153 assets-cdn.github.com
+                  -192.168.13.51 k8sMaster01.hs.com master01
+                  -192.168.13.52 k8sNode01.hs.com node01
+                  -192.168.13.53 k8sNode02.hs.com node02
+                  +172.168.2.219        jack
+
+                  -10.10.10.230  saltaliyun
+                  -192.168.13.57 hotelresourcejinjiang.hs.com
+
+Summary for salt
+------------
+Succeeded: 1 (unchanged=1, changed=1)
+Failed:    0
+------------
+Total states run:     1
+Total run time:  84.768 ms
+
+# 实际执行top.sls
+# 此步骤实际是超时未返回响应，提示你使用命令salt-run jobs.lookup_jid 20260413052726298730进行查看后续结果
+[root@salt /srv/salt/base]# salt 'salt' state.highstate
+salt:
+    Minion did not return. [No response]
+    The minions may not have all finished running and any remaining minions will return upon completion. To look up the return data for this job later, run the following command:
+
+    salt-run jobs.lookup_jid 20260413052726298730
+[root@salt /srv/salt/base]# salt-run jobs.lookup_jid 20260413052726298730
+salt:
+----------
+          ID: /etc/hosts
+    Function: file.managed
+      Result: True
+     Comment: File /etc/hosts is in the correct state
+     Started: 13:28:37.768359
+    Duration: 100.443 ms
+     Changes:
+
+Summary for salt
+------------
+Succeeded: 1
+Failed:    0
+------------
+Total states run:     1
+Total run time: 100.443 ms
+
+[root@salt /srv/salt/base]# cat /etc/hosts
+127.0.0.1   localhost localhost.localdomain localhost4 localhost4.localdomain4
+::1         localhost localhost.localdomain localhost6 localhost6.localdomain6
+
+172.168.2.219   jack
+
+
+
+# 自定义全局grains
+[root@salt /srv/salt/base]# cat _grains/my_grains.py
+#!/usr/bin/env python
+
+def my_grains():
+    grains = {}
+    grains['monitor'] = 'zabbix'
+    return grains
+[root@salt /srv/salt/base]# salt 'salt' saltutil.sync_grains
+[root@salt /srv/salt/base]# salt 'salt' grains.item monitor
+salt:
+    ----------
+    monitor:
+        zabbix
+
+# 查看minio缓存的salt master下发的配置文件
+[root@salt /srv/salt/base]# tree /var/cache/salt/minion/extmods/
+/var/cache/salt/minion/extmods/
+├── grains
+│   ├── my_grains.py
+│   └── __pycache__
+│       └── my_grains.cpython-36.pyc
+└── modules
+    └── my_disk.py
+[root@salt /srv/salt/base]# cat /var/cache/salt/minion/extmods/grains/my_grains.py
+#!/usr/bin/env python
+
+def my_grains():
+    grains = {}
+    grains['monitor'] = 'zabbix'
+    return grains
+[root@salt /srv/salt/base]# cat /var/cache/salt/minion/extmods/modules/my_disk.py
+def list():
+    cmd = 'df -h'
+    ret = __salt__['cmd.run'](cmd)
+    return ret
+
+
+
+# Pillar：动态数据
+* 给特定的Minion指定特定的数据，只有指定的minion自己能看到自己的数据，比较安全
+* 而grains却是所有的minion都能看到，不安全
+* 所以在普通的信息时使用grains,而在涉及帐号密码时使用pillar
+* pillar里面可以嵌套grains
+```yaml
+# cat apache.sls 
+{% if grains['os'] == 'CentOS' %}
+apache: httpd
+{% elif grains['os'] == 'Debian' %}
+apache: apache2
+{% endif %}
+```
+* 在/etc/salt/master里面开启Pillar
+```yaml
+pillar_roots:
+  base:
+    - /srv/pillar/base
+  dev:
+    - /srv/pillar/dev
+  prod:
+    - /srv/pillar/prod
+pillar_opts: True
+* pillar用命令选项-I 来选择，grains用命令选项-G来选择
+```
+
+# 开启pillar
+[root@salt /srv/salt/base]# grep -Ev '#|^$' /etc/salt/master
+[root@salt /srv/salt/base]# grep -Ev '#|^$' /etc/salt/master
+timeout: 30
+worker_threads: 20
+file_recv: True
+file_recv_max_size: 100
+file_roots:
+  base:
+    - /srv/salt/base
+  dev:
+    - /srv/salt/dev
+  prod:
+    - /srv/salt/prod
+pillar_roots:
+  base:
+    - /srv/pillar/base
+  dev:
+    - /srv/pillar/dev
+  prod:
+    - /srv/pillar/prod
+pillar_opts: True
+[root@salt /srv/salt/base]# systemctl restart salt-master.service
+[root@salt /srv/salt/base]# systemctl is-active salt-master.service
+active
+
+# 查看pillar的base环境
+[root@salt /srv/salt/base]# grep -Ev '#|^$' /srv/pillar/base/top.sls
+base:
+  'salt':
+    - salt-minion
+[root@salt /srv/salt/base]# cat /srv/pillar/base/salt-minion.sls
+Salt_Master: 172.168.2.222
+
+# pillar里面嵌套grains
+[root@salt /srv/salt/base]# cat /srv/pillar/prod/docker/docker.sls
+{% if grains['fqdn'] == 'node2' %}
+type: docker_server
+{% elif grains['fqdn_ip4'][0] == '192.168.15.202' %}
+type: docker_server
+{% endif %}
+
+# 刷新pillar
+[root@salt /srv/salt/base]# salt 'salt' saltutil.refresh_pillar
+[root@salt /srv/salt/base]# salt 'salt' pillar.items Salt_Master
+salt:
+    ----------
+    Salt_Master:
+        172.168.2.222
+
+
+
+
+# Grains和Pillar对比
+Grains:
+类型：静态（需要重启minion服务或在master端使用saltutil.snyc_grains同步grains）
+数据采集方式：minion启动时采集或master自定义
+应用场景：数据查询，目标选择，配置管理
+定义位置：minion端和master端
+
+Pillar:
+类型：动态（不需要重启,需要使用saltutil.refresh_pillar同步pillar）
+数据采集方式：master自定义
+应用场景：目标选择，配置管理，机密数据
+定义位置：master端
+
+> 假如有100台机器：
+> * 如果定义grains，那么需要在每台minion去设置或者在master上的/srv/salt/_grains目录下设置即可
+> * 如果定义pillar，只需要在master一台机器上设置就可以了
+
+
+
+# salt master 命令行目标匹配 常用命令
+```bash
+# 通配符
+[root@SaltstackServer ~]# salt 'linux?node1' test.ping
+linux-node1:
+    True
+[root@SaltstackServer ~]# salt '*' test.ping
+SaltstackServer.com:
+    True
+linux-node1:
+    True
+[root@SaltstackServer ~]# salt 'linux-node[1-2]' test.ping
+linux-node1:
+    True
+
+# 列表
+[root@SaltstackServer ~]# salt -L 'linux-node1,SaltstackServer.com' test.ping
+SaltstackServer.com:
+    True
+linux-node1:
+    True
+
+#正则表达式
+[root@SaltstackServer ~]# salt -E 'linux-node[1-2]*' test.ping
+linux-node1:
+    True
+
+# IP子网
+[root@SaltstackServer ~]# salt -S 192.168.1.233 test.ping
+linux-node1:
+    True
+[root@SaltstackServer ~]# salt -S 192.168.1.235 test.ping
+SaltstackServer.com:
+    True
+[root@SaltstackServer ~]# salt -S 192.168.1.0/24 test.ping
+SaltstackServer.com:
+    True
+linux-node1:
+    True
+
+# 以百分比来执行远程命令，-b 10代表百分之10
+root@SaltstackServer ~]# salt '*' -b 10 test.ping
+```
+> 所有匹配目标的方式，都可以在Top file里面用
+
+
+# salt常用模块
+```bash
+# 网络相关模块
+salt '*' network.arp
+salt '*' service.status sshd
+# 从master分发文件到指定minion(默认开启)
+salt-cp '*' /etc/hosts /tmp/hi
+salt '*' cmd.run 'ls -l /tmp/hi'
+# cp模块，可从master分发文件到指定minion(默认开启),也可从指定minion上传文件到master(默认不开启)，
+cp.get_fle  #复制文件到minion,只能是文件
+cp.get_fle makedirs=True   #同上，加了makedirs=True后，如果目录不存在则会建立目录
+cp.get_dir  #复制目录
+cp.push     #默认不开启
+# 使用cp模块复制文件到minion
+cp nacos-server-1.3.0.tar.gz /srv/salt/dev/
+sudo salt 'ceph*' cp.get_file salt://nacos-server-1.3.0.tar.gz /usr/local/src/ saltenv=dev
+
+# 从minio复制文件到master
+# cp.push默认不开始，需要更改/etc/salt/master配置
+# salt 'node2' cp.push /etc/yum.repos.d/zabbix.repo
+node2:
+    False
+# 在/etc/salt/master中配置如下以支持cp.push，file_recv_max_size: 100单位为M
+file_recv: True
+file_recv_max_size: 100
+
+# systemctl restart salt-master
+# 这是上传文件的路径
+# ls /var/cache/salt/master/minions/node2/files/etc/yum.repos.d/zabbix.repo
+
+# 查看目标minion在top file文件中需要做什么事
+[root@salt /srv/salt/base]# salt 'salt' state.show_top
+salt:
+    ----------
+    base:
+        - init.hosts
+
+# 手动执行安装模块
+salt '*' state.single pkg.installed name=lsof
+```
+
+
+
+# 状态模块
+[root@salt /srv/salt/base]# cat /srv/salt/base/_modules/my_disk.py
+def list():
+    cmd = 'df -h'
+    ret = __salt__['cmd.run'](cmd)
+    return ret
+# 刷新模块
+[root@salt /srv/salt/base]# salt 'salt' saltutil.sync_modules
+salt:
+# 执行模块
+[root@salt /srv/salt/base]# salt 'salt' my_disk.list
+salt:
+    Filesystem      Size  Used Avail Use% Mounted on
+    devtmpfs        900M     0  900M   0% /dev
+    tmpfs           910M  720K  909M   1% /dev/shm
+    tmpfs           910M  9.7M  901M   2% /run
+    tmpfs           910M     0  910M   0% /sys/fs/cgroup
+    /dev/sda2        40G   22G   19G  55% /
+    /dev/sda1       197M  120M   77M  61% /boot
+    tmpfs           182M     0  182M   0% /run/user/0
+
+
+
+
+总结：
+1. minion启动时收集本地信息成为grains的键值对
+2. 使用grains可用于目标选择，配置管理，信息查询。
+3. grains不用top文件亦可执行，例：`salt -G 'os:Centos' state.sls web.apache`，但pillar却不行，pillar只有top文件才能执行
+4. grains目标选择也可以写入/srv/salt/base/top.sls文件中使用。
+5. grains自定义优先组：
+	1. 系统自带
+	2. minion端自定义/etc/salt/minion，需要重启minion服务或者master刷新grains
+	3. master端自定义/srv/salt/base/_grains/*.py，需要使用`salt '*' saltutil.sync_grains`命令来同步。
+	4. pillar常用于机密信息处理，grains常用于普通信息处理。
+	5. pillar的描述文件在/srv/pillar/base/*.sls，pillor的top文件在/srv/pillar/base/top.sls，pillar的描述文件编写完成后必需刷新才能生效，命令：`salt '*' saltutil.refresh_pillar`
+	6. 自定义模块可满足自己的需要，在/srv/salt/base/_modules/目录下编写*.py文件
+
+配置文件路径：
+1. master配置文件：/etc/salt/master
+2. minion配置文件：/etc/salt/minion
+3. master下发任务到minion后minion同步的路径：/var/cache/salt/minion
+4. minion和master的公钥和私钥路径：/etc/salt/pki/minion/和/etc/salt/pki/master/
+5. minion的id文件路径：/etc/salt/minion_id
+6. minion的自定义item目录1./etc/slat/grains 2./etc/salt/minion
+7. master上的top file文件路径：/srv/salt/base/top.sls
+8. master上的pillar的top file文件路径：/srv/pillar/base/top.sls
+9. master上的pillar的描述文件路径：/srv/pillar/base/*.sls
+10. master上的描述文件路径：/srv/salt/base/*.sls
+11. master自定义grains路径：/srv/salt/base/_grains/*.py
+12. master自定义模块路径：/srv/salt/base/_modules/*.py
+
+
+
+
+# saltstack 配置sls描述文件
+```
+1. apache-service为名称(ID)声明,不写names,则默认name就是名称声明的名称。ID声明在高级状态下必须唯一
+2. service.running为State声明，状态声明，模块声明
+3. - name: httpd为名称选项声明
+```
+
+## 常用包
+```
+pkg.installed	# 安装
+pkg.latest	# 确保最新版本软件
+pkg.remove	# 卸载
+pkg.purge	# 卸载并删除配置文件
+```
+
+# 配置lamp服务的sls配置文件
+```yaml
+#vim /srv/salt/lamp/lamp.sls
+lamp-pkg:
+  pkg.installed:
+    - pkgs:
+      - httpd
+      - php
+      - mariadb
+      - mariadb-server
+      - php-mysql
+      - php-cli
+      - php-mbstring
+
+apache-config:
+  file.managed:
+    - name: /etc/httpd/conf/httpd.conf
+    - source: salt://lamp/files/httpd.conf
+    - user: root
+    - group: root
+    - mode: 644
+
+php-config:
+  file.managed:
+    - name: /etc/php.ini
+    - source: salt://lamp/files/php.ini
+    - user: root
+    - group: root
+    - mode: 644
+
+mysql-config:
+   file.managed:
+    - name: /etc/my.cnf
+    - source: salt://lamp/files/my.cnf
+    - user: root
+    - group: root
+    - mode: 644
+
+apache-service:
+  service.running:
+    - name: httpd
+    - enable: True
+    - reload: True
+
+mysql-service:
+  service.running:
+    - name: mariadb
+    - enable: True
+    - reload: True
+
+#or
+lamp-pkg:
+  pkg.installed:
+    - pkgs:
+      - httpd
+      - php
+      - mariadb
+      - mariadb-server
+      - php-mysql
+      - php-cli
+      - php-mbstring
+     
+apache-server:
+  file.managed:
+    - name: /etc/httpd/conf/httpd.conf
+    - source: salt://lamp/files/httpd.conf
+    - user: root
+    - group: root
+    - mode: 644
+  service.running:
+    - name: httpd
+    - enable: True
+    - reload: True
+
+mysql-server:
+   file.managed:
+    - name: /etc/my.cnf
+    - source: salt://lamp/files/my.cnf
+    - user: root
+    - group: root
+    - mode: 644
+  service.running:
+    - name: mariadb
+    - enable: True
+    - reload: True
+
+php-config:
+  file.managed:
+    - name: /etc/php.ini
+    - source: salt://lamp/files/php.ini
+    - user: root
+    - group: root
+    - mode: 644
+```
+```bash
+salt 'linux*' state.sls lamp.lamp
+```
+
+# 状态间关系
+1. 我依赖谁require: 
+    require:  # 我依赖下面两个模块的id是否为True，为True我才能成功执行
+      - pkg: lamp-pkg  # pkg是模块名，后面是相关的ID
+      - file: apache-config
+ 2. 我被谁依赖   require_in
+    require_in: mysql-service  # 我被其他模块依赖，我必须先成功执行，其他依赖我的模块才能成功执行
+ 3. 我监控谁watch，监控salt://lamp/files/httpd.conf配置文件是否被更改，如果被更改则重载配置文件到各个minion
+  - reload: True	# 写了就是重载配置文件，不写这个就是重启服务 
+  - watch:
+      - file: apache-config # watch包括require,也就是apache-config首先存在，然后apache-config被更改了才用reload进行重载
+ 4. 我被谁监控watch_in
+ 5. 我引用谁  include
+ include: 
+   - lamp.mysql
+   - lamp.apache
+ 6. 我扩展谁
+> require、require_in、watch、watch_in、 include
+
+
+# 编写SLS技巧：
+1. 按状态分类，如果单独使用，很清晰
+2. 按服务分类，可以被其他的SLS include。例如LNMP的sls include mysql的sls
+```yaml
+lamp-pkg:
+  pkg.installed:
+    - pkgs:
+      - httpd
+      - php
+      - mariadb
+      - mariadb-server
+      - php-mysql
+      - php-cli
+      - php-mbstring
+
+apache-config:
+  file.managed:
+    - name: /etc/httpd/conf/httpd.conf
+    - source: salt://lamp/files/httpd.conf
+    - user: root
+    - group: root
+    - mode: 644
+    
+apache-service:
+  service.running:
+    - name: httpd
+    - enable: True
+    - reload: True
+    - require:	# 依赖关系 
+      - pkg: lamp-pkg  
+    - watch:	# 监控关系
+      - file: apache-config
+ 
+mysql-config:
+   file.managed:
+    - name: /etc/my.cnf
+    - source: salt://lamp/files/my.cnf
+    - user: root
+    - group: root
+    - mode: 644
+    - require_in: mysql-service	# 依赖关系
+  
+mysql-service:
+  service.running:
+    - name: mariadb
+    - enable: True
+    - reload: True
+```
+
+# Jinja模板
+```
+# 两种分隔符:
+1. {%……%}条件语句
+2. {{……}}变量
+
+# 使用一个模板需要3步走：
+1. 告诉File模块，使用Jinja模板，这样jinja格式就可以生效了
+- template: jinja
+2. 你要列出参数列表
+- defaults:
+  PORT: 88	# 指定PORT变量值为88
+3. 模板引用
+{{ PORT }}		# 在source文件中添加jinja格式的变量
+```
+> jinja模板不支持`-`这个符号，只能用_下划线表示,file.directory默认makeDirs为False，如果目录存在也想新建则要设为True
+
+```yaml
+apache-config:
+  file.managed:
+    - name: /etc/httpd/conf/httpd.conf
+    - source: salt://lamp/files/httpd.conf
+    - user: root
+    - group: root
+    - mode: 644
+    - template: jinja
+    - defaults:
+      PORT: 99
+```
+
+# jinja模板可以使用：salt grains pillar 赋值
+```
+# 使用grains进行赋值
+Listen {{grains['fqdn_ip4'][0]}}:{{ PORT }}
+# 使用Salt远程执行模块赋值
+{{ salt['network.hw_addr']('eth0') }}
+[root@salt /srv/salt/base]# salt 'salt' network.hw_addr eth0
+salt:
+    00:0c:29:6c:6f:38
+# 使用pillar赋值
+{{ pillar['apache']}}
+```
+
+
+
+# top.sls
+* file_roots和pillar_roots的base环境和base环境相对应
+* prod环境的base环境相对应
+* 写top.file时，这个文件应该放在file_roots的base根环境下
+
+
+
+# salt-run命令：
+salt-run这个命令是在master上执行的，并非在minion上执行的，而salt这个命令是master分发工作给minion执行的
+```
+salt '*' saltutil.running  #查看正在运行的job_id
+# 当你ctrl+c时，salt还在运行，所以你要用salt '*' saltutil.kill_job job_id来结束不需要的salt工作
+salt '*' saltutil.kill_job job_id  # 结束job_id的工作
+salt-run jobs.list_jobs # 列出正在运行的job_id
+sal-run jobs.lookup_id 2016	# 查看详细的job_id工作
+# 在master端执行看minion的状态：
+- salt-run manage.status
+- salt-run manage.up
+- salt-run manage.down
+# 在master端执行看minion的版本
+salt-run manage.versions
+# 删除jobs
+salt-run jobs.clean_jobs hours=24
+salt-run jobs.clear_jobs
+
+## salt-run jobs.clear_jobs不生效，可用以下命令强制删除
+# 1. 停止 salt-master 服务 (防止写入冲突)
+systemctl stop salt-master
+# 2. 强制删除 jobs 目录下的所有内容
+rm -rf /var/cache/salt/master/jobs/*
+# 3. 重新启动 salt-master 服务
+systemctl start salt-master
+```
+
+
+# salt帮助文档
+```
+salt -d  | grep saltutil
+salt-run -d | grep jobs
+```
+
+
+# 无master状态下运行salt
+就是只有一台机器minion，它想运行salt，就可以使用salt-call命令。
+1. 关闭master-minion进程，因为本地运行，不用跟master建立连接，所以进程也没必要开启
+2. vim /etc/salt/minion，把状态文件客户端从远端改成本地：
+#file_client: remote
+file_client: local
+3. vim /etc/salt/minion，设置salt和pillar环境：
+file_roots:
+  base: /srv/salt/base
+pillar_roots:
+  base: /srv/pillar/base
+4. 本地编写sls文件
+5. salt-call --local state.highstate
+
+
+
+# 多master，Multi-Master
+共享配置文件：
+1. keys (master,minion的公钥和私钥)
+2. file_roots的文件
+3. pillar_roots的文件
+共享方式：
+1. 可以使用NFS共享，只限内网指定IP连接。
+2. 把共享的信息放到git上，再重装个master（用得不多可以用一个master）。
+
+# minion的配置：
+master:
+  - 192.168.1.235
+  - 192.168.1.236
+
+
+# salt syndic 
+* 类似于zabbix-proxy一样
+* salt syndic必须运行在master上，syndic没有配置文件，通过master配置来更改。
+```bash
+# 配置syndic，节点node02
+yum install salt-master salt-syndic -y
+# vim /etc/salt/master
+syndic_master: 192.168.56.12	# 设置sydic master的ip，ip节点为node01
+systemctl restart salt-master		# 重启服务
+systemctl restart salt-syndic		# 重启服务，这个时候192.168.56.13变成syndic了
+
+# 配置top master，节点node01
+# vim /etc/salt/master
+order_masters: True 		# 开启最高级Master，也就是top master
+systemctl restart salt-master		# 这个时候sydic就成了top master 192.168.56.12的minion了
+```
+> top master和syndic的工作流程
+> 发：top master-->syndic,master-->minion1,minion2
+> 收：minion1,minion2-->syndic,master-->top master
+> syndic的file_roots和pillar_roots必须和top master高度一致(用共享或git来保持)
+> 缺点：top master不知道自己到底有多少minion
+
+
+
+# salt-SSH
+salt的0.17版本就支持salt-ssh了，salt-ssh 是串行的，minion是并行的，所以salt-ssh慢于minion
+```bash
+yum install salt-ssh -y
+
+# salt-ssh的配置文件
+# vim /etc/salt/roster
+docker01:
+  host: docker01.ops.hs.com
+  user: root        
+  sudo: True         
+  passwd: password
+docker02:
+  host: docker02.ops.hs.com
+  user: root        
+  sudo: True   
+  passwd: password
+
+# 使用命令完成秘钥的拷贝认证，salt-ssh会把自己的公钥拷贝到目标机器的~/.ssh/authorized_keys文件中，当下次salt-ssh链接目标机器时，就会用自己的私钥去解密目标主机自己存放的公钥，就不会再要输入密码了
+# salt-ssh的公私钥在/etc/salt/pki/master/ssh/目录下
+salt-ssh -i --key-deploy '*' test.ping 
+# salt-ssh使用
+salt-ssh '*' -r 'ifconfig'
+salt-ssh '*' -v -r 'yum -y install salt-minion'   # yum时一定要加-y选项，否则会一直卡住
+
+# ssh密钥交换完成后可使用此命令
+salt-ssh '*' test.ping
+salt-ssh '*' state.sls init.salt-minion test=True
+salt-ssh '*' state.sls init.salt-minion
+```
+> salt-ssh生产环境使用得比较少，一般结合master和minion来用，用salt-ssh 安装minion、升级minion等。
+> 远程的时候老是要询问是否连接，可以在目标机器上~/.ssh/目录下建立config文件，并添加：StricHostKeyChecking no 即可
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

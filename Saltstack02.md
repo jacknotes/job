@@ -335,7 +335,7 @@ nameserver 8.8.8.8
       - export HISTTIMEFORMAT="%F %T `whoami` "
 #audit.sls----记录命令操作
 [root@SaltstackServer /srv/salt/base/init]# cat audit.sls 
-/etc/:
+/etc/profile:
   file.append:
     - text:
       - export PROMPT_COMMAND='{ date "+%Y-%m-%d %T %A [$(id | cut -c 1-11)]:[$(who am i |awk "{print \$2\" \"\$3\" \"\$4\" \"\$5}")]:[$(pwd)]:[$(history 1 | { read a b c d e; echo $e;})]"; } >> /var/log/messages'
@@ -495,7 +495,7 @@ haproxy-install:
     - user: root
     - group: root
   cmd.run:
-    - name: cd /usr/local/src && tar -zxf haproxy-1.9.0.tar.gz && cd haproxy-1.9.0 && make TARGET=linux2628 PREFIX=/usr/local/haproxy-1.9.0 && make install PREF                                                                                                                IX=/usr/local/haproxy-1.9.0 && ln -s /usr/local/haproxy-1.9.0 /usr/local/haproxy
+    - name: cd /usr/local/src && tar -zxf haproxy-1.9.0.tar.gz && cd haproxy-1.9.0 && make TARGET=linux2628 PREFIX=/usr/local/haproxy-1.9.0 && make install PREFIX=/usr/local/haproxy-1.9.0 && ln -s /usr/local/haproxy-1.9.0 /usr/local/haproxy
     - unless: test -L /usr/local/haproxy
     - require:
       - pkg: make-pkg
@@ -1216,8 +1216,8 @@ memcache-plugin:
   cmd.run:
     - name: cd /usr/local/src && tar zxf memcache-2.2.7.tgz && cd memcache-2.2.7&& /usr/local/php-fastcgi/bin/phpize && ./configure --enable-memcache --with-php-config=/usr/local/php-fastcgi/bin/php-config &&  make&& make install
     - unless: test -f /usr/local/php-fastcgi/lib/php/extensions/*/memcache.so
-  require:
-    - file: memcache-plugin
+    - require:
+      - file: memcache-plugin
 
 ------------------------------------------------------------
 [root@salt-server /srv/salt/prod/modules/php]# cat php-redis.sls 
@@ -1231,8 +1231,8 @@ redis-plugin:
   cmd.run:
     - name: cd /usr/local/src && tar zxf phpredis-2.2.7.tgz && mv redis-2.2.7 phpredis-2.2.7 && cd phpredis-2.2.7&& /usr/local/php-fastcgi/bin/phpize && ./configure --with-php-config=/usr/local/php-fastcgi/bin/php-config &&  make&& make install
     - unless: test -f /usr/local/php-fastcgi/lib/php/extensions/*/redis.so
-  require:
-    - file: redis-plugin
+    - require:
+      - file: redis-plugin
 
 ------------------------------------------------------------
 [root@salt-server /srv/salt/prod/modules/php/files]# cat init.d.php-fpm 
