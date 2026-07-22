@@ -934,3 +934,525 @@ harborrepo.hs.com/ops/rabbitmq:3.8.9-management
 ```
 
 > --ulimit nofile=80000:80000设置容器内的文件描述符限制为 80000。此参数表示容器内软限制和硬限制都为80000
+
+
+
+
+
+
+
+
+
+## 7. docker部署rabbitmq集群-解决分区
+
+为了解决之前部署的docker镜像集群隐患：当某个节点网络被断开了，导致集群3节点网络分区了，集群异常，当异常节点网络恢复后，异常节点并不会重新启动服务重新加入集群，这样会导致数据丢失，所以这里需要配置`cluster_partition_handling=pause_minority`，可选值如下：
+
+| 策略名称           | 核心行为                | 数据安全性                      | 可用性              | 是否需要人工介入        |
+| :----------------- | :---------------------- | :------------------------------ | :------------------ | :---------------------- |
+| **autoheal**       | 重启少数派/连接少的分区 | 低 (可能丢数据)                 | 高                  | 否                      |
+| **pause_minority** | 少数派节点暂停服务      | **极高** (无脑裂)               | 中 (依赖多数派存活) | 否 (网络恢复后自动愈合) |
+| **ignore**         | 保持现状，仅报警        | 高 (但在分区期间可能产生脏数据) | 低 (处于脑裂状态)   | **是 (必须人工修复)**   |
+
+
+
+### 7.1 节点1运行
+```bash
+docker run -d --restart=always \
+--hostname test-rabbitmq01 \
+--name test-rabbitmq01 \
+-v /opt/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+--add-host test-rabbitmq01:172.168.2.12 \
+--add-host test-rabbitmq02:172.168.2.46 \
+--add-host test-rabbitmq03:172.168.2.47 \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+# 设置集群配置
+docker exec -it test-rabbitmq01 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+exit
+```
+
+
+
+### 7.2 节点2运行
+
+```bash
+docker run -d --restart=always \
+--hostname test-rabbitmq02 \
+--name test-rabbitmq02 \
+-v /opt/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+--add-host test-rabbitmq01:172.168.2.12 \
+--add-host test-rabbitmq02:172.168.2.46 \
+--add-host test-rabbitmq03:172.168.2.47 \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+# 设置集群配置
+docker exec -it test-rabbitmq02 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster --ram rabbit@test-rabbitmq01
+rabbitmqctl start_app
+exit
+```
+
+
+
+### 7.3 节点3运行
+
+```bash
+docker run -d --restart=always \
+--hostname test-rabbitmq03 \
+--name test-rabbitmq03 \
+-v /opt/rabbitmq:/var/lib/rabbitmq  \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+--add-host test-rabbitmq01:172.168.2.12 \
+--add-host test-rabbitmq02:172.168.2.46 \
+--add-host test-rabbitmq03:172.168.2.47 \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+# 设置集群配置
+docker exec -it test-rabbitmq03 bash
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl join_cluster rabbit@test-rabbitmq02
+rabbitmqctl start_app
+exit
+```
+
+
+
+### 7.4 任意集群节点配置HA同步模式
+
+```bash
+rabbitmqctl set_policy --vhost / --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+# 添加vhost并配置HA同步模式
+rabbitmqctl add_vhost my_vhost
+rabbitmqctl set_policy --vhost my_vhost --priority 10 --apply-to 'all' all ".*" '{"ha-mode":"all","ha-sync-mode":"automatic"}' 
+
+# 添加普通用户
+rabbitmqctl add_user rabbituser test123456
+rabbitmqctl set_user_tags rabbituser users
+rabbitmqctl set_permissions -p 'my_vhost' rabbituser '.*' '.*' '.*'
+rabbitmqctl list_permissions -p 'my_vhost'
+rabbitmqctl list_users
+
+# 添加管理员用户
+rabbitmqctl add_user devadmin homsom
+rabbitmqctl set_user_tags devadmin administrator
+rabbitmqctl set_permissions -p 'my_vhost' devadmin '.*' '.*' '.*'
+rabbitmqctl list_permissions -p 'my_vhost'
+rabbitmqctl list_users
+```
+
+
+
+### 7.5 配置集群分区处理策略
+
+每个节点逐个配置，集群只能一个节点不健康，所以只能排队配置
+
+
+
+#### 7.5.1 配置节点3
+
+```bash
+# 查看当前集群分区处理策略
+root@test-rabbitmq03:/# rabbitmqctl environment | grep cluster_partition_handling
+      {cluster_partition_handling,ignore},
+
+
+# 重新配置集群分区处理策略
+root@k8s04-node01:/opt/rabbitmq# mkdir -p /opt/rabbitmq-config
+root@k8s04-node01:/opt/rabbitmq# cat /opt/rabbitmq-config/rabbitmq.conf
+cluster_partition_handling = pause_minority
+
+# 此步骤会删除容器，但是挂载的/opt/rabbitmq配置还在
+root@k8s04-node01:/opt/rabbitmq# docker stop test-rabbitmq03
+root@k8s04-node01:/opt/rabbitmq# docker rm test-rabbitmq03
+
+# 节点3，添加/opt/rabbitmq-config/rabbitmq.conf配置挂载
+docker run -d --restart=always \
+--hostname test-rabbitmq03 \
+--name test-rabbitmq03 \
+-v /opt/rabbitmq:/var/lib/rabbitmq \
+-v /opt/rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+--add-host test-rabbitmq01:172.168.2.12 \
+--add-host test-rabbitmq02:172.168.2.46 \
+--add-host test-rabbitmq03:172.168.2.47 \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+# 最新运行的docker中查看集群分区处理策略
+root@k8s04-node01:/opt# docker exec test-rabbitmq03 rabbitmqctl environment | grep cluster_partition_handling
+      {cluster_partition_handling,pause_minority},
+	  
+# 因为之前配置文件还在，所以容器运行后自动加入集群节点，并不需要再重新加入集群
+root@k8s04-node01:/opt# docker exec test-rabbitmq03 rabbitmqctl cluster_status
+RABBITMQ_ERLANG_COOKIE env variable support is deprecated and will be REMOVED in a future version. Use the $HOME/.erlang.cookie file or the --erlang-cookie switch instead.
+Cluster status of node rabbit@test-rabbitmq03 ...
+Basics
+
+Cluster name: rabbit@test-rabbitmq01
+
+Disk Nodes
+
+rabbit@test-rabbitmq01
+rabbit@test-rabbitmq03
+
+RAM Nodes
+
+rabbit@test-rabbitmq02
+
+Running Nodes
+
+rabbit@test-rabbitmq01
+rabbit@test-rabbitmq02
+rabbit@test-rabbitmq03
+
+Versions
+
+rabbit@test-rabbitmq01: RabbitMQ 3.8.9 on Erlang 23.2.2
+rabbit@test-rabbitmq02: RabbitMQ 3.8.9 on Erlang 23.2.2
+rabbit@test-rabbitmq03: RabbitMQ 3.8.9 on Erlang 23.2.2
+
+Maintenance status
+
+Node: rabbit@test-rabbitmq01, status: not under maintenance
+Node: rabbit@test-rabbitmq02, status: not under maintenance
+Node: rabbit@test-rabbitmq03, status: not under maintenance
+
+Alarms
+
+(none)
+
+Network Partitions
+
+(none)
+
+Listeners
+
+Node: rabbit@test-rabbitmq01, interface: [::], port: 15672, protocol: http, purpose: HTTP API
+Node: rabbit@test-rabbitmq01, interface: [::], port: 15692, protocol: http/prometheus, purpose: Prometheus exporter API over HTTP
+Node: rabbit@test-rabbitmq01, interface: [::], port: 25672, protocol: clustering, purpose: inter-node and CLI tool communication
+Node: rabbit@test-rabbitmq01, interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
+Node: rabbit@test-rabbitmq02, interface: [::], port: 15672, protocol: http, purpose: HTTP API
+Node: rabbit@test-rabbitmq02, interface: [::], port: 15692, protocol: http/prometheus, purpose: Prometheus exporter API over HTTP
+Node: rabbit@test-rabbitmq02, interface: [::], port: 25672, protocol: clustering, purpose: inter-node and CLI tool communication
+Node: rabbit@test-rabbitmq02, interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
+Node: rabbit@test-rabbitmq03, interface: [::], port: 25672, protocol: clustering, purpose: inter-node and CLI tool communication
+Node: rabbit@test-rabbitmq03, interface: [::], port: 15672, protocol: http, purpose: HTTP API
+Node: rabbit@test-rabbitmq03, interface: [::], port: 15692, protocol: http/prometheus, purpose: Prometheus exporter API over HTTP
+Node: rabbit@test-rabbitmq03, interface: [::], port: 5672, protocol: amqp, purpose: AMQP 0-9-1 and AMQP 1.0
+
+Feature flags
+
+Flag: drop_unroutable_metric, state: enabled
+Flag: empty_basic_get_metric, state: enabled
+Flag: implicit_default_bindings, state: enabled
+Flag: maintenance_mode_status, state: enabled
+Flag: quorum_queue, state: enabled
+Flag: virtual_host_metadata, state: enabled
+```
+
+
+
+#### 7.5.2 配置节点2
+
+```bash
+root@k8s04-master:/opt# mkdir -p /opt/rabbitmq-config
+root@k8s04-master:/opt# cat /opt/rabbitmq-config/rabbitmq.conf
+cluster_partition_handling = pause_minority
+root@k8s04-master:/opt# docker stop test-rabbitmq02
+root@k8s04-master:/opt# docker rm test-rabbitmq02
+root@k8s04-master:/opt# docker run -d --restart=always \
+--hostname test-rabbitmq02 \
+--name test-rabbitmq02 \
+-v /opt/rabbitmq:/var/lib/rabbitmq  \
+-v /opt/rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf \
+-p 25672:25672 \
+-p 15672:15672 \
+-p 5672:5672 \
+-p 4369:4369 \
+-e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+-e RABBITMQ_DEFAULT_USER=admin \
+-e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+--add-host test-rabbitmq01:172.168.2.12 \
+--add-host test-rabbitmq02:172.168.2.46 \
+--add-host test-rabbitmq03:172.168.2.47 \
+harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+
+root@k8s04-master:/opt# docker exec test-rabbitmq02 rabbitmqctl environment | grep cluster_partition_handling
+      {cluster_partition_handling,pause_minority},
+```
+
+
+
+#### 7.5.3 配置节点1
+
+```bash
+root@ansible:/tmp/rabbitmq-test# mkdir -p /opt/rabbitmq-config
+root@ansible:/tmp/rabbitmq-test# cat /opt/rabbitmq-config/rabbitmq.conf
+cluster_partition_handling = pause_minority
+root@ansible:/tmp/rabbitmq-test# docker stop test-rabbitmq01
+root@ansible:/tmp/rabbitmq-test# docker rm test-rabbitmq01
+root@ansible:/tmp/rabbitmq-test# docker run -d --restart=always \
+> --hostname test-rabbitmq01 \
+> --name test-rabbitmq01 \
+> -v /opt/rabbitmq:/var/lib/rabbitmq  \
+> -v /opt/rabbitmq-config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf \
+> -p 25672:25672 \
+> -p 15672:15672 \
+> -p 5672:5672 \
+> -p 4369:4369 \
+> -e RABBITMQ_ERLANG_COOKIE='DlZVl6soz68Zc6uY' \
+> -e RABBITMQ_DEFAULT_USER=admin \
+> -e RABBITMQ_DEFAULT_PASS=TikdDALv5Ta1Cb6F \
+> --add-host test-rabbitmq01:172.168.2.12 \
+> --add-host test-rabbitmq02:172.168.2.46 \
+> --add-host test-rabbitmq03:172.168.2.47 \
+> harborrepo.hs.com/ops/rabbitmq:3.8.9-management
+9fda82e05715d4fdbfd9f6c1bcc24c45152d0165af181045ac0ccab02aab0dca
+root@ansible:/tmp/rabbitmq-test# docker exec test-rabbitmq01 rabbitmqctl environment | grep cluster_partition_handling
+      {cluster_partition_handling,pause_minority},
+```
+
+
+
+### 7.6 生产者和消费者测试脚本
+
+**生产者脚本**
+
+```bash
+# cat rabbitmq-cluster-send.py
+#!/usr/bin/env python3
+import pika
+import random
+import time
+
+NODES = [
+    ('172.168.2.12', 5672),
+    ('172.168.2.46', 5672),
+    ('172.168.2.47', 5672),
+]
+
+USERNAME = 'rabbituser'
+PASSWORD = 'test123456'
+VHOST = 'my_vhost'
+QUEUE = 'homsom'
+EXCHANGE = 'homsom'
+ROUTING_KEY = 'hm'
+
+RETRY_DELAY = 3  # 秒
+
+def connect_to_cluster():
+    credentials = pika.PlainCredentials(USERNAME, PASSWORD)
+    while True:
+        for host, port in NODES:
+            parameters = pika.ConnectionParameters(
+                host=host,
+                port=port,
+                virtual_host=VHOST,
+                credentials=credentials,
+                socket_timeout=5.0,
+                connection_attempts=1,
+                heartbeat=10,
+                blocked_connection_timeout=10
+            )
+            try:
+                print(f"🔌 尝试连接节点 {host}:{port} ...")
+                connection = pika.BlockingConnection(parameters)
+                print(f"✅ 成功连接到节点 {host}:{port}")
+                return connection
+            except Exception as e:
+                print(f"⚠️ 连接 {host}:{port} 失败: {e}")
+        print(f"🔄 所有节点连接失败，等待 {RETRY_DELAY} 秒后重试...")
+        time.sleep(RETRY_DELAY)
+
+def main():
+    message_count = 0
+    while True:
+        try:
+            connection = connect_to_cluster()
+            channel = connection.channel()
+            channel.queue_declare(queue=QUEUE, durable=True)
+            channel.exchange_declare(EXCHANGE, "direct", durable=True)
+            channel.queue_bind(QUEUE, EXCHANGE, routing_key=ROUTING_KEY)
+
+            while True:
+                number = random.randint(0, 10000000000)
+                body = f'hello world:{number}'
+                message_count += 1
+
+                print(f"🚀 准备发送第 {message_count} 条消息... 时间: {time.strftime('%H:%M:%S')}")
+                try:
+                    channel.basic_publish(
+                        exchange=EXCHANGE,
+                        routing_key=ROUTING_KEY,
+                        body=body,
+                        properties=pika.BasicProperties(delivery_mode=2)
+                    )
+                    print(f"✅ 发送成功: {body}")
+                except (pika.exceptions.AMQPConnectionError, pika.exceptions.StreamLostError):
+                    print("⚠️ 连接断开，尝试重新连接...")
+                    connection.close()
+                    break  # 跳出内层循环，重新连接集群节点
+
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            print("🛑 用户中断，退出程序")
+            try:
+                connection.close()
+            except:
+                pass
+            break
+        except Exception as e:
+            print(f"❌ 发生异常: {e}")
+            time.sleep(RETRY_DELAY)
+
+if __name__ == "__main__":
+    main()
+```
+
+
+
+**消费者脚本**
+
+```bash
+# cat rabbitmq-cluster-receive.py
+#!/usr/bin/env python3
+import pika
+import time
+
+# 集群节点列表
+NODES = [
+    ('172.168.2.12', 5672),
+    ('172.168.2.46', 5672),
+    ('172.168.2.47', 5672),
+]
+
+USERNAME = 'rabbituser'
+PASSWORD = 'test123456'
+VHOST = 'my_vhost'
+QUEUE = 'homsom'
+
+RETRY_DELAY = 3  # 秒
+CONSUME_INTERVAL = 0.5  # 每条消息处理间隔秒数
+
+def connect_to_cluster():
+    """循环尝试连接集群节点，支持 failover"""
+    credentials = pika.PlainCredentials(USERNAME, PASSWORD)
+    while True:
+        for host, port in NODES:
+            parameters = pika.ConnectionParameters(
+                host=host,
+                port=port,
+                virtual_host=VHOST,
+                credentials=credentials,
+                socket_timeout=5.0,
+                connection_attempts=1,
+                heartbeat=10,
+                blocked_connection_timeout=10
+            )
+            try:
+                print(f"🔌 尝试连接节点 {host}:{port} ...")
+                connection = pika.BlockingConnection(parameters)
+                print(f"✅ 成功连接到节点 {host}:{port}")
+                return connection
+            except Exception as e:
+                print(f"⚠️ 连接 {host}:{port} 失败: {e}")
+        print(f"🔄 所有节点连接失败，等待 {RETRY_DELAY} 秒后重试...")
+        time.sleep(RETRY_DELAY)
+
+def consume_messages():
+    message_count = 0
+    while True:
+        try:
+            connection = connect_to_cluster()
+            channel = connection.channel()
+
+            channel.queue_declare(queue=QUEUE, durable=True)
+
+            # 持续消费
+            for method_frame, properties, body in channel.consume(QUEUE, inactivity_timeout=1):
+                if method_frame:
+                    message_count += 1
+                    print(f"📥 消费消息 #{message_count} 时间: {time.strftime('%H:%M:%S')} - {body}")
+                    channel.basic_ack(method_frame.delivery_tag)
+                    # 控制消费频率
+                    time.sleep(CONSUME_INTERVAL)
+                else:
+                    # 没有消息时稍作休眠，避免空轮询过快
+                    time.sleep(0.1)
+
+        except (pika.exceptions.AMQPConnectionError, pika.exceptions.StreamLostError) as e:
+            print(f"⚠️ 连接断开，尝试重新连接集群节点... ({e})")
+            try:
+                connection.close()
+            except:
+                pass
+            time.sleep(RETRY_DELAY)
+            continue  # 重新连接集群
+
+        except KeyboardInterrupt:
+            print("🛑 用户中断，退出程序")
+            try:
+                connection.close()
+            except:
+                pass
+            break
+
+        except Exception as e:
+            print(f"❌ 发生异常: {e}")
+            time.sleep(RETRY_DELAY)
+
+if __name__ == "__main__":
+    consume_messages()
+```
+
+
+
+
+
+### 7.7 刚发生网络分区1分钟时间的影响
+
+**影响：**
+
+* 当节点3的服务停止掉后，不影响新客户端建立连接进行生产消息和消费消息
+* 当节点3的网线被拔掉，则影响新客户端建立连接进行生产消息和消费消息，影响时间大概1分钟
+
+**原因：**
+
+即使你连接的是健康节点，客户端的新建连接可能会触发集群内部元数据同步或队列元信息检查：
+* 集群节点尝试和不可达节点通信。
+* TCP SYN 卡住 → RabbitMQ 内部处理请求也会被延迟 → 客户端感受到连接卡 1 分钟。
+
+所以，这就是你看到：
+* 服务停 → 立即连接成功或失败，不卡。
+( 网线拔掉 → TCP SYN 超时 → 客户端卡 ~1 分钟(默认 Linux TCP 层的 SYN 超时总和约 60 秒（取决于 tcp_syn_retries）)

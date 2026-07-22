@@ -705,3 +705,24 @@ New SMB password:
 Retype new SMB password:
 ```
 
+> 如果禁用密码更改，可以将用户过期时间设置足够大，例如99999，使用以下方法：
+>
+> ```bash
+> root@repo:~# chage -l smb_ops 
+> Last password change					: Nov 10, 2025
+> Password expires					: May 09, 2026
+> Password inactive					: never
+> Account expires						: never
+> Minimum number of days between password change		: 0
+> Maximum number of days between password change		: 180
+> Number of days of warning before password expires	: 15
+> root@repo:~# chage -M 99999 smb_ops 
+> root@repo:~# chage -l smb_ops 
+> Last password change					: Nov 10, 2025
+> Password expires					: never
+> Password inactive					: never
+> Account expires						: never
+> Minimum number of days between password change		: 0
+> Maximum number of days between password change		: 99999
+> Number of days of warning before password expires	: 15
+> ```
