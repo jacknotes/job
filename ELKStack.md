@@ -7200,3 +7200,787 @@ curl -s -X POST -u "elastic:pass" "http://172.168.2.199:9200/k8s_2026.02.27.10/_
 ![](./images/elk/01.png)
 
 ![](./images/elk/02.png)
+
+
+
+
+
+
+
+# 生产blog集群升级为三节点
+
+## 一、模拟构建blog双节点集群环境
+
+### 1. 运行单机模式
+```bash
+# 运行172.168.2.46
+root@k8s04-master:~# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk01 harborrepo.hs.com/ops/elk:640
+root@k8s04-master:~# docker ps -a | grep elk
+8868e0a23810   harborrepo.hs.com/ops/elk:640                     "/usr/local/bin/star…"   5 minutes ago   Exited (1) 4 minutes ago             elk01
+
+# 运行172.168.2.47
+root@k8s04-node01:~# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk02 harborrepo.hs.com/ops/elk:640
+root@k8s04-node01:~# docker ps -a | grep elk
+84afc3d0dc2f        harborrepo.hs.com/ops/elk:640                     "/usr/local/bin/star…"   5 minutes ago       Exited (1) 43 seconds ago                       elk02
+```
+> 此时2个节点都是为单机模式运行的节点，并不是集群，也运行不起来
+
+
+
+### 2. 更改各节点配置并构建集群
+
+```bash
+# 配置172.168.2.46
+root@k8s04-master:~# cat elasticsearch.yml
+cluster.name: test-cluster
+node.name: test1
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.46
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.46","172.168.2.47"]
+
+root@k8s04-master:~# docker cp elasticsearch.yml elk01:/etc/elasticsearch/elasticsearch.yml
+Successfully copied 2.05kB to elk01:/etc/elasticsearch/elasticsearch.yml
+
+
+# 配置172.168.2.47
+root@k8s04-node01:~# cat elasticsearch.yml
+cluster.name: test-cluster
+node.name: test2
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.47
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.47", "172.168.2.46"]
+
+root@k8s04-node01:~# docker cp elasticsearch.yml elk02:/etc/elasticsearch/elasticsearch.yml
+
+
+# 重新启动2个节点的服务，需要同时重启
+root@k8s04-master:~# docker restart elk01
+elk01
+root@k8s04-node01:~# docker restart elk02
+elk02
+
+# 查看2个节点容器内的配置是否被应用
+## elk01
+root@k8s04-master:~# docker exec elk01 grep -Ev '#|^$' /etc/elasticsearch/elasticsearch.yml
+cluster.name: test-cluster
+node.name: test1
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.46
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.46","172.168.2.47"]
+## elk02
+root@k8s04-node01:~# docker exec elk02 grep -Ev '#|^$' /etc/elasticsearch/elasticsearch.yml
+cluster.name: test-cluster
+node.name: test2
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.47
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.47", "172.168.2.46"]
+
+# 查看集群配置
+root@k8s04-node01:~# curl -s http://172.168.2.46:9200/_cat/nodes
+172.168.2.47 24 42 4 2.78 1.64 0.72 mdi * test2
+172.168.2.46 21 87 3 2.88 1.72 0.82 mdi - test1
+root@k8s04-node01:~# curl -s http://172.168.2.46:9200/_cat/health
+1784705846 07:37:26 test-cluster green 2 2 0 0 0 0 0 0 - 100.0%
+```
+> 此时节点172.168.2.46和172.168.2.47组成了双节点的es6集群，但是存在脑裂风险
+
+
+
+
+## 二、修复集群脑裂风险
+
+### 1. 模拟客户端一直写入索引数据
+```bash
+jack@HS-UA-TSJ-0132:~/opencode/shell/opencode/elasticsearch/client$ ./es-write-test.sh
+开始模拟写入，按 Ctrl+C 停止
+节点: http://172.168.2.46:9200 http://172.168.2.47:9200 http://172.168.2.64:9200
+索引: testindex
+写入间隔: 1秒
+最大重试: 3次
+重试间隔: 2秒
+-----------------------------------
+[2026-07-22 16:50:36] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=1 失败=0
+[2026-07-22 16:50:37] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=2 失败=0
+[2026-07-22 16:50:38] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=3 失败=0
+[2026-07-22 16:50:40] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=4 失败=0
+[2026-07-22 16:50:41] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=5 失败=0
+[2026-07-22 16:50:42] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=6 失败=0
+[2026-07-22 16:50:43] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=7 失败=0
+[2026-07-22 16:50:44] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=8 失败=0
+[2026-07-22 16:50:45] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=9 失败=0
+[2026-07-22 16:50:46] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=10 失败=0
+[2026-07-22 16:50:47] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=11 失败=0
+[2026-07-22 16:50:48] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=12 失败=0
+```
+
+
+
+### 2. 配置集群最小投票节点数
+```bash
+# 通过 API 热修改已经运行的节点，立即生效，无需重启
+root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_cluster/settings' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "persistent": {
+      "discovery.zen.minimum_master_nodes": 2
+    }
+  }'
+{"acknowledged":true,"persistent":{"discovery":{"zen":{"minimum_master_nodes":"2"}}},"transient":{}}
+
+# 查看172.168.2.46和172.168.2.47两个节点的最小投票节点数
+# /_cluster/settings是集群配置，只需要连接一个节点进行配置即可，其它节点会同步配置，因为是persistent类型，所以此配置是内存（即时生效）和磁盘（永久生效）的，这个配置会写入到每个节点数据目录下nodes/0/_state/global-1.st文件中，节点运行起来后会自动加载此配置
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_cluster/settings?pretty
+{
+  "persistent" : {
+    "discovery" : {
+      "zen" : {
+        "minimum_master_nodes" : "2"
+      }
+    }
+  },
+  "transient" : { }
+}
+root@k8s04-master:~# curl -s http://172.168.2.47:9200/_cluster/settings?pretty
+{
+  "persistent" : {
+    "discovery" : {
+      "zen" : {
+        "minimum_master_nodes" : "2"
+      }
+    }
+  },
+  "transient" : { }
+}
+
+
+
+### 3. 添加172.168.2.64节点
+```bash
+# 新节点加入集群后会自动继承这个设置"minimum_master_nodes": "2"，现在不需要在 yml 里重复配置。
+root@Ubuntu-24:~/elasticsearch-blog# cat elasticsearch.yml
+cluster.name: test-cluster
+node.name: test3
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.64
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
+
+# 运行节点
+root@Ubuntu-24:~/elasticsearch-blog# docker run -d -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -v /root/elasticsearch-blog/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/elasticsearch-blog/data:/var/lib/elasticsearch -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk03 harborrepo.hs.com/ops/elk:640
+
+# 查看当前集群节点和状态
+root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/nodes
+172.168.2.47 45 42  2 0.32 0.27 0.36 mdi * test2
+172.168.2.64 24 93 36 1.74 1.08 0.49 mdi - test3
+172.168.2.46 42 86  2 0.12 0.23 0.37 mdi - test1
+root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/health
+1784706784 07:53:04 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
+
+# 通过nodes/0/_state/global-1.st配置文件，得知新节点已经自动继承，无需再配置elasticsearch.yml
+root@Ubuntu-24:~/elasticsearch-blog# docker cp elk03:/var/lib/elasticsearch/nodes/0/_state/global-1.st /tmp/
+Successfully copied 21.5kB to /tmp/
+root@Ubuntu-24:~/elasticsearch-blog# strings /tmp/global-1.st  | grep -i 'minimum_master_nodes'
+discovery.zen.minimum_master_nodes@2
+
+## 其它查询
+# 查看集群设置（包含 persistent 和 transient）
+curl -s http://172.168.2.46:9200/_cluster/settings?pretty
+# 查看所有节点的完整配置（包括 yml 中的静态设置）
+curl -s http://172.168.2.46:9200/_nodes/settings?pretty
+# 查看单个节点
+curl -s http://172.168.2.46:9200/_nodes/_local/settings?pretty
+```
+> 此时集群已经为3节点的集群，并且最小投票数为2节点，没有脑裂的风险了
+
+
+
+
+## 三、数据备份和恢复
+可以使用NFS/Windows共享目录、S3进行备份，长期使用建议NFS和S3，NFS比Windows共享目录更稳定
+> Windows共享目录需要在挂载指定用户ID，NFS可以在服务器进行chown命令指定用户ID
+
+
+
+### 1. 使用Windows共享目录
+
+```bash
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'mkdir -p /root/es-data'
+# 容器中运行的用户ID为991，因为目录也需要允许ID为991的用户访问。
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'mount -t cifs -o username=linuxuser,password=linuxuser,uid=991,gid=991,file_mode=0777,dir_mode=0777 //172.168.2.122/Software /root/es-data'
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'df -TH | grep "es-data"'
+172.168.2.47 | CHANGED | rc=0 >>
+//172.168.2.122/Software             cifs      241G  181G   60G  76% /root/es-data
+Shared connection to 172.168.2.47 closed.
+
+172.168.2.46 | CHANGED | rc=0 >>
+//172.168.2.122/Software             cifs      241G  181G   60G  76% /root/es-data
+Shared connection to 172.168.2.46 closed.
+
+172.168.2.64 | CHANGED | rc=0 >>
+//172.168.2.122/Software          cifs     241G  181G   60G  76% /root/es-data
+Shared connection to 172.168.2.64 closed.
+
+# 创建数据es备份目录
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'mkdir -p /root/es-data/elasticsearch-data'
+```
+
+
+
+### 2. 节点重建前准备工作
+```bash
+# 2.1 查看挂载/var/lib/elasticsearch的宿主机目录
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'docker ps -q | xargs docker inspect | grep -A100 Mounts | grep -E "Source|Destination"'
+172.168.2.46 | CHANGED | rc=0 >>
+                "Source": "/var/lib/docker/volumes/8934e6dd0165a229037780b79583dc12709731f6c877865c7179bdafa038c9c0/_data",
+                "Destination": "/var/lib/elasticsearch",
+Shared connection to 172.168.2.46 closed.
+
+172.168.2.64 | CHANGED | rc=0 >>
+                "Source": "/root/elasticsearch-blog/elasticsearch.yml",
+                "Destination": "/etc/elasticsearch/elasticsearch.yml",
+                "Source": "/root/elasticsearch-blog/data",
+                "Destination": "/var/lib/elasticsearch",
+Shared connection to 172.168.2.64 closed.
+
+172.168.2.47 | CHANGED | rc=0 >>
+                "Source": "/var/lib/docker/volumes/62df13cb43ca34dcc38fa484620e00b997a16c6f3013c49d2e97170bda9f338b/_data",
+                "Destination": "/var/lib/elasticsearch",
+Shared connection to 172.168.2.47 closed.
+
+
+# 2.2 备份elasticsearch的配置文件
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'docker ps -q | xargs -I {} docker exec {} grep -Ev "#|^$" /etc/elasticsearch/elasticsearch.yml > /root/es-elasticsearch.yml'
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'cat /root/es-elasticsearch.yml '
+172.168.2.47 | CHANGED | rc=0 >>
+cluster.name: test-cluster
+node.name: test2
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.47
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.47", "172.168.2.46"]
+Shared connection to 172.168.2.47 closed.
+
+172.168.2.46 | CHANGED | rc=0 >>
+cluster.name: test-cluster
+node.name: test1
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.46
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.46","172.168.2.47"]
+Shared connection to 172.168.2.46 closed.
+
+172.168.2.64 | CHANGED | rc=0 >>
+cluster.name: test-cluster
+node.name: test3
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.64
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
+Shared connection to 172.168.2.64 closed.
+
+
+
+# 2.3 备份docker运行命令的命令
+root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a "CID=\$(docker ps -a | grep elk | awk '{print \$1}'); echo \"CID=\$CID\"; docker run --rm -v /var/run/docker.sock:/var/run/docker.sock harborrepo.hs.com/ops/assaflavie/runlike:1.5.4 -p \$CID | tee ~/es-docker.sh"
+172.168.2.64 | CHANGED | rc=0 >>
+CID=83b8c2d8db88
+docker run --name=elk03 \
+        --hostname=83b8c2d8db88 \
+        --mac-address=02:42:ac:11:00:02 \
+        --volume /root/elasticsearch-blog/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
+        --volume /root/elasticsearch-blog/data:/var/lib/elasticsearch \
+        --env=ELASTICSEARCH_START=1 \
+        --env=KIBANA_START=1 \
+        --env=ES_CONNECT_RETRY=180 \
+        --expose=5044 \
+        -p 5601:5601 \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        --runtime=runc \
+        --detach=true \
+        harborrepo.hs.com/ops/elk:640 \
+        /usr/local/bin/start.sh
+Shared connection to 172.168.2.64 closed.
+
+172.168.2.47 | CHANGED | rc=0 >>
+CID=84afc3d0dc2f
+docker run --name=elk02 \
+        --hostname=84afc3d0dc2f \
+        --mac-address=02:42:ac:11:00:03 \
+        --volume /var/lib/elasticsearch \
+        --expose=5044 \
+        -p 5601:5601 \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        --log-opt max-size=50m \
+        --log-opt max-file=1 \
+        --runtime=runc \
+        --detach=true \
+        harborrepo.hs.com/ops/elk:640 \
+        /usr/local/bin/start.sh
+Shared connection to 172.168.2.47 closed.
+
+172.168.2.46 | CHANGED | rc=0 >>
+CID=8868e0a23810
+docker run --name=elk01 \
+        --hostname=8868e0a23810 \
+        --mac-address=02:42:ac:11:00:03 \
+        --volume /var/lib/elasticsearch \
+        --expose=5044 \
+        -p 5601:5601 \
+        -p 9200:9200 \
+        -p 9300:9300 \
+        --log-opt max-size=500m \
+        --log-opt max-file=3 \
+        --runtime=runc \
+        --detach=true \
+        harborrepo.hs.com/ops/elk:640 \
+        /usr/local/bin/start.sh
+Shared connection to 172.168.2.46 closed.
+```
+
+
+
+### 3. 滚动重建节点
+> 因为是重建运行，所以需要将之前节点中的配置(/nodes/0/_state/*.st) 写到elasticsearch.yml中，否则可以不用填写，这里需要在/root/es-elasticsearch.yml文件中显示添加
+> discovery.zen.minimum_master_nodes: 2
+
+
+
+
+#### 3.1 重建172.168.2.46
+```bash
+# 删除elaticsearch容器
+root@k8s04-master:~# docker stop elk01 && docker rm elk01
+
+# 更改配置文件
+root@k8s04-master:~# cat /root/es-elasticsearch.yml
+cluster.name: test-cluster
+node.name: test1
+path.repo: /root/es-data/elasticsearch-data
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.46
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.46","172.168.2.47","172.168.2.64"]
+discovery.zen.minimum_master_nodes: 2
+
+# 重新运行elasticsearch容器
+root@k8s04-master:~# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk01 -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -v /var/lib/docker/volumes/8934e6dd0165a229037780b79583dc12709731f6c877865c7179bdafa038c9c0:/var/lib/elasticsearch -v /root/es-elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/es-data/elasticsearch-data:/var/backups harborrepo.hs.com/ops/elk:640
+
+# 查看节点是否加入集群
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_cat/nodes
+172.168.2.47 28 48  2 0.13 0.07 0.09 mdi * test2
+172.168.2.46 40 88 80 2.26 0.61 0.26 mdi - test1
+172.168.2.64 29 96  2 0.11 0.09 0.09 mdi - test3
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_cat/health
+1784710803 09:00:03 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
+```
+
+
+
+#### 3.2 重建172.168.2.47
+
+```bash
+# 删除elaticsearch容器
+root@k8s04-node01:~# docker stop elk02 && docker rm elk02
+
+# 更改配置文件
+root@k8s04-node01:~# cat /root/es-elasticsearch.yml
+cluster.name: test-cluster
+node.name: test2
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.47
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.47","172.168.2.46","172.168.2.64"]
+discovery.zen.minimum_master_nodes: 2
+
+# 重新运行elasticsearch容器
+root@k8s04-node01:~# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk02 -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -v /var/lib/docker/volumes/62df13cb43ca34dcc38fa484620e00b997a16c6f3013c49d2e97170bda9f338b:/var/lib/elasticsearch -v /root/es-elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/es-data/elasticsearch-data:/var/backups harborrepo.hs.com/ops/elk:640
+
+# 查看节点是否加入集群
+root@k8s04-node01:~# curl -s http://172.168.2.47:9200/_cat/nodes
+172.168.2.64 39 96  2 0.07 0.07 0.08 mdi * test3
+172.168.2.46 31 90  3 0.10 0.39 0.26 mdi - test1
+172.168.2.47 31 43 66 1.67 0.42 0.20 mdi - test2
+root@k8s04-node01:~# curl -s http://172.168.2.47:9200/_cat/health
+1784711062 09:04:22 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
+```
+
+
+
+#### 3.3 重建172.168.2.64
+```bash
+# 删除elaticsearch容器
+root@Ubuntu-24:~/elasticsearch-blog# docker stop elk03 && docker rm elk03
+
+# 更改配置文件
+root@Ubuntu-24:~/elasticsearch-blog# cat /root/es-elasticsearch.yml
+cluster.name: test-cluster
+node.name: test3
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.64
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
+discovery.zen.minimum_master_nodes: 2
+
+# 重新运行
+root@Ubuntu-24:~/elasticsearch-blog# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk03 -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -v /root/elasticsearch-blog/data:/var/lib/elasticsearch -v /root/es-elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/es-data/elasticsearch-data:/var/backups harborrepo.hs.com/ops/elk:640
+
+# 查看节点是否加入集群
+root@Ubuntu-24:~/elasticsearch-blog# curl -s http://172.168.2.64:9200/_cat/nodes
+172.168.2.64 34 92 68 1.49 0.43 0.20 mdi - test3
+172.168.2.46 28 91  2 0.21 0.26 0.23 mdi - test1
+172.168.2.47 26 47 19 0.36 0.60 0.34 mdi * test2
+root@Ubuntu-24:~/elasticsearch-blog# curl -s http://172.168.2.64:9200/_cat/health
+1784711264 09:07:44 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
+```
+
+> 以下是客户端在写入索引数据时，节点滚动重建时的日志，客户端如果有重试机制则不会丢失日志
+```bash
+[2026-07-22 17:07:04] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=611 失败=13
+[2026-07-22 17:07:05] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=612 失败=13
+[2026-07-22 17:07:06] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=613 失败=13
+[2026-07-22 17:07:07] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=614 失败=13
+[2026-07-22 17:07:08] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=615 失败=13
+[2026-07-22 17:07:09] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=616 失败=13
+[2026-07-22 17:07:10] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=617 失败=13
+[2026-07-22 17:07:12] ✗ 写入失败 -> http://172.168.2.64:9200 (HTTP: 000, 第1次尝试)
+  等待 2 秒后重试...
+[2026-07-22 17:07:14] ✗ 写入失败 -> http://172.168.2.64:9200 (HTTP: 000, 第2次尝试)
+  等待 2 秒后重试...
+[2026-07-22 17:07:16] ✓ 写入成功 -> http://172.168.2.46:9200 (第3次尝试)
+统计: 成功=618 失败=13
+[2026-07-22 17:07:17] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=619 失败=13
+[2026-07-22 17:07:18] ✓ 写入成功 -> http://172.168.2.46:9200 (第1次尝试)
+统计: 成功=620 失败=13
+[2026-07-22 17:07:19] ✗ 写入失败 -> http://172.168.2.64:9200 (HTTP: 000, 第1次尝试)
+  等待 2 秒后重试...
+[2026-07-22 17:07:21] ✗ 写入失败 -> http://172.168.2.64:9200 (HTTP: 000, 第2次尝试)
+  等待 2 秒后重试...
+[2026-07-22 17:07:23] ✓ 写入成功 -> http://172.168.2.47:9200 (第3次尝试)
+统计: 成功=621 失败=13
+[2026-07-22 17:07:24] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
+统计: 成功=622 失败=13
+[2026-07-22 17:07:25] ✓ 写入成功 -> http://172.168.2.47:9200 (第1次尝试)
+统计: 成功=623 失败=13
+```
+
+
+
+#### 3.4 执行快照备份和恢复
+```bash
+# 创建快照仓库
+root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_snapshot/my_backup' -H 'Content-Type: application/json' -d '{
+  "type": "fs",
+  "settings": {
+    "location": "/var/backups",
+    "compress": true
+  }
+}'
+
+# 验证仓库
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_snapshot/my_backup?pretty
+{
+  "my_backup" : {
+    "type" : "fs",
+    "settings" : {
+      "compress" : "true",
+      "location" : "/var/backups"
+    }
+  }
+}
+
+# 查看快照
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_snapshot/my_backup/_all
+{"snapshots":[]}
+
+# 执行快照
+root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_snapshot/my_backup/snapshot_20260721?wait_for_completion=true&pretty'
+{
+  "snapshot" : {
+    "snapshot" : "snapshot_20260721",
+    "uuid" : "CuFtSQ_fQ9el1fs2tyoSmg",
+    "version_id" : 6040099,
+    "version" : "6.4.0",
+    "indices" : [
+      "testindex"
+    ],
+    "include_global_state" : true,
+    "state" : "SUCCESS",
+    "start_time" : "2026-07-22T09:11:45.350Z",
+    "start_time_in_millis" : 1784711505350,
+    "end_time" : "2026-07-22T09:11:46.934Z",
+    "end_time_in_millis" : 1784711506934,
+    "duration_in_millis" : 1584,
+    "failures" : [ ],
+    "shards" : {
+      "total" : 5,
+      "failed" : 0,
+      "successful" : 5
+    }
+  }
+}
+
+# 查看所有快照
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_snapshot/my_backup/_all | jq .
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_20260721",
+      "uuid": "CuFtSQ_fQ9el1fs2tyoSmg",
+      "version_id": 6040099,
+      "version": "6.4.0",
+      "indices": [
+        "testindex"
+      ],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2026-07-22T09:11:45.350Z",
+      "start_time_in_millis": 1784711505350,
+      "end_time": "2026-07-22T09:11:46.934Z",
+      "end_time_in_millis": 1784711506934,
+      "duration_in_millis": 1584,
+      "failures": [],
+      "shards": {
+        "total": 5,
+        "failed": 0,
+        "successful": 5
+      }
+    }
+  ]
+}
+# 查看指定快照
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_snapshot/my_backup/snapshot_20260721
+
+# 恢复快照
+POST /_snapshot/my_backup/snapshot_20260721/_restore
+{
+  "indices": "test*",			# 恢复哪些索引
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "rename_pattern": "(.+)",				# 进行名称匹配，这里为匹配所有索引原始名称，例如：原始名称为testindex02，则(.+)匹配为testindex02
+  "rename_replacement": "restore_$1",	# 将上面匹配的名称引用，生成目标索引名称，例如：restore_testindex02，这个就是恢复的索引名称
+  "index_settings": {
+    "index.number_of_replicas": 0
+  }
+}
+root@k8s04-master:~# curl -X POST http://172.168.2.46:9200/_snapshot/my_backup/snapshot_20260721/_restore -H 'Content-Type: application/json' -d '
+{
+  "indices": "test*",
+  "ignore_unavailable": true,
+  "include_global_state": false,
+  "rename_pattern": "(.+)",	
+  "rename_replacement": "restore_$1",
+  "index_settings": {
+    "index.number_of_replicas": 0
+  }
+}'
+{"accepted":true}
+
+# 查看索引
+root@k8s04-master:~# curl -s http://172.168.2.46:9200/_cat/indices
+green open restore_testindex bCedmg63QWWAa8pbEFyrpw 5 0 4808 0 522.5kb 522.5kb
+green open testindex         Qf6HPZcnSi2lOCIR77vC0A 5 1 5601 0   1.8mb     1mb
+# 更新索引副本
+PUT /restore_testindex02/_settings
+{
+  "index.number_of_replicas": 1
+}
+root@k8s04-master:~# curl -X PUT http://172.168.2.46:9200/restore_testindex/_settings -H 'Content-Type: application/json' -d '
+{
+  "index.number_of_replicas": 1
+}'
+{"acknowledged":true}
+```
+
+![](./images/elk/03.png)
+
+
+
+
+
+
+
+## 其它问题
+
+### 1. windows共享问题
+
+在windows服务器手动把共享//172.168.2.122/Software取消了，然后又开启共享了，此时三个节点如何恢复elasticsearch备份目录
+
+#### 1.1 断开重新挂载
+
+```bash
+## 节点172.168.2.46 
+# 查看挂载目录报错，因为之前共享已经失效，只能断开重新挂载
+root@k8s04-master:~# df -TH
+df: /root/es-data: Input/output error
+Filesystem                           Type      Size  Used Avail Use% Mounted on
+udev                                 devtmpfs  2.1G     0  2.1G   0% /dev
+tmpfs                                tmpfs     411M   13M  399M   4% /run
+/dev/mapper/ubuntu18--x8664--vg-root xfs        21G  8.2G   13G  40% /
+tmpfs                                tmpfs     2.1G     0  2.1G   0% /dev/shm
+tmpfs                                tmpfs     5.3M     0  5.3M   0% /run/lock
+tmpfs                                tmpfs     2.1G     0  2.1G   0% /sys/fs/cgroup
+/dev/sda1                            ext4      989M  125M  796M  14% /boot
+tmpfs                                tmpfs     411M     0  411M   0% /run/user/0
+overlay                              overlay    21G  8.2G   13G  40% /var/lib/docker/overlay2/6d4569604ee8c7432da4a3728b208f51f50498ded491f86c7d1f95715934f77e/merged
+root@k8s04-master:~# ls /root/es-data
+ls: cannot access '/root/es-data': Input/output error
+root@k8s04-master:~# ls -la
+ls: cannot access 'es-data': Input/output error
+total 60
+drwx------  8 root root   280 Jul 22 16:53 .
+drwxr-xr-x 22 root root   326 Jan 21  2025 ..
+drwx------  3 root root    17 Nov  5  2024 .ansible
+-rw-------  1 root root 17638 Jul 22 14:56 .bash_history
+-rw-r--r--  1 root root  3106 Nov  7  2024 .bashrc
+drwx------  3 root root    45 Jul 21 17:32 .cache
+-rw-r--r--  1 root root   207 Jul 22 14:52 elasticsearch.yml
+-rw-r--r--  1 root root   207 May 25 16:26 elasticsearch.yml.bak
+d?????????  ? ?    ?        ?            ? es-data
+-rw-r--r--  1 root root   332 Jul 22 16:46 es-docker.sh
+-rw-r--r--  1 root root   260 Jul 22 16:53 es-elasticsearch.yml
+drwx------  3 root root    31 Nov  5  2024 .gnupg
+drwxr-xr-x  3 root root    19 Nov  7  2024 .kube
+-rw-r--r--  1 root root   220 Jan  6  2022 ..network.sh
+-rw-r--r--  1 root root   148 Aug 17  2015 .profile
+drwxr-xr-x  2 root root    48 Nov  6  2024 .ssh
+-rw-------  1 root root 11853 Jul 22 16:53 .viminfo
+
+# 强制卸载已断开的挂载（-l 懒卸载，-f 强制）
+root@k8s04-master:~# umount -lf /root/es-data
+
+root@k8s04-master:~# ls -l
+total 16
+-rw-r--r-- 1 root root 207 Jul 22 14:52 elasticsearch.yml
+-rw-r--r-- 1 root root 207 May 25 16:26 elasticsearch.yml.bak
+drwxr-xr-x 2 root root   6 Jul 21 17:15 es-data
+-rw-r--r-- 1 root root 332 Jul 22 16:46 es-docker.sh
+-rw-r--r-- 1 root root 260 Jul 22 16:53 es-elasticsearch.yml
+root@k8s04-master:~# ls /root/es-data/
+root@k8s04-master:~# ll
+total 60
+drwx------  8 root root   280 Jul 22 16:53 ./
+drwxr-xr-x 22 root root   326 Jan 21  2025 ../
+drwx------  3 root root    17 Nov  5  2024 .ansible/
+-rw-------  1 root root 17638 Jul 22 14:56 .bash_history
+-rw-r--r--  1 root root  3106 Nov  7  2024 .bashrc
+drwx------  3 root root    45 Jul 21 17:32 .cache/
+-rw-r--r--  1 root root   207 Jul 22 14:52 elasticsearch.yml
+-rw-r--r--  1 root root   207 May 25 16:26 elasticsearch.yml.bak
+drwxr-xr-x  2 root root     6 Jul 21 17:15 es-data/
+-rw-r--r--  1 root root   332 Jul 22 16:46 es-docker.sh
+-rw-r--r--  1 root root   260 Jul 22 16:53 es-elasticsearch.yml
+drwx------  3 root root    31 Nov  5  2024 .gnupg/
+drwxr-xr-x  3 root root    19 Nov  7  2024 .kube/
+-rw-r--r--  1 root root   220 Jan  6  2022 ..network.sh
+-rw-r--r--  1 root root   148 Aug 17  2015 .profile
+drwxr-xr-x  2 root root    48 Nov  6  2024 .ssh/
+-rw-------  1 root root 11853 Jul 22 16:53 .viminfo
+
+# 重新挂载
+root@k8s04-master:~# mount -t cifs -o username=linuxuser,password=linuxuser,uid=991,gid=991,file_mode=0777,dir_mode=0777 //172.168.2.122/Software /root/es-data
+root@k8s04-master:~# df -TH
+Filesystem                           Type      Size  Used Avail Use% Mounted on
+udev                                 devtmpfs  2.1G     0  2.1G   0% /dev
+tmpfs                                tmpfs     411M   13M  399M   4% /run
+/dev/mapper/ubuntu18--x8664--vg-root xfs        21G  8.2G   13G  40% /
+tmpfs                                tmpfs     2.1G     0  2.1G   0% /dev/shm
+tmpfs                                tmpfs     5.3M     0  5.3M   0% /run/lock
+tmpfs                                tmpfs     2.1G     0  2.1G   0% /sys/fs/cgroup
+/dev/sda1                            ext4      989M  125M  796M  14% /boot
+tmpfs                                tmpfs     411M     0  411M   0% /run/user/0
+overlay                              overlay    21G  8.2G   13G  40% /var/lib/docker/overlay2/6d4569604ee8c7432da4a3728b208f51f50498ded491f86c7d1f95715934f77e/merged
+//172.168.2.122/Software             cifs      241G  181G   60G  76% /root/es-data
+
+## 节点172.168.2.47
+root@k8s04-node01:~# umount -lf /root/es-data
+root@k8s04-node01:~# mount -t cifs -o username=linuxuser,password=linuxuser,uid=991,gid=991,file_mode=0777,dir_mode=0777 //172.168.2.122/Software /root/es-data
+root@k8s04-node01:~# df -TH | grep es-data
+//172.168.2.122/Software             cifs      241G  181G   60G  76% /root/es-data
+
+## 节点172.168.2.64
+root@Ubuntu-24:~/elasticsearch-blog# umount -lf /root/es-data
+root@Ubuntu-24:~/elasticsearch-blog# mount -t cifs -o username=linuxuser,password=linuxuser,uid=991,gid=991,file_mode=0777,dir_mode=0777 //172.168.2.122/Software /root/es-data
+root@Ubuntu-24:~/elasticsearch-blog# df -TH | grep es-data
+//172.168.2.122/Software          cifs     241G  181G   60G  76% /root/es-data
+```
+
+
+
+#### 1.2 滚动重启elasticsearch容器
+
+```bash
+root@k8s04-master:~# docker restart elk01
+root@k8s04-node01:~# docker restart elk02
+root@Ubuntu-24:~/elasticsearch-blog# docker restart elk03
+```
+
+
+
+#### 1.3 再次查看快照
+
+```bash
+root@Ubuntu-24:~/elasticsearch-blog# curl -s http://172.168.2.46:9200/_snapshot/my_backup/_all | jq .
+{
+  "snapshots": [
+    {
+      "snapshot": "snapshot_20260721",
+      "uuid": "CuFtSQ_fQ9el1fs2tyoSmg",
+      "version_id": 6040099,
+      "version": "6.4.0",
+      "indices": [
+        "testindex"
+      ],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2026-07-22T09:11:45.350Z",
+      "start_time_in_millis": 1784711505350,
+      "end_time": "2026-07-22T09:11:46.934Z",
+      "end_time_in_millis": 1784711506934,
+      "duration_in_millis": 1584,
+      "failures": [],
+      "shards": {
+        "total": 5,
+        "failed": 0,
+        "successful": 5
+      }
+    }
+  ]
+}
+```
+
