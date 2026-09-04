@@ -5283,6 +5283,60 @@ $ curl -s -XGET "http://blog.hs.com:9200/homsom_log/_search?size=10000" -H 'Cont
 
 
 
+### 7.15 elasticsearch6集群优雅维护节点
+
+**不执行以下操作也可以，集群也不会丢数据，也不会坏。** 但执行它是为了**避免不必要的性能开销和恢复时间**。
+
+不执行的话：集群会立即开始把丢失的分片从其他节点复制过来。如果你只是短暂停机维护（比如几分钟），这些搬迁完全是浪费——因为节点回来后又要搬回去
+
+```bash
+# master概念
+active master：正在履行职责的主节点
+standby master：所有配置了node.master: true的节点
+
+
+# 1. 关闭分片自动分配
+# 该 master 是纯 master 节点（node.data: false）可以不执行关闭分片分配，因为没有分片需要搬迁。直接优雅停机即可。
+# 该 master 同时承担 data 角色（node.master: true, node.data: true）,强烈建议执行。三节点集群通常每个节点都存数据，停一个就意味着 1/3 的分片副本丢失，不关闭分配的话集群会立刻开始大规模搬迁，而你只是想换个 master 而已。
+curl -X PUT "http://<任一节点IP>:9200/_cluster/settings" -H 'Content-Type: application/json' -d '{
+  "transient": {
+    "cluster.routing.allocation.enable": "none"
+  }
+}'
+
+
+# 2. Synced flush
+# 在普通 flush 基础上，额外写入一个 sync_id 标记到所有副本，如果 sync_id 一致，跳过 translog 回放，直接复用本地文件，快很多（秒级完成），synced flush 是尽力而为（best-effort） 的操作。失败的索引/分片只是退化为普通恢复方式（translog 回放），不影响数据安全和正确性。你不需要重试或处理这些失败。
+curl -s -X POST "$ES_HOST/_flush/synced"
+{
+  "_shards": {
+    "total": 10,
+    "successful": 10,
+    "failed": 0
+  },
+  "testindex": {
+    "total": 10,
+    "successful": 10,
+    "failed": 0
+  }
+}
+
+# 3. 停掉一个节点服务
+systemctl stop elasticsearch
+
+
+# 4. 恢复分片自动分配
+curl -X PUT "http://<存活节点IP>:9200/_cluster/settings" -H 'Content-Type: application/json' -d '{
+  "transient": {
+    "cluster.routing.allocation.enable": null
+  }
+}'
+```
+
+
+
+
+
 
 
 
@@ -7335,7 +7389,35 @@ jack@HS-UA-TSJ-0132:~/opencode/shell/opencode/elasticsearch/client$ ./es-write-t
 
 
 
-### 2. 配置集群最小投票节点数
+### 2. 添加172.168.2.64节点
+
+```bash
+```bash
+# 新节点加入集群后会自动继承这个设置"minimum_master_nodes": "2"，现在不需要在 yml 里重复配置。
+root@Ubuntu-24:~/elasticsearch-blog# cat elasticsearch.yml
+cluster.name: test-cluster
+node.name: test3
+path.repo: /var/backups
+network.host: 0.0.0.0
+network.publish_host: 172.168.2.64
+http.port: 9200
+discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
+
+# 运行节点
+root@Ubuntu-24:~/elasticsearch-blog# docker run -d --restart always -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -e ES_HEAP_SIZE=4g -v /root/elasticsearch-blog/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/elasticsearch-blog/data:/var/lib/elasticsearch -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk03 harborrepo.hs.com/ops/elk:640
+
+# 查看当前集群节点和状态
+root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/nodes
+172.168.2.47 45 42  2 0.32 0.27 0.36 mdi * test2
+172.168.2.64 24 93 36 1.74 1.08 0.49 mdi - test3
+172.168.2.46 42 86  2 0.12 0.23 0.37 mdi - test1
+root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/health
+1784706784 07:53:04 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
+```
+
+
+
+### 3. 配置集群最小投票节点数
 ```bash
 # 通过 API 热修改已经运行的节点，立即生效，无需重启
 root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_cluster/settings' \
@@ -7372,30 +7454,6 @@ root@k8s04-master:~# curl -s http://172.168.2.47:9200/_cluster/settings?pretty
   "transient" : { }
 }
 
-
-
-### 3. 添加172.168.2.64节点
-```bash
-# 新节点加入集群后会自动继承这个设置"minimum_master_nodes": "2"，现在不需要在 yml 里重复配置。
-root@Ubuntu-24:~/elasticsearch-blog# cat elasticsearch.yml
-cluster.name: test-cluster
-node.name: test3
-path.repo: /var/backups
-network.host: 0.0.0.0
-network.publish_host: 172.168.2.64
-http.port: 9200
-discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
-
-# 运行节点
-root@Ubuntu-24:~/elasticsearch-blog# docker run -d -e ELASTICSEARCH_START=1 -e KIBANA_START=1 -e ES_CONNECT_RETRY=180 -v /root/elasticsearch-blog/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml -v /root/elasticsearch-blog/data:/var/lib/elasticsearch -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk03 harborrepo.hs.com/ops/elk:640
-
-# 查看当前集群节点和状态
-root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/nodes
-172.168.2.47 45 42  2 0.32 0.27 0.36 mdi * test2
-172.168.2.64 24 93 36 1.74 1.08 0.49 mdi - test3
-172.168.2.46 42 86  2 0.12 0.23 0.37 mdi - test1
-root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/health
-1784706784 07:53:04 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
 
 # 通过nodes/0/_state/global-1.st配置文件，得知新节点已经自动继承，无需再配置elasticsearch.yml
 root@Ubuntu-24:~/elasticsearch-blog# docker cp elk03:/var/lib/elasticsearch/nodes/0/_state/global-1.st /tmp/
@@ -7581,7 +7639,7 @@ root@k8s04-master:~# docker stop elk01 && docker rm elk01
 root@k8s04-master:~# cat /root/es-elasticsearch.yml
 cluster.name: test-cluster
 node.name: test1
-path.repo: /root/es-data/elasticsearch-data
+path.repo: /var/backups
 network.host: 0.0.0.0
 network.publish_host: 172.168.2.46
 http.port: 9200
