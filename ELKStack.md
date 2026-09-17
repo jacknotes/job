@@ -6940,6 +6940,8 @@ PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 
 ## 13. k8s日志收集
 
+**v1**
+
 ```bash
 filebeat.config.modules.path: ${path.config}/modules.d/*.yml
 filebeat.inputs:
@@ -6976,6 +6978,99 @@ output.elasticsearch:
     pattern: "*"
   bulk_max_size: 2048
   flush_interval: 5s
+logging.level: error
+```
+
+**v2**
+
+```yml
+filebeat.config.modules.path: ${path.config}/modules.d/*.yml
+filebeat.inputs:
+  - type: journald
+    id: everything
+    ignore_older: 72h
+    tags: ["linux"]
+
+  # java
+  - type: container
+    enabled: true
+    paths:
+      - /var/log/containers/pro-java*
+    stream: all
+    parsers:
+      - container: ~
+    symlinks: true
+    tags: ["k8s"]
+    multiline.pattern: '^[[:space:]]|^(Caused by:)|^\.\.\.|^###|^;|^(==>)|^(<==)|^(SqlSession \[)|^(JDBC Connection \[)|^(Closing)'
+    multiline.negate: false
+    multiline.match: after
+    multiline.max_lines: 500
+    multiline.timeout: 5s
+
+  # dotnet
+  - type: container
+    enabled: true
+    paths:
+      - /var/log/containers/pro-dotnet*
+    stream: all
+    parsers:
+      - container: ~
+    symlinks: true
+    tags: ["k8s"]
+    multiline.pattern: '^[[:space:]]'
+    multiline.negate: false
+    multiline.match: after
+    multiline.max_lines: 500
+    multiline.timeout: 5s
+    processors:
+      - script:
+          lang: javascript
+          source: >
+            function process(event) {
+              var msg = event.Get("message");
+              if (msg != null) {
+                var re = new RegExp(String.fromCharCode(27) + "\\[[0-9;]*m", "g");
+                event.Put("message", msg.replace(re, ""));
+              }
+            }
+processors:
+  - add_host_metadata: ~
+  - add_cloud_metadata: ~
+  - script:
+      lang: javascript
+      source: >
+        function process(event) {
+          var ips = event.Get("host.ip");
+          if (ips == null) { return; }
+          var keep = [];
+          for (var i = 0; i < ips.length; i++) {
+            if (typeof ips[i] === "string" &&
+                (ips[i].indexOf("172.168.2.") === 0 || ips[i].indexOf("192.168.13.") === 0)) {
+              keep.push(ips[i]);
+            }
+          }
+          if (keep.length > 0) { event.Put("host.ip", keep); }
+        }
+  - drop_fields:
+      fields: ["ecs","input","agent","host.mac","process","host.id","systemd","log.offset","log.syslog.facility.code","log.syslog.priority","journald.process.executable","journald.process.capabilities","journald.host.boot_id","journald.custom.stream_id","event","host.architecture","host.containerized","host.os.name","host.name","journald.custom.selinux_context","journald_process_name","user"]
+      ignore_missing: true
+output.elasticsearch:
+  timeout: 10
+  path: "/api/default/"
+  hosts: ["openobserveapi.test.com:5080"]
+  username: "filebeat@test.com"
+  password: "123ssafdsa"
+  indices:
+    - index: "k8s"
+      when.contains:
+        tags: "k8s"
+    - index: "linux"
+      when.contains:
+        tags: "linux"
+  bulk_max_size: 2048
+  flush_interval: 5s
+setup.template.enabled: false
+setup.ilm.enabled: false
 logging.level: error
 ```
 
