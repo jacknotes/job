@@ -1456,3 +1456,49 @@ if __name__ == "__main__":
 所以，这就是你看到：
 * 服务停 → 立即连接成功或失败，不卡。
 ( 网线拔掉 → TCP SYN 超时 → 客户端卡 ~1 分钟(默认 Linux TCP 层的 SYN 超时总和约 60 秒（取决于 tcp_syn_retries）)
+
+
+
+
+
+
+
+## 其它命令
+
+### 1. 查看消息并重新放回队首
+
+消息依然存在，只是`"redelivered"`状态会改变 `'true'`，但不影响消息正常被其它消费者消息
+
+```
+## 授权
+# 1. 创建用户
+rabbitmqctl add_user Opsabc Opsabc@123
+
+# 2. 设置角色为 monitoring（只能看，不能改）
+rabbitmqctl set_user_tags Opsabc monitoring
+
+# 3. 只授予读权限（conf="" write="" read=".*"）
+rabbitmqctl set_permissions -p / Opsabc "" "" ".*"
+rabbitmqctl set_permissions -p my_vhost Opsabc "" "" ".*"
+
+# 4. 验证，
+# 注意：URL 中的 '%2f' 代表默认的虚拟主机'/', 'my_vhost'表示虚拟主机'my_vhost'
+# 注意：你之所以连续三次 count:3 都拿到一模一样的 3 条消息，是因为 ack_requeue_true 把你取出的这 3 条消息，又原封不动地放回了队列的最前面，导致你下一次取的时候，依然先取到它们。
+# 注意：通过rabbitmq的管理界面'Get messages'来查看消息也可以效果一样，取决于你的'Ack Mode'，值必需是'Nack message requeue true'（表示不确认消息并重新放回队首）或者'Reject requeue' true（表示拒绝消息并重新放回队首），千万不要选择'Ack message requeue false'和'Reject requeue false'，这2个表示确认消息不重新放回队首和拒绝消息不重新放回队首
+root@fat-middleware-rabbitmq-statefulset-0:/# curl -u Opsabc:Opsabc@123 -H "content-type:application/json" -X POST http://localhost:15672/api/queues/my_vhost/hotelordercancel.shengyihotel/get -d '{"count":1,"ackmode":"ack_requeue_true","encoding":"auto","truncate":50000}'
+[{"payload_bytes":242,"redelivered":false,"exchange":"hotelordercancel","routing_key":"","message_count":1953,"properties":{"message_id":"6806f7ea29997e0001d35e91","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"CmpId\\\":\\\"022679\\\",\\\"OrderId\\\":\\\"A5EE248F-6E33-4592-A69F-973F9966937F\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：A5EE248F-6E33-4592-A69F-973F9966937F，订单号：160245，单位Id：022679\\\"}\"}","payload_encoding":"string"}]
+
+root@fat-middleware-rabbitmq-statefulset-0:/# curl -u Opsabc:Opsabc@123 -H "content-type:application/json" -X POST http://localhost:15672/api/queues/my_vhost/hotelordercancel.shengyihotel/get -d '{"count":1,"ackmode":"ack_requeue_true","encoding":"auto","truncate":50000}'
+[{"payload_bytes":242,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1953,"properties":{"message_id":"6806f7ea29997e0001d35e91","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"CmpId\\\":\\\"022679\\\",\\\"OrderId\\\":\\\"A5EE248F-6E33-4592-A69F-973F9966937F\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：A5EE248F-6E33-4592-A69F-973F9966937F，订单号：160245，单位Id：022679\\\"}\"}","payload_encoding":"string"}]root@fat-middleware-rabbitmq-statefulset-0:/# 
+
+
+root@fat-middleware-rabbitmq-statefulset-0:/# curl -u Opsabc:Opsabc@123 -H "content-type:application/json" -X POST http://localhost:15672/api/queues/my_vhost/hotelordercancel.shengyihotel/get -d '{"count":3,"ackmode":"ack_requeue_true","encoding":"auto","truncate":50000}'
+[{"payload_bytes":242,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1953,"properties":{"message_id":"6806f7ea29997e0001d35e91","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"CmpId\\\":\\\"022679\\\",\\\"OrderId\\\":\\\"A5EE248F-6E33-4592-A69F-973F9966937F\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：A5EE248F-6E33-4592-A69F-973F9966937F，订单号：160245，单位Id：022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":false,"exchange":"hotelordercancel","routing_key":"","message_count":1952,"properties":{"message_id":"6806fab4c1a69c000182c654","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"2bb43612-d9e1-454a-a140-4bfd5302c783\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：2bb43612-d9e1-454a-a140-4bfd5302c783,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":false,"exchange":"hotelordercancel","routing_key":"","message_count":1951,"properties":{"message_id":"6807048ce82ad100011e4acc","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"5d9cf0f2-9884-40d1-a292-37197cb91f75\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：5d9cf0f2-9884-40d1-a292-37197cb91f75,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"}]
+
+root@fat-middleware-rabbitmq-statefulset-0:/# curl -u Opsabc:Opsabc@123 -H "content-type:application/json" -X POST http://localhost:15672/api/queues/my_vhost/hotelordercancel.shengyihotel/get -d '{"count":3,"ackmode":"ack_requeue_true","encoding":"auto","truncate":50000}'
+[{"payload_bytes":242,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1953,"properties":{"message_id":"6806f7ea29997e0001d35e91","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"CmpId\\\":\\\"022679\\\",\\\"OrderId\\\":\\\"A5EE248F-6E33-4592-A69F-973F9966937F\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：A5EE248F-6E33-4592-A69F-973F9966937F，订单号：160245，单位Id：022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1952,"properties":{"message_id":"6806fab4c1a69c000182c654","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"2bb43612-d9e1-454a-a140-4bfd5302c783\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：2bb43612-d9e1-454a-a140-4bfd5302c783,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1951,"properties":{"message_id":"6807048ce82ad100011e4acc","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"5d9cf0f2-9884-40d1-a292-37197cb91f75\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：5d9cf0f2-9884-40d1-a292-37197cb91f75,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"}]
+
+root@fat-middleware-rabbitmq-statefulset-0:/# curl -u Opsabc:Opsabc@123 -H "content-type:application/json" -X POST http://localhost:15672/api/queues/my_vhost/hotelordercancel.shengyihotel/get -d '{"count":3,"ackmode":"ack_requeue_true","encoding":"auto","truncate":50000}'
+[{"payload_bytes":242,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1953,"properties":{"message_id":"6806f7ea29997e0001d35e91","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"CmpId\\\":\\\"022679\\\",\\\"OrderId\\\":\\\"A5EE248F-6E33-4592-A69F-973F9966937F\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：A5EE248F-6E33-4592-A69F-973F9966937F，订单号：160245，单位Id：022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1952,"properties":{"message_id":"6806fab4c1a69c000182c654","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"2bb43612-d9e1-454a-a140-4bfd5302c783\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：2bb43612-d9e1-454a-a140-4bfd5302c783,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"},{"payload_bytes":219,"redelivered":true,"exchange":"hotelordercancel","routing_key":"","message_count":1951,"properties":{"message_id":"6807048ce82ad100011e4acc","delivery_mode":2},"payload":"{\"MessageType\":\"HotelOrderCancel\",\"Message\":\"{\\\"OrderId\\\":\\\"5d9cf0f2-9884-40d1-a292-37197cb91f75\\\",\\\"Msg\\\":\\\"酒店订单取消,订单Id：5d9cf0f2-9884-40d1-a292-37197cb91f75,单位Id：022679\\\",\\\"CmpId\\\":\\\"022679\\\"}\"}","payload_encoding":"string"}]
+```
+
