@@ -1,333 +1,657 @@
-#Zabbix
+# Zabbix
 
-<pre>
-####SecureCRT
-yum install -y lrzsz   	#安装secretCRT中的rz上传和sz下载
-`CentOS7用TAB键补全命令软件：yum install -y bash-completion
-然后退出bash并重登bash`
+---
+
+## 第一章 监控基础知识
+
+### 1.1 SecureCRT
+
+```bash
+yum install -y lrzsz   	# 安装 secretCRT 中的 rz 上传和 sz 下载
+```
+
+CentOS7 用 TAB 键补全命令软件：
+
+```bash
+yum install -y bash-completion
+```
+
+然后退出 bash 并重登 bash。
+
 监控宝参考链接：https://wiki.jiankongbao.com/doku.php
-####监控概述
-######监控对象
-1. 监控对象的理解：CPU是怎么工作的。原理
-2. 监控对象的指标：CPU使用率、CPU负载 、CPU个数、上下文切换
-3. 确定性能基准线：怎么样才算故障？CPU负载多少长算高
-#####监控范围：
-1. 硬件监控	服务器的硬件故障
-2. 操作系统监控	CPU，内存，IO（硬盘和网络），进程等
-3. 应用服务监控	Apache是否正常，DOWN机等
-4. 业务监控	例如：今天下了多少单，今天客户客单价多少等
-#####硬件监控
-远程控制卡：和服务器没有太大的关系，服务器有没有操作系统也跟它无关系（DELL服务器：iDRAC，HP服务器：ILO，IBM服务器：IMM）
-远程控制卡的标准是IPMI标准，有了IPMI标准，Linux就可以对IPMI标准进行监控，IPMI依赖于BMC控制器（BMC控制器放在远程控制卡上面），它们之间来沟通监控CPU温度，风扇转速，硬盘有没有报警
-#在Linux下用ipmitool工具来监控硬件:
-1. 硬件要支持（硬件要支持ipmi协议，并且不是虚拟机）
-2. 操作系统要支持	Linux是支持IPMI的
-3. 管理工具	ipmitool
-#使用IPMI有两种方式：
-1. 本地调用
-2. 远程调用（需要IP地址，用户名和密码）
-#IPMI配置网络有两种方式：
-1. ipmi over lan  ipmi数据包通过服务器网卡来走
-2. 独立网卡
-#硬件监控两种方式：
-1. 使用IPMI
-2. 机房巡检
-#####安装及使用ipmi
-1. 安装ipmitool软件：yum install OpenIPMI ipmitool -y
-2. 启动服务：systemctl start ipmi
-3. ipmitool help ---获取ipmi的命令
-#Linux监控：
-路由器和交换机监控：使用SNMP（简单网络管理协议）监控，要开启SNMP协议
-client端（安装net-snmp，需要启动代理服务）<<————>>server端（安装net-snmp-utils，不需要启动服务）
-* 安装SNMP协议软件：yum install -y net-snmp net-snmp-utils
-* 更改snmp配置文件：vim /etc/snmp/snmpd.conf，只添加如下一行即可
-`rocommunity oldboy 192.168.1.201 `
-----rocommunity是只读社区名（在zabbix中用$(SNMP_COMMUNITY)表示社区名）----oldboy是社区名值，IP地址是要监控的主机，这里写的是本地主机，snmp需要snmp代理端起服务，不需要服务端起服务。然后使用工具来连接代理就可以获取数据。（相当于ssh，通过ssh命令就可以连接过去）：
-* systemctl start snmpd    ---开启snmp服务
-* snmp默认监听的是TCP的199端口和UDP的161端口
-* MIB对象的唯一标识符是OID（有两种表达方式，数字和字符串方式，数字例子：1.3.6.1.2.1.1.3.0）
-* 获取系统启动时间：snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.2.1.1.3.0（-v2c为snmp的v2版本协议，-c oldboy为团体名，192.168.1.201 1.3.6.1.2.1.1.3.0获取本机IP的开机时间，【1.3.6.1.2.1.1.3.0这个为OID】）
-* 获取系统负载：snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3.1（只能获取单独的1分钟负载）
-* snmpwalk -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3(以树结点来获取到1分钟，5分钟，15分钟的负载)
-#监控的流程：
-1. 收集
-2. 存储
-3. 展示
-4. 报警
-#snmp有5种报文跟snmp代表来沟通，例如两种：
-1. GetRequest PDU  （例如：snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3.1）
-2. GetNextRequest PDU （例如： snmpwalk -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3）
-###系统监控
-1. CPU
-2. 内存
-3. IO input/output (网络，磁盘)
-####CPU监控
-CPU三个重要的概念
-	一个标准的Linux可以运行50到5万个进程
-	时间片
-	1. 上下文切换:CPU调度器实施对进程的切换过程，称为上下文切换
-	2. 运行队列（负载）：运行队列的多少来判别负载的大小
-	3. 使用率：user time（用户态）,system time（系统态）
 
-	确定服务类型：
-		IO密集型：数据库
-		CPU密集型：web、mail
-	
-	确定性能基准线：
-		运行队列：1-3个线程为正常，1CPU4核来计算，线程应不超过12为正常
-		CPU使用：65%——70% 用户态利用率为正常
-				30%-35% 内核态利用率为正常
-				0%-5% 空闲为正常
-		上下文切换：越少越好
-#####TOP命令详解：
-	CPU栏：
-		us:用户态百分比使用率
-		sy:内核态或系统态百分比使用率
-		ni:nice值之间切换的百分比使用率
-		id:CPU空闲百分比使用率
-		wa:IO队列等待百分比使用率
-		hi:CPU硬中断百分比使用率
-		si:CPU软中断百分比使用率
-		st:虚拟CPU等待实际CPU的百分比使用率
-	内存栏：
-		Mem total:全部物理内存
-			free:空闲内存
-			used:使用内存
-			buff/cache:缓冲缓存内存，Linux尽量把不用的内存分存给buff/cache
-		Swap内存和物理内存一样
-		top动态窗口菜单：
-			PID:进程ID
-			user：进程所有者
-			PR:优先级
-			NI：nice值 
-			VIRT:进程占用的虚拟内存
-			RES：进程占用的物理内存
-			SHR:共享内存
-			S：进程状态
-			%CPU：cpu使用率
-			%MEM:内存使用率
-			TIME+:进程启动后的运行时间
-			COMMAND：命令
-		快捷键：
-			以内存排序：按大写的M进行排序
-			以CPU排序：按大写的P进行排序
-#####sysstat工具包
-mpstat工具:----监控
-	vmstat工具-----监控cpu状态
-r 表示运行队列(就是说多少个进程真的分配到CPU)，我测试的服务器目前CPU比较空闲，没什么程序在跑，当这个值超过了CPU数目，就会出现CPU瓶颈了。这个也和top的负载有关系，一般负载超过了3就比较高，超过了5就高，超过了10就不正常了，服务器的状态很危险。top的负载类似每秒的运行队列。如果运行队列过大，表示你的CPU很繁忙，一般会造成CPU使用率很高。
-b 表示阻塞的进程,这个不多说，进程阻塞，大家懂的。
-swpd 虚拟内存已使用的大小，如果大于0，表示你的机器物理内存不足了，如果不是程序内存泄露的原因，那么你该升级内存了或者把耗内存的任务迁移到其他机器。
-free   空闲的物理内存的大小，我的机器内存总共8G，剩余3415M。
-buff   Linux/Unix系统是用来存储，目录里面有什么内容，权限等的缓存，我本机大概占用300多M
-cache cache直接用来记忆我们打开的文件,给文件做缓冲，我本机大概占用300多M(这里是Linux/Unix的聪明之处，把空闲的物理内存的一部分拿来做文件和目录的缓存，是为了提高 程序执行的性能，当程序使用内存时，buffer/cached会很快地被使用。)
-si  每秒从磁盘读入虚拟内存的大小，如果这个值大于0，表示物理内存不够用或者内存泄露了，要查找耗内存进程解决掉。我的机器内存充裕，一切正常。
-so  每秒虚拟内存写入磁盘的大小，如果这个值大于0，同上。
-bi  块设备每秒接收的块数量，这里的块设备是指系统上所有的磁盘和其他块设备，默认块大小是1024byte，我本机上没什么IO操作，所以一直是0，但是我曾在处理拷贝大量数据(2-3T)的机器上看过可以达到140000/s，磁盘写入速度差不多140M每秒
-bo 块设备每秒发送的块数量，例如我们读取文件，bo就要大于0。bi和bo一般都要接近0，不然就是IO过于频繁，需要调整。
-in 每秒CPU的中断次数，包括时间中断
-cs 每秒上下文切换次数，例如我们调用系统函数，就要进行上下文切换，线程的切换，也要进程上下文切换，这个值要越小越好，太大了，要考虑调低线程或者进程的数目,例如在apache和nginx这种web服务器中，我们一般做性能测试时会进行几千并发甚至几万并发的测试，选择web服务器的进程可以由进程或者线程的峰值一直下调，压测，直到cs到一个比较小的值，这个进程和线程数就是比较合适的值了。系统调用也是，每次调用系统函数，我们的代码就会进入内核空间，导致上下文切换，这个是很耗资源，也要尽量避免频繁调用系统函数。上下文切换次数过多表示你的CPU大部分浪费在上下文切换，导致CPU干正经事的时间少了，CPU没有充分利用，是不可取的。
-us 用户CPU时间，我曾经在一个做加密解密很频繁的服务器上，可以看到us接近100,r运行队列达到80(机器在做压力测试，性能表现不佳)。
-sy 系统CPU时间，如果太高，表示系统调用时间长，例如是IO操作频繁。
-id  空闲 CPU时间，一般来说，id + us + sy = 100,一般我认为id是空闲CPU使用率，us是用户CPU使用率，sy是系统CPU使用率。
-wa 等待IO CPU时间。
-st:虚拟CPU等待实际CPU的时间
-	
-CPU详细的内容
-		%nice：nice值改变时对CPU占用的百分比
-####内存监控
-linux是不知道物理内存和交换分区内存的
-内存是分成页的，硬盘是分成块的
-1. 寻址	2. 空间（连续的内存空间合并）
-2. 共享内存是给进程与进程之前使用的，各使一点共享内存
-3. vmstat 下  si：每秒从磁盘读入虚拟内存的大小，so:每秒虚拟内存写入磁盘的大小，bi:块设备每秒接收的块数量， bo：块设备每秒发送的块数量
-4. 交换分区使用得越多是不行的。内存使用率在80%会报警
-####硬盘监控 ---块
-1. IOPS 	----IO Per Second   每秒IO请求次数
-2. IO分为：顺序IO和随机IO,顺序IO最块，最快有时候会接近内存的速度
-3. yum install iotop -y   iotop工具
-4. 监控硬盘用得最多的是iotop和iostat 
-####网络监控
-yum install -y iftop   iftop工具
-iftop -n   查看网络流向
-阿里测、奇云测、站长工具可测网站访问速度和dns解析情况等
-TCP监控
-IBM的nmon工具可生成性能报表:
-	使用方法：在linux下执行nmon二进制文件生成nmon报告文件，命令例如：./nmon16e_x86_rhel72 -s 10 -c 10 -f -m /tmp/  
-	则会在/tmp下生成nmon报告文件，然后利用nmon analyser v55.xlsm这个文件来读取nmon文件生成excel形式的报告文件
-####应用监控
-#####例如：nginx------源码安装，尽量下载nginx的最新稳定版本:
-1. 安装nginx的依赖包：`yum install -y gcc glibc gcc-c++ pcre-devel openssl-devel`
-2. `useradd -s /sbin/nologin -M www`  建立普通用户用于运行nginx
-3. `./configure --prefix=/usr/local/nginx-1.14.0 --user=www --group=www --with-http_ssl_module --with-http_stub_status_module` 生成makefile文件（收集系统环境信息，用于编译用),设置程序安装路径，程序启动的用户和组，开启两个相关模块
-4. make && make install  ----make是编译工作，make install把生成的文件复制到指定的目录下（生成的文件可以直接复制到同系统环境下运行）
-5. `ln -s /usr/local/nginx-1.14.0/ /usr/local/nginx`生成软链接安装目录
-6. `/usr/local/nginx/sbin/nginx -t`启动测试
-7. `/usr/local/nginx/sbin/nginx`  启动服务 
-8. `cd /usr/local/nginx/conf && vim nginx.conf`  修改nginx配置文件,只对192.168.1.0/24网段开启监控
-	添加如下：
-          `location /nginx-status {
-             stub_status on;
-             access_log off;
-             allow 192.168.1.0/24;
-             deny all;
-          }`
-9. 启动nginx服务：`/usr/local/nginx/sbin/nginx -c /usr/local/nginx/conf/nginx.conf`
-10. 重启nginx服务`/usr/local/nginx/sbin/nginx -s reload`
-11. 停止nginx服务：ps -ef | grep nginx ; kill -9 pid
-##安装Zabbix(CentOS7.5)
-1. 安装zabbix yum源：
-`rpm -ivh https://mirrors.aliyun.com/zabbix/zabbix/3.0/rhel/7/x86_64/zabbix-release-3.0-1.el7.noarch.rpm` #安装centos7源
-[root@node1 yum.repos.d]# yum install -y https://mirrors.aliyun.com/zabbix/zabbix/4.4/rhel/8/x86_64/zabbix-release-4.4-1.el8.noarch.rpm #安装centos8源
+### 1.2 监控概述
+
+#### 1.2.1 监控对象
+
+1. 监控对象的理解：CPU 是怎么工作的，原理。
+2. 监控对象的指标：CPU 使用率、CPU 负载、CPU 个数、上下文切换。
+3. 确定性能基准线：怎么样才算故障？CPU 负载多少算高。
+
+#### 1.2.2 监控范围
+
+1. 硬件监控：服务器的硬件故障。
+2. 操作系统监控：CPU、内存、IO（硬盘和网络）、进程等。
+3. 应用服务监控：Apache 是否正常，是否宕机等。
+4. 业务监控：例如今天下了多少单，今天客户客单价多少等。
+
+#### 1.2.3 硬件监控
+
+远程控制卡：和服务器没有太大的关系，服务器有没有操作系统也跟它无关系（DELL 服务器：iDRAC，HP 服务器：ILO，IBM 服务器：IMM）。
+
+远程控制卡的标准是 IPMI 标准，有了 IPMI 标准，Linux 就可以对 IPMI 标准进行监控，IPMI 依赖于 BMC 控制器（BMC 控制器放在远程控制卡上面），它们之间来沟通监控 CPU 温度、风扇转速、硬盘有没有报警。
+
+在 Linux 下用 ipmitool 工具来监控硬件：
+
+1. 硬件要支持（硬件要支持 ipmi 协议，并且不是虚拟机）。
+2. 操作系统要支持（Linux 是支持 IPMI 的）。
+3. 管理工具：ipmitool。
+
+使用 IPMI 有两种方式：
+
+1. 本地调用。
+2. 远程调用（需要 IP 地址、用户名和密码）。
+
+IPMI 配置网络有两种方式：
+
+1. ipmi over lan：ipmi 数据包通过服务器网卡来走。
+2. 独立网卡。
+
+硬件监控两种方式：
+
+1. 使用 IPMI。
+2. 机房巡检。
+
+##### 安装及使用 ipmi
+
+1. 安装 ipmitool 软件：
+
+   ```bash
+   yum install OpenIPMI ipmitool -y
+   ```
+
+2. 启动服务：
+
+   ```bash
+   systemctl start ipmi
+   ```
+
+3. `ipmitool help` 获取 ipmi 的命令。
+
+Linux 监控：路由器和交换机监控使用 SNMP（简单网络管理协议）监控，要开启 SNMP 协议。
+
+client 端（安装 net-snmp，需要启动代理服务）`<----------->` server 端（安装 net-snmp-utils，不需要启动服务）。
+
+* 安装 SNMP 协议软件：
+
+  ```bash
+  yum install -y net-snmp net-snmp-utils
+  ```
+
+* 更改 snmp 配置文件 `/etc/snmp/snmpd.conf`，只添加如下一行即可：
+
+  ```
+  rocommunity oldboy 192.168.1.201
+  ```
+
+  `rocommunity` 是只读社区名（在 zabbix 中用 `$(SNMP_COMMUNITY)` 表示社区名）；`oldboy` 是社区名值，IP 地址是要监控的主机，这里写的是本地主机。snmp 需要 snmp 代理端起服务，不需要服务端起服务，然后使用工具来连接代理就可以获取数据（相当于 ssh，通过 ssh 命令就可以连接过去）。
+
+* 开启 snmp 服务：
+
+  ```bash
+  systemctl start snmpd
+  ```
+
+* snmp 默认监听的是 TCP 的 199 端口和 UDP 的 161 端口。
+* MIB 对象的唯一标识符是 OID（有两种表达方式，数字和字符串方式，数字例子：`1.3.6.1.2.1.1.3.0`）。
+* 获取系统启动时间：
+
+  ```bash
+  snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.2.1.1.3.0
+  ```
+
+  其中 `-v2c` 为 snmp 的 v2 版本协议，`-c oldboy` 为团体名，`192.168.1.201 1.3.6.1.2.1.1.3.0` 获取本机 IP 的开机时间，`1.3.6.1.2.1.1.3.0` 这个为 OID。
+
+* 获取系统负载：
+
+  ```bash
+  snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3.1
+  ```
+
+  只能获取单独的 1 分钟负载。
+
+* 以树结点来获取 1 分钟、5 分钟、15 分钟的负载：
+
+  ```bash
+  snmpwalk -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3
+  ```
+
+监控的流程：
+
+1. 收集。
+2. 存储。
+3. 展示。
+4. 报警。
+
+snmp 有 5 种报文跟 snmp 代表来沟通，例如两种：
+
+1. GetRequest PDU（例如：`snmpget -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3.1`）。
+2. GetNextRequest PDU（例如：`snmpwalk -v2c -c oldboy 192.168.1.201 1.3.6.1.4.1.2021.10.1.3`）。
+
+### 1.3 系统监控
+
+系统监控包含：
+
+1. CPU。
+2. 内存。
+3. IO（input/output，网络、磁盘）。
+
+#### 1.3.1 CPU 监控
+
+CPU 三个重要的概念：一个标准的 Linux 可以运行 50 到 5 万个进程；时间片；上下文切换。
+
+1. 上下文切换：CPU 调度器实施对进程的切换过程，称为上下文切换。
+2. 运行队列（负载）：运行队列的多少来判别负载的大小。
+3. 使用率：user time（用户态）、system time（系统态）。
+
+确定服务类型：
+
+- IO 密集型：数据库。
+- CPU 密集型：web、mail。
+
+确定性能基准线：
+
+- 运行队列：1 - 3 个线程为正常，1CPU 4 核来计算，线程应不超过 12 为正常。
+- CPU 使用：65% - 70% 用户态利用率为正常；30% - 35% 内核态利用率为正常；0% - 5% 空闲为正常。
+- 上下文切换：越少越好。
+
+##### TOP 命令详解
+
+CPU 栏：
+
+- `us`：用户态百分比使用率。
+- `sy`：内核态或系统态百分比使用率。
+- `ni`：nice 值之间切换的百分比使用率。
+- `id`：CPU 空闲百分比使用率。
+- `wa`：IO 队列等待百分比使用率。
+- `hi`：CPU 硬中断百分比使用率。
+- `si`：CPU 软中断百分比使用率。
+- `st`：虚拟 CPU 等待实际 CPU 的百分比使用率。
+
+内存栏：
+
+- Mem total：全部物理内存。
+  - free：空闲内存。
+  - used：使用内存。
+  - buff/cache：缓冲缓存内存，Linux 尽量把不用的内存分存给 buff/cache。
+- Swap 内存和物理内存一样。
+
+top 动态窗口菜单：
+
+- `PID`：进程 ID。
+- `user`：进程所有者。
+- `PR`：优先级。
+- `NI`：nice 值。
+- `VIRT`：进程占用的虚拟内存。
+- `RES`：进程占用的物理内存。
+- `SHR`：共享内存。
+- `S`：进程状态。
+- `%CPU`：cpu 使用率。
+- `%MEM`：内存使用率。
+- `TIME+`：进程启动后的运行时间。
+- `COMMAND`：命令。
+
+快捷键：
+
+- 以内存排序：按大写的 M 进行排序。
+- 以 CPU 排序：按大写的 P 进行排序。
+
+##### sysstat 工具包
+
+mpstat 工具：监控。vmstat 工具：监控 cpu 状态。
+
+- `r`：表示运行队列（就是说多少个进程真的分配到 CPU）。我测试的服务器目前 CPU 比较空闲，没什么程序在跑，当这个值超过了 CPU 数目，就会出现 CPU 瓶颈了。这个也和 top 的负载有关系，一般负载超过了 3 就比较高，超过了 5 就高，超过了 10 就不正常了，服务器的状态很危险。top 的负载类似每秒的运行队列。如果运行队列过大，表示你的 CPU 很繁忙，一般会造成 CPU 使用率很高。
+- `b`：表示阻塞的进程。
+- `swpd`：虚拟内存已使用的大小，如果大于 0，表示你的机器物理内存不足了，如果不是程序内存泄露的原因，那么你该升级内存了或者把耗内存的任务迁移到其他机器。
+- `free`：空闲的物理内存的大小。
+- `buff`：Linux/Unix 系统是用来存储目录里面有什么内容、权限等的缓存。
+- `cache`：直接用来记忆我们打开的文件，给文件做缓冲（这里是 Linux/Unix 的聪明之处，把空闲的物理内存的一部分拿来做文件和目录的缓存，是为了提高程序执行的性能，当程序使用内存时，buffer/cached 会很快地被使用）。
+- `si`：每秒从磁盘读入虚拟内存的大小，如果这个值大于 0，表示物理内存不够用或者内存泄露了，要查找耗内存进程解决掉。
+- `so`：每秒虚拟内存写入磁盘的大小，如果这个值大于 0，同上。
+- `bi`：块设备每秒接收的块数量，这里的块设备是指系统上所有的磁盘和其他块设备，默认块大小是 1024byte。
+- `bo`：块设备每秒发送的块数量，例如我们读取文件，bo 就要大于 0。bi 和 bo 一般都要接近 0，不然就是 IO 过于频繁，需要调整。
+- `in`：每秒 CPU 的中断次数，包括时间中断。
+- `cs`：每秒上下文切换次数。例如我们调用系统函数，就要进行上下文切换，线程的切换，也要进程上下文切换，这个值要越小越好，太大了要考虑调低线程或者进程的数目。例如在 apache 和 nginx 这种 web 服务器中，我们一般做性能测试时会进行几千并发甚至几万并发的测试，选择 web 服务器的进程可以由进程或者线程的峰值一直下调，压测，直到 cs 到一个比较小的值，这个进程和线程数就是比较合适的值了。系统调用也是，每次调用系统函数，我们的代码就会进入内核空间，导致上下文切换，这个是很耗资源，也要尽量避免频繁调用系统函数。上下文切换次数过多表示你的 CPU 大部分浪费在上下文切换，导致 CPU 干正经事的时间少了，CPU 没有充分利用，是不可取的。
+- `us`：用户 CPU 时间，我曾经在一个做加密解密很频繁的服务器上，可以看到 us 接近 100，r 运行队列达到 80（机器在做压力测试，性能表现不佳）。
+- `sy`：系统 CPU 时间，如果太高，表示系统调用时间长，例如是 IO 操作频繁。
+- `id`：空闲 CPU 时间，一般来说，id + us + sy = 100，一般我认为 id 是空闲 CPU 使用率，us 是用户 CPU 使用率，sy 是系统 CPU 使用率。
+- `wa`：等待 IO CPU 时间。
+- `st`：虚拟 CPU 等待实际 CPU 的时间。
+
+CPU 详细的内容：
+
+- `%nice`：nice 值改变时对 CPU 占用的百分比。
+
+#### 1.3.2 内存监控
+
+1. linux 是不知道物理内存和交换分区内存的。
+2. 内存是分成页的，硬盘是分成块的。
+3. 寻址；空间（连续的内存空间合并）。
+4. 共享内存是给进程与进程之间使用的，各使一点共享内存。
+5. vmstat 下：`si` 每秒从磁盘读入虚拟内存的大小，`so` 每秒虚拟内存写入磁盘的大小，`bi` 块设备每秒接收的块数量，`bo` 块设备每秒发送的块数量。
+6. 交换分区使用得越多是不行的。内存使用率在 80% 会报警。
+
+#### 1.3.3 硬盘监控（块）
+
+1. IOPS：IO Per Second，每秒 IO 请求次数。
+2. IO 分为顺序 IO 和随机 IO，顺序 IO 最快，最快有时候会接近内存的速度。
+3. `yum install iotop -y` 安装 iotop 工具。
+4. 监控硬盘用得最多的是 iotop 和 iostat。
+
+#### 1.3.4 网络监控
+
+```bash
+yum install -y iftop   # iftop 工具
+iftop -n               # 查看网络流向
+```
+
+阿里测、奇云测、站长工具可测网站访问速度和 dns 解析情况等。
+
+TCP 监控。
+
+IBM 的 nmon 工具可生成性能报表：在 linux 下执行 nmon 二进制文件生成 nmon 报告文件，命令例如：
+
+```bash
+./nmon16e_x86_rhel72 -s 10 -c 10 -f -m /tmp/
+```
+
+则会在 /tmp 下生成 nmon 报告文件，然后利用 `nmon analyser v55.xlsm` 这个文件来读取 nmon 文件生成 excel 形式的报告文件。
+
+#### 1.3.5 应用监控
+
+##### 例如：nginx（源码安装，尽量下载 nginx 的最新稳定版本）
+
+1. 安装 nginx 的依赖包：
+
+   ```bash
+   yum install -y gcc glibc gcc-c++ pcre-devel openssl-devel
+   ```
+
+2. 建立普通用户用于运行 nginx：
+
+   ```bash
+   useradd -s /sbin/nologin -M www
+   ```
+
+3. 生成 makefile 文件（收集系统环境信息，用于编译用），设置程序安装路径、程序启动的用户和组、开启两个相关模块：
+
+   ```bash
+   ./configure --prefix=/usr/local/nginx-1.14.0 --user=www --group=www \
+     --with-http_ssl_module --with-http_stub_status_module
+   ```
+
+4. `make && make install`：make 是编译工作，make install 把生成的文件复制到指定的目录下（生成的文件可以直接复制到同系统环境下运行）。
+5. 生成软链接安装目录：
+
+   ```bash
+   ln -s /usr/local/nginx-1.14.0/ /usr/local/nginx
+   ```
+
+6. 启动测试：
+
+   ```bash
+   /usr/local/nginx/sbin/nginx -t
+   ```
+
+7. 启动服务：
+
+   ```bash
+   /usr/local/nginx/sbin/nginx
+   ```
+
+8. 修改 nginx 配置文件，只对 192.168.1.0/24 网段开启监控：
+
+   ```bash
+   cd /usr/local/nginx/conf && vim nginx.conf
+   ```
+
+   添加如下：
+
+   ```nginx
+   location /nginx-status {
+       stub_status on;
+       access_log off;
+       allow 192.168.1.0/24;
+       deny all;
+   }
+   ```
+
+9. 启动 nginx 服务：
+
+   ```bash
+   /usr/local/nginx/sbin/nginx -c /usr/local/nginx/conf/nginx.conf
+   ```
+
+10. 重启 nginx 服务：
+
+    ```bash
+    /usr/local/nginx/sbin/nginx -s reload
+    ```
+
+11. 停止 nginx 服务：
+
+    ```bash
+    ps -ef | grep nginx
+    kill -9 pid
+    ```
+
+---
+
+## 第二章 安装 Zabbix（CentOS 7.5）
+
+1. 安装 zabbix yum 源：
+
+   ```bash
+   # 安装 centos7 源
+   rpm -ivh https://mirrors.aliyun.com/zabbix/zabbix/3.0/rhel/7/x86_64/zabbix-release-3.0-1.el7.noarch.rpm
+
+   # 安装 centos8 源
+   yum install -y https://mirrors.aliyun.com/zabbix/zabbix/4.4/rhel/8/x86_64/zabbix-release-4.4-1.el8.noarch.rpm
+   ```
+
 2. 安装相关软件：
-`yum install zabbix-web zabbix-web-mysql zabbix-server-mysql mariadb-server mariadb zabbix-agent -y`
-3. 修改PHP时区配置
-`sed -i 's@# php_value date.timezone Europe/Riga@php_value date.timezone Asia/Shanghai@g' /etc/httpd/conf.d/zabbix.conf`
-4. 启动mariadb数据库
-`systemctl start mariadb`
-5. 创建Zabbix所用的数据库及用户
-	create database zabbix character set utf8 collate utf8_bin;
-	grant all on zabbix.* to zabbix@'localhost' identified by '123456';
-	exit
-	cd /usr/share/doc/zabbix-server-mysql-3.0.22/
-	zcat create.sql.gz | mysql -uzabbix -p123456 zabbix
-6. 修改zabbix配置
-	#vim /etc/zabbix/zabbix_server.conf
-	DBHost=localhost	#数据库所在主机
-	DBName=zabbix		#数据库名
-	DBUser=zabbix		#数据库用户
-	DBPassword=123456	#数据库密码
-7. 启动Zabbix及http
-`systemctl start zabbix-server  --如果启动失败，使用yum update  更新系统内核`  
-`systemctl start httpd`
-8. WEB上配置zabbix：
-	1.输入web上配置zabbx-srver的地址：http://zabbix-IP/zabbix/setup.php,进入配置
-	2.填写数据库地址，端口，用户，密码，及zabbix-server在web上右上角展示的名称，直至配置完成
-9. 输入zabbix-server管理地址进行管理配置：http://zabbix-IP/zabbix
-10. zabbix默认用户名为：Admin 密码为：zabbix,登进去后第一步更改密码
-11. 配置agent端：
-	#vim /etc/zabbix/zabbix_agentd.conf
-	Server=127.0.0.1	#设置被动端的zabbix-server地址，等待客户端汇报
-	ServerActive=127.0.0.1	#设置主动端的zabbix-server地址，服务端主动抓取
-	systemctl start zabbix-agent.service  --启动zabbix-agent
-12. netstat -tunlp --查看zabbix-server zabbix-agent httpd 服务是否正常启动
-###添加Zabbix自定义监控项
-####拿nginx来监控
-1. vim /etc/zabbix/zabbix_agentd.conf  可查看到include=/etc/zabbix/zabbix_agentd.d,此目录下所有配置将备引用，所以在/etc/zabbix/zabbix_agentd.d目录下新建一个nginx应用监控的配置文件nginx.active,用来当作nginx的监控项
-2. 编辑/etc/zabbix/zabbix_agentd.d/nginx.conf文件
-vim /etc/zabbix/zabbix_agentd.d/nginx.conf
-UserParameter=nginx.active,/usr/bin/curl -s http://192.168.1.233/nginx_status |grep 'Active' | awk '{print $NF}'
-3. systemctl restart zabbix-agent
-4. yum install zabbix-get -y  #必须在server端执行
-5. vim /etc/zabbix/zabbix-agentd.conf  #把Server=127.0.0.1设置成192.168.1.201，这样下一步才不会报错，server地址为zabbix-server地址
-6. zabbix_get -s 192.168.1.201 -p 10050 -k "nginx.active"  #在zabbix-server上测试获取值是否设置成功，-s指的是zabbix-agent的地址
-###注：自定义监控项如果是通用的话，需要复制到所有agent才能使所有agent生效。如果不通用，则自行放置到需要的agent上即可。
-7. 在zabbix-web界面上创建item监控项。
-	1. 数据更新间隔(秒) 60
-	2. 自定义时间间隔 50 1-7,00:00-24:00
-	3. 历史数据保留时长（单位天) 90
-	4. 趋势数据存储周期(单位天) 365
-	5. 新的应用集 nginx   #对item做分组
-	6. 描述 Nginx活动连接数
-	7. 键值 nginx.active
-	8. 类型 zabbix agent
-	9. 信息类型和数据类型
-8. 创建图形：选择主机，进入图形菜单，新建图形，图形类别，选中刚刚创建的item监控项
-#网络监控：Smokeping
-#流量分析系统：Piwik 
-#注：解决zabbix字体无法显示中文问题，找到一个中文字体替换zabbix默认字体，路径：/usr/share/zabbix/fonts，或/usr/share/zabbix/assets/fonts
-[root@zabbix fonts]# mv graphfont.ttf graphfont.ttf.bak
-[root@zabbix fonts]# mv simhei.ttf graphfont.ttf 
-###Zabbix最后部分
-#####通知（配置--动作下设置）
-1. 通知什么（action）
-2. 什么时候通知（conditions）
-3. 怎么通知（operation）
-4. 通过什么途径发送
-5. 发送给谁
-6. 通知升级（多步骤通知给不同人）
-7. 通知给谁
-###实战第一步：
-1. 新建用户群组并分配权限，权限只能分配给群组
-2. 创建用户并选择用户角色（有普通用户，管理员，超级管理员）
-3. 报警媒介
-4. action（动作）
-##Zabbix生产案例实战
-1.项目规划：
-主机分组
-		交换机
-		Nginx
-		Tomcat
-		Mysql
-#监控对象识别：
-1. 使用SNMP监控交换机
-2. 使用IPMI监控服务器硬件
-3. 使用Agent监控服务器
-4. 使用JMX监控java
-5. 监控mysql状态
-6. 监控Web状态
-7. 监控Nginx状态
-#SNMP,监控交换机等snmp设备 
-linux snmp oid #百度搜索
-MIB:管理信息库：所有可被查询和修改的参数  #1.3.6.1.1.2.5.3 #这个是MIB
-OID:对象标识符   #SNMPv2-MIB::sysDescr.0 #这个是对象标识符
-snmp-get、snmp-set
-snmptranslate:可以将MIB和OID两种表现形式进行转换
-1. 交换机上开启snmp
-	config terminal 
-	snmp-server community route ro
-	snmp-server enable traps entity #开启snmp实体陷阱
-	end
-2. 在zabbix-weg上添加监控
-	设置snmp Interfaces
-	root@zabbix ~]# yum -y install net-snmp-utils net-snmp #安装snmp
-	snmpwalk -v 2c -c route 192.168.1.1 SNMPv2-MIB::sysDescr.0 #测试跟开启snmp设备的连通性
-3. 关联监控模板Templete SNMP DEVICE,监控SNMP思科设备
-#IPMI
-建议使用自定义item将值传给zabbix,来实现ipmi监控
-#JMX(使用zabbix-java-gateway代理)监控java程序
-1. yum install -y zabbix-java-gateway java-1.8.0 #安装JMX和java JDK，装哪都可以
-2. vim /etc/zabbix/zabbix_java_gateway.conf  #默认配置即可
-LISTEN_IP="0.0.0.0"
-LISTEN_PORT=10052
-PID_FILE="/var/run/zabbix/zabbix_java.pid"
-START_POLLERS=5
-TIMEOUT=3
-3. systemctl start zabbix-java-gateway.service  #开启java代理
-4. netstat -tunlp   #检查10052端口和进程是否起来
-5. #vim /etc/zabbix/zabbix_server.conf #用于配置zabbix-java-gateway代理跟zabbix server联系
-	JavaGateway=192.168.1.233  #指定Java网关地址
-	JavaGatewayPort=10052	#指定java网关端口
-	StartJavaPollers=5	#设置启动多少个服务来轮循java代理，必须设置
-6. 重启zabbix server
-7. 安装java应用测试，例如安装Tomcat，tomcat默认端口为8080
-	wget http://mirrors.shu.edu.cn/apache/tomcat/tomcat-8/v8.5.34/bin/apache-tomcat-8.5.34.tar.gz
-	wget http://mirrors.tuna.tsinghua.edu.cn/apache/tomcat/tomcat-8/v8.5.42/bin/apache-tomcat-8.5.42.tar.gz
-	tar -zxvf apache-tomcat-8.5.34.tar.gz 
-	mv apache-tomcat-8.5.34 /usr/local/
-	ln -s apache-tomcat-8.5.34/ /usr/local/tomcat
-	/usr/local/tomcat/bin/start.sh
-	JMX有三种类型：1.无密码认证	2.用户名密码认证	3.ssl加密认证
-	#开启JMX远程监控：查看tomcat官方文档
-	#vim /usr/local/tomcat/bin/catalina.sh在最前面添加如下行，下面信息是从tomcat官网文档中搜索JMX找到的
-	CATALINA_OPTS="$CATALINA_OPTS -Dcom.sun.management.jmxremote
-    -Dcom.sun.management.jmxremote.port=8888  #本机打开jmx协议的端口
-    -Dcom.sun.management.jmxremote.ssl=false
-    -Dcom.sun.management.jmxremote.authenticate=false
-    -Djava.rmi.server.hostname=192.168.1.233"  #本机的ip
-	重启tomcat并检查8888和8080端口是否开启：netstat -tunlp
-	然后使用windows下装的java JDK安装目录中/bin/jconsole进行连接测试看有没有问题，选择远程进程，输入开启jmx的IP加端口，例：192.168.1.233:8888,能连接看到信息则表示开启成功,最后在zabbix-web上加入tomcat的jmx类型监控即可，只需要输入JMX主机和端口，并链接模板应用。
-	#监控Nginx
-1. 开启Nginx监控
-2. 编写脚本来采集数据
-3. 设置用户自定义参数
-4. 重启zabbix-agent
-5. 添加item
-6. 创建图形
-7. 创建触发器
-8. 创建模板（包含item，图形，触发器，screen）
-###监控Nginx操作
-1. 制作脚本放轩到nginx服务器中
-####zabbix_linux_plugin.sh#####
+
+   ```bash
+   yum install zabbix-web zabbix-web-mysql zabbix-server-mysql mariadb-server mariadb zabbix-agent -y
+   ```
+
+3. 修改 PHP 时区配置：
+
+   ```bash
+   sed -i 's@# php_value date.timezone Europe/Riga@php_value date.timezone Asia/Shanghai@g' /etc/httpd/conf.d/zabbix.conf
+   ```
+
+4. 启动 mariadb 数据库：
+
+   ```bash
+   systemctl start mariadb
+   ```
+
+5. 创建 Zabbix 所用的数据库及用户：
+
+   ```sql
+   create database zabbix character set utf8 collate utf8_bin;
+   grant all on zabbix.* to zabbix@'localhost' identified by '123456';
+   exit
+   ```
+
+   ```bash
+   cd /usr/share/doc/zabbix-server-mysql-3.0.22/
+   zcat create.sql.gz | mysql -uzabbix -p123456 zabbix
+   ```
+
+6. 修改 zabbix 配置：
+
+   ```bash
+   vim /etc/zabbix/zabbix_server.conf
+   ```
+
+   ```ini
+   DBHost=localhost	# 数据库所在主机
+   DBName=zabbix		# 数据库名
+   DBUser=zabbix		# 数据库用户
+   DBPassword=123456	# 数据库密码
+   ```
+
+7. 启动 Zabbix 及 http：
+
+   ```bash
+   systemctl start zabbix-server  # 如果启动失败，使用 yum update 更新系统内核
+   systemctl start httpd
+   ```
+
+8. WEB 上配置 zabbix：
+
+   1. 输入 web 上配置 zabbix-server 的地址 `http://zabbix-IP/zabbix/setup.php`，进入配置。
+   2. 填写数据库地址、端口、用户、密码，及 zabbix-server 在 web 上右上角展示的名称，直至配置完成。
+
+9. 输入 zabbix-server 管理地址进行管理配置：`http://zabbix-IP/zabbix`。
+
+10. zabbix 默认用户名为 `Admin`，密码为 `zabbix`，登进去后第一步更改密码。
+
+11. 配置 agent 端：
+
+    ```bash
+    vim /etc/zabbix/zabbix_agentd.conf
+    ```
+
+    ```ini
+    Server=127.0.0.1	        # 设置被动端的 zabbix-server 地址，等待客户端汇报
+    ServerActive=127.0.0.1	# 设置主动端的 zabbix-server 地址，服务端主动抓取
+    ```
+
+    ```bash
+    systemctl start zabbix-agent.service  # 启动 zabbix-agent
+    ```
+
+12. `netstat -tunlp` 查看 zabbix-server、zabbix-agent、httpd 服务是否正常启动。
+
+### 2.1 添加 Zabbix 自定义监控项
+
+#### 拿 nginx 来监控
+
+1. `vim /etc/zabbix/zabbix_agentd.conf` 可查看到 `include=/etc/zabbix/zabbix_agentd.d`，此目录下所有配置将备引用，所以在 `/etc/zabbix/zabbix_agentd.d` 目录下新建一个 nginx 应用监控的配置文件，用来当作 nginx 的监控项。
+
+2. 编辑 `/etc/zabbix/zabbix_agentd.d/nginx.conf` 文件：
+
+   ```bash
+   vim /etc/zabbix/zabbix_agentd.d/nginx.conf
+   UserParameter=nginx.active,/usr/bin/curl -s http://192.168.1.233/nginx_status |grep 'Active' | awk '{print $NF}'
+   ```
+
+3. 重启 zabbix-agent：
+
+   ```bash
+   systemctl restart zabbix-agent
+   ```
+
+4. 安装 zabbix-get（必须在 server 端执行）：
+
+   ```bash
+   yum install zabbix-get -y
+   ```
+
+5. `vim /etc/zabbix/zabbix-agentd.conf`，把 `Server=127.0.0.1` 设置成 `192.168.1.201`，这样下一步才不会报错，server 地址为 zabbix-server 地址。
+
+6. 在 zabbix-server 上测试获取值是否设置成功（`-s` 指的是 zabbix-agent 的地址）：
+
+   ```bash
+   zabbix_get -s 192.168.1.201 -p 10050 -k "nginx.active"
+   ```
+
+> 注：自定义监控项如果是通用的话，需要复制到所有 agent 才能使所有 agent 生效。如果不通用，则自行放置到需要的 agent 上即可。
+
+7. 在 zabbix-web 界面上创建 item 监控项。
+
+   1. 数据更新间隔（秒） 60
+   2. 自定义时间间隔 50 1-7,00:00-24:00
+   3. 历史数据保留时长（单位天） 90
+   4. 趋势数据存储周期（单位天） 365
+   5. 新的应用集 nginx（对 item 做分组）
+   6. 描述 Nginx 活动连接数
+   7. 键值 nginx.active
+   8. 类型 zabbix agent
+   9. 信息类型和数据类型
+
+8. 创建图形：选择主机，进入图形菜单，新建图形，图形类别，选中刚刚创建的 item 监控项。
+
+- 网络监控：Smokeping。
+- 流量分析系统：Piwik。
+- 注：解决 zabbix 字体无法显示中文问题，找到一个中文字体替换 zabbix 默认字体，路径 `/usr/share/zabbix/fonts`，或 `/usr/share/zabbix/assets/fonts`：
+
+  ```bash
+  mv graphfont.ttf graphfont.ttf.bak
+  mv simhei.ttf graphfont.ttf
+  ```
+
+### 2.2 Zabbix 通知设置
+
+通知（配置 - 动作下设置）：
+
+1. 通知什么（action）。
+2. 什么时候通知（conditions）。
+3. 怎么通知（operation）。
+4. 通过什么途径发送。
+5. 发送给谁。
+6. 通知升级（多步骤通知给不同人）。
+7. 通知给谁。
+
+### 2.3 实战第一步
+
+1. 新建用户群组并分配权限，权限只能分配给群组。
+2. 创建用户并选择用户角色（有普通用户、管理员、超级管理员）。
+3. 报警媒介。
+4. action（动作）。
+
+### 2.4 Zabbix 生产案例实战
+
+1. 项目规划：主机分组：交换机、Nginx、Tomcat、Mysql。
+
+监控对象识别：
+
+1. 使用 SNMP 监控交换机。
+2. 使用 IPMI 监控服务器硬件。
+3. 使用 Agent 监控服务器。
+4. 使用 JMX 监控 java。
+5. 监控 mysql 状态。
+6. 监控 Web 状态。
+7. 监控 Nginx 状态。
+
+#### SNMP 监控交换机等 snmp 设备
+
+linux snmp oid（百度搜索）。
+
+- MIB：管理信息库，所有可被查询和修改的参数（`1.3.6.1.1.2.5.3` 这个是 MIB）。
+- OID：对象标识符（`SNMPv2-MIB::sysDescr.0` 这个是对象标识符）。
+- snmp-get、snmp-set。
+- snmptranslate：可以将 MIB 和 OID 两种表现形式进行转换。
+
+1. 交换机上开启 snmp：
+
+   ```
+   config terminal 
+   snmp-server community route ro
+   snmp-server enable traps entity  # 开启 snmp 实体陷阱
+   end
+   ```
+
+2. 在 zabbix-web 上添加监控，设置 snmp Interfaces：
+
+   ```bash
+   yum -y install net-snmp-utils net-snmp  # 安装 snmp
+   snmpwalk -v 2c -c route 192.168.1.1 SNMPv2-MIB::sysDescr.0  # 测试跟开启 snmp 设备的连通性
+   ```
+
+3. 关联监控模板 `Templete SNMP DEVICE`，监控 SNMP 思科设备。
+
+#### IPMI
+
+建议使用自定义 item 将值传给 zabbix，来实现 ipmi 监控。
+
+#### JMX（使用 zabbix-java-gateway 代理）监控 java 程序
+
+1. 安装 JMX 和 java JDK（装哪都可以）：
+
+   ```bash
+   yum install -y zabbix-java-gateway java-1.8.0
+   ```
+
+2. 默认配置即可：
+
+   ```bash
+   vim /etc/zabbix/zabbix_java_gateway.conf
+   ```
+
+   ```ini
+   LISTEN_IP="0.0.0.0"
+   LISTEN_PORT=10052
+   PID_FILE="/var/run/zabbix/zabbix_java.pid"
+   START_POLLERS=5
+   TIMEOUT=3
+   ```
+
+3. 开启 java 代理：
+
+   ```bash
+   systemctl start zabbix-java-gateway.service
+   ```
+
+4. 检查 10052 端口和进程是否起来：
+
+   ```bash
+   netstat -tunlp
+   ```
+
+5. 用于配置 zabbix-java-gateway 代理跟 zabbix server 联系：
+
+   ```bash
+   vim /etc/zabbix/zabbix_server.conf
+   ```
+
+   ```ini
+   JavaGateway=192.168.1.233   # 指定 Java 网关地址
+   JavaGatewayPort=10052	    # 指定 java 网关端口
+   StartJavaPollers=5	        # 设置启动多少个服务来轮循 java 代理，必须设置
+   ```
+
+6. 重启 zabbix server。
+
+7. 安装 java 应用测试，例如安装 Tomcat（tomcat 默认端口为 8080）：
+
+   ```bash
+   wget http://mirrors.shu.edu.cn/apache/tomcat/tomcat-8/v8.5.34/bin/apache-tomcat-8.5.34.tar.gz
+   wget http://mirrors.tuna.tsinghua.edu.cn/apache/tomcat/tomcat-8/v8.5.42/bin/apache-tomcat-8.5.42.tar.gz
+   tar -zxvf apache-tomcat-8.5.34.tar.gz 
+   mv apache-tomcat-8.5.34 /usr/local/
+   ln -s apache-tomcat-8.5.34/ /usr/local/tomcat
+   /usr/local/tomcat/bin/start.sh
+   ```
+
+   JMX 有三种类型：1. 无密码认证；2. 用户名密码认证；3. ssl 加密认证。
+
+   开启 JMX 远程监控（查看 tomcat 官方文档），在 `/usr/local/tomcat/bin/catalina.sh` 最前面添加如下行（从 tomcat 官网文档中搜索 JMX 找到的）：
+
+   ```bash
+   vim /usr/local/tomcat/bin/catalina.sh
+   ```
+
+   ```ini
+   CATALINA_OPTS="$CATALINA_OPTS -Dcom.sun.management.jmxremote
+   -Dcom.sun.management.jmxremote.port=8888  # 本机打开 jmx 协议的端口
+   -Dcom.sun.management.jmxremote.ssl=false
+   -Dcom.sun.management.jmxremote.authenticate=false
+   -Djava.rmi.server.hostname=192.168.1.233"  # 本机的 ip
+   ```
+
+   重启 tomcat 并检查 8888 和 8080 端口是否开启：`netstat -tunlp`。然后使用 windows 下装的 java JDK 安装目录中 `/bin/jconsole` 进行连接测试看有没有问题，选择远程进程，输入开启 jmx 的 IP 加端口（例 `192.168.1.233:8888`），能连接看到信息则表示开启成功。最后在 zabbix-web 上加入 tomcat 的 jmx 类型监控即可，只需要输入 JMX 主机和端口，并链接模板应用。
+
+#### 监控 Nginx
+
+1. 开启 Nginx 监控。
+2. 编写脚本来采集数据。
+3. 设置用户自定义参数。
+4. 重启 zabbix-agent。
+5. 添加 item。
+6. 创建图形。
+7. 创建触发器。
+8. 创建模板（包含 item、图形、触发器、screen）。
+
+##### 监控 Nginx 操作
+
+制作脚本放到 nginx 服务器中：
+
+```bash
+#### zabbix_linux_plugin.sh ####
 #!/bin/bash
 ###########################################
 # $Name:	Zabbix_linux_plugins.sh
@@ -340,8 +664,8 @@ TIMEOUT=3
 ###########################################
 tcp_status_fun(){
 	TCP_STAT=$1
-	#当TCP多的时候ss比netstat快
-	#netstat -n |  awk '/^tcp/ {++state[$NF]} END {for(key in state) print key,state[key]}' > /tmp/netstat.tmp
+	# 当 TCP 多的时候 ss 比 netstat 快
+	# netstat -n |  awk '/^tcp/ {++state[$NF]} END {for(key in state) print key,state[key]}' > /tmp/netstat.tmp
 	ss -ant | awk 'NR>1 {++s[$1]} END {for(k in s) print k,s[k]}' > /tmp/netstat.tmp
 	TCP_STAT_VALUE=$(grep "$TCP_STAT" /tmp/netstat.tmp | cut -d ' ' -f2)
 	if [ -z $TCP_STAT_VALUE ];then
@@ -428,143 +752,282 @@ main(){
 	esac
 }
 main $1 $2 $3
-###############################
-1. vim /etc/zabbix/zabbix_agentd.conf
-	Include=/etc/zabbix/zabbix_agentd.d/*.conf
-2. 把脚本移动到/etc/zabbix/zabbix_agentd.d
-3. 把nginx中的nginx-status改成nginx_status，并设置IP地址为只允许本机使用，以使脚本兼容
-        location /nginx_status {
-            stub_status on;
-            access_log off;
-            allow 127.0.0.1;
-            deny all;
-        }   
-4. 测试脚本
-5. #vim /etc/zabbix/zabbix_agentd.d/linux.conf
-UserParameter=linux_status[*],/etc/zabbix/zabbix_agentd.d/zabbix_linux_plugin.sh "$1" "$2" "$3"
-6. systemctl restart zabbix-agent
-7.  zabbix_get -s 192.168.1.201 -k linux_status[nginx_status,8080,active]  #用get测试一下
-8. 创建模板，机器太多无法创建很多个item,所以创建模板 #最佳也是创建模板，后期可以导出直接使用
-9. 链接模板到主机
-#创建触发器：
-选中主机，并选中触发器，新建触发器，选择一个处理函数（例如：last(),max()等），就会触发触发器做动作，动作就是我们定义的信息、条件、和操作（发送给谁，哪种方式，必须先添加媒体介质）
-名称：Nginx Active > 1
-表达式：{lnmp.jack.com:nginx.active.last()}>1 #可以选择添加
-严重性分类：警告（可自行分类选择）
-已启用：勾选 
-####媒体介质添加
-用脚本添加短信通知
-1. vim /etc/zabbix/zabbix_server.conf可查看到警告脚本路径：AlertScriptsPath=/usr/lib/zabbix/alertscripts
-2. 编写短信脚本在警告脚本路径下
-###############
-[root@cobbler-Zabbix alertscripts]# cat sms.sh 
-#!/bin/bash
-ALERT_TO=$1
-ALERT_TITLE=$2
-ALERT_BODY=$3
-echo $ALERT_TO >> /tmp/sms.log
-echo $ALERT_TITLE >> /tmp/sms.log
-echo $ALERT_BODY >> /tmp/sms.log
-###############
-添加媒介为脚本类型，指定名称脚本 sms.sh（自己会去AlertScriptsPath=/usr/lib/zabbix/alertscripts查找），如有需要添加脚本参数：{ALERT.SENDTO}[此zabbix函数表示发送给哪个用户，在用户属性的报警媒介中设置手机号]、{ALERT.SUBJECT}[此zabbix函数表示动作里面的主题]、{ALERT.MESSAGE}[此zabbix函数表示动作的信息]
-3. 在要监控的主机上添加item项和图形---然后设置触发器---设置动作（actions），并设置动作上的发信内容和发信方式及对象---最后在对象用户上设置接收媒体的类型
-#用脚本添加微信通知
-用脚本添加微信通知
-1.企业注册企业号，拥有唯一的key
-2.在linux中设置脚本，使用curl连接微信API发送微信报警
-移值监控项:
-如果要把自定义item监控项移值到其他agent服务器上，只需要复制/etc/zabbix/zabbix_agentd.d/下的zabbix_linux_plugin.sh和linux.conf，还有/etc/zabbix/zabbix_agentd.conf 即可，然后可以在zabbix-server上用命令zabbix_get测试是否成功连接
-#使用Percona监控插件监控mysql（自己实操失败）#查看官方文档
-1. 安装percona监控插件源:
-yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
-2. 安装percona监控插件及所有的组件
-yum install -y percona-zabbix-templates php php-mysql
-3. 导入模板/var/lib/zabbix/percona/templates/zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.8.xml到zabbix server web上的模板库上（此模板导入会错误，需从网上自己找zabbix3.0的模板）
-4. 复制配置文件/var/lib/zabbix/percona/templates/userparameter_percona_mysql.conf到/etc/zabbix/zabbix_agentd.d/下
-5. 在/var/lib/zabbix/percona/scripts/目录下新建ss_get_mysql_stats.php.cnf文件，并输入值`<?php
-$mysql_user = 'root';
-$mysql_pass = 's3cret';`
-6. 测试脚本 /var/lib/zabbix/percona/scripts/get_mysql_stats_wrapper.sh gg 
-405647  #如何未有值是表示连接不上mysql.sock。ERROR: Can't connect to local MySQL server through socket '/var/lib/mysql/mysql.sock' (2)
-7. 关联模板到主机中
-注意事项：当zabbix中监控没有图数据时，大部分是/tmp下的文件zabbix没有写入的文件，可以在zabbix server是使用zabbix_get工具测试一下
-#使用Percona监控插件监控mysql,需要查看官方文档
+```
+
+操作步骤：
+
+1. 修改 `/etc/zabbix/zabbix_agentd.conf`，包含 `Include=/etc/zabbix/zabbix_agentd.d/*.conf`。
+2. 把脚本移动到 `/etc/zabbix/zabbix_agentd.d`。
+3. 把 nginx 中的 `nginx-status` 改成 `nginx_status`，并设置 IP 地址为只允许本机使用，以使脚本兼容：
+
+   ```nginx
+   location /nginx_status {
+       stub_status on;
+       access_log off;
+       allow 127.0.0.1;
+       deny all;
+   }
+   ```
+
+4. 测试脚本。
+
+5. 配置自定义监控项：
+
+   ```bash
+   vim /etc/zabbix/zabbix_agentd.d/linux.conf
+   UserParameter=linux_status[*],/etc/zabbix/zabbix_agentd.d/zabbix_linux_plugin.sh "$1" "$2" "$3"
+   ```
+
+6. 重启 zabbix-agent：
+
+   ```bash
+   systemctl restart zabbix-agent
+   ```
+
+7. 用 get 测试一下：
+
+   ```bash
+   zabbix_get -s 192.168.1.201 -k linux_status[nginx_status,8080,active]
+   ```
+
+8. 创建模板（机器太多无法创建很多个 item，所以创建模板，最佳也是创建模板，后期可以导出直接使用）。
+9. 链接模板到主机。
+
+创建触发器：选中主机，并选中触发器，新建触发器，选择一个处理函数（例如 `last()`、`max()` 等），就会触发触发器做动作。动作就是我们定义的信息、条件、和操作（发送给谁，哪种方式，必须先添加媒体介质）。
+
+- 名称：Nginx Active > 1
+- 表达式：`{lnmp.jack.com:nginx.active.last()}>1`（可以选择添加）
+- 严重性分类：警告（可自行分类选择）
+- 已启用：勾选
+
+#### 媒体介质添加（用脚本添加短信通知）
+
+1. `vim /etc/zabbix/zabbix_server.conf` 可查看到警告脚本路径 `AlertScriptsPath=/usr/lib/zabbix/alertscripts`。
+2. 编写短信脚本在警告脚本路径下：
+
+   ```bash
+   cat sms.sh 
+   #!/bin/bash
+   ALERT_TO=$1
+   ALERT_TITLE=$2
+   ALERT_BODY=$3
+   echo $ALERT_TO >> /tmp/sms.log
+   echo $ALERT_TITLE >> /tmp/sms.log
+   echo $ALERT_BODY >> /tmp/sms.log
+   ```
+
+   添加媒介为脚本类型，指定名称脚本 `sms.sh`（自己会去 `AlertScriptsPath=/usr/lib/zabbix/alertscripts` 查找），如有需要添加脚本参数：`{ALERT.SENDTO}`（此 zabbix 函数表示发送给哪个用户，在用户属性的报警媒介中设置手机号）、`{ALERT.SUBJECT}`（此 zabbix 函数表示动作里面的主题）、`{ALERT.MESSAGE}`（此 zabbix 函数表示动作的信息）。
+
+3. 在要监控的主机上添加 item 项和图形 - 然后设置触发器 - 设置动作（actions），并设置动作上的发信内容和发信方式及对象 - 最后在对象用户上设置接收媒体的类型。
+
+用脚本添加微信通知：
+
+1. 企业注册企业号，拥有唯一的 key。
+2. 在 linux 中设置脚本，使用 curl 连接微信 API 发送微信报警。
+
+移值监控项：如果要把自定义 item 监控项移值到其他 agent 服务器上，只需要复制 `/etc/zabbix/zabbix_agentd.d/` 下的 `zabbix_linux_plugin.sh` 和 `linux.conf`，还有 `/etc/zabbix/zabbix_agentd.conf` 即可，然后可以在 zabbix-server 上用命令 `zabbix_get` 测试是否成功连接。
+
+#### 使用 Percona 监控插件监控 mysql（自己实操失败，查看官方文档）
+
+1. 安装 percona 监控插件源：
+
+   ```bash
+   yum install http://www.percona.com/downloads/percona-release/redhat/0.1-3/percona-release-0.1-3.noarch.rpm
+   ```
+
+2. 安装 percona 监控插件及所有的组件：
+
+   ```bash
+   yum install -y percona-zabbix-templates php php-mysql
+   ```
+
+3. 导入模板 `/var/lib/zabbix/percona/templates/zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.8.xml` 到 zabbix server web 上的模板库上（此模板导入会错误，需从网上自己找 zabbix3.0 的模板）。
+4. 复制配置文件 `/var/lib/zabbix/percona/templates/userparameter_percona_mysql.conf` 到 `/etc/zabbix/zabbix_agentd.d/` 下。
+5. 在 `/var/lib/zabbix/percona/scripts/` 目录下新建 `ss_get_mysql_stats.php.cnf` 文件，并输入值：
+
+   ```php
+   <?php
+   $mysql_user = 'root';
+   $mysql_pass = 's3cret';
+   ```
+
+6. 测试脚本：
+
+   ```bash
+   /var/lib/zabbix/percona/scripts/get_mysql_stats_wrapper.sh gg
+   ```
+
+   结果 `405647` 表示有值为成功；若是没有值，表示连接不上 mysql.sock，报错：`ERROR: Can't connect to local MySQL server through socket '/var/lib/mysql/mysql.sock' (2)`。
+
+7. 关联模板到主机中。
+
+注意事项：当 zabbix 中监控没有图数据时，大部分是 /tmp 下的文件 zabbix 没有写入的文件，可以在 zabbix server 上使用 `zabbix_get` 工具测试一下。
+
+再次补充：使用 Percona 监控插件监控 mysql，需要查看官方文档：
+
+```bash
 yum install https://www.percona.com/downloads/percona-monitoring-plugins/1.1.6/percona-zabbix-templates-1.1.6-1.noarch.rpm
 yum install -y php php-mysql
-[root@lnmp templates]# sz zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.6.xml #导出模板到windows
-导入模板/var/lib/zabbix/percona/templates/zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.6.xml到zabbix server web上的模板库上（此模板导入会错误，格式错误，需要从2.4导出来使用，需从网上自己找zabbix3.0的模板）##链接：https://pan.baidu.com/s/1j4-zgBgTTaqh-gGNAaeIlw 提取码：w4az  链接：https://pan.baidu.com/s/17nEADrpEyPVXWRi_mikCLA 提取码：dfio
+sz zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.6.xml   # 导出模板到 windows
+```
+
+导入模板 `/var/lib/zabbix/percona/templates/zabbix_agent_template_percona_mysql_server_ht_2.0.9-sver1.1.6.xml` 到 zabbix server web 上的模板库上（此模板导入会错误，格式错误，需要从 2.4 导出来使用，需从网上自己找 zabbix3.0 的模板）。链接：https://pan.baidu.com/s/1j4-zgBgTTaqh-gGNAaeIlw 提取码：w4az ；链接：https://pan.baidu.com/s/17nEADrpEyPVXWRi_mikCLA 提取码：dfio
+
+```bash
 cp /var/lib/zabbix/percona/templates/userparameter_percona_mysql.conf /etc/zabbix/zabbix_agentd.d/
-在/var/lib/zabbix/percona/scripts/目录下新建ss_get_mysql_stats.php.cnf文件，并输入值:
-[root@lnmp scripts]# cat ss_get_mysql_stats.php.cnf 
+```
+
+在 `/var/lib/zabbix/percona/scripts/` 目录下新建 `ss_get_mysql_stats.php.cnf` 文件，并输入值：
+
+```bash
+cat ss_get_mysql_stats.php.cnf 
 <?php
 $mysql_user = 'root';
 $mysql_pass = 'root123';
-[root@lnmp templates]# ll /tmp/
+ll /tmp/
+```
+
+```text
 total 4
--rw-rw-r-- 1 zabbix zabbix 1245 Jul  1 16:45 localhost-mysql_cacti_stats.txt  #确定此文件为zabbix权限 
-#WEB监控（不依赖zabbix agent,zabbix server自带的）
-1. 在zabbix web中，点击目标主机旁边的web进行设置监控
-2. 点击右上角新建方案
-3. 设置方案名称，更新间隔时间，要监听的网址，最大超时时间，需要返回的状态码200等
-4. 设置触发器，设置表达式为web监控自动添加的web类型的item项
-{smb:web.test.fail[smb-web].last()}<>0  #设置失败的步骤是否不等于0，不等于0表示有失败的步骤，会触发报警  ----Failed step of scenario "smb-web".
-{smb:web.test.rspcode[smb-web,smb-web].last()}<>200 #设置响应的代码是否不等于200，不等于200表示服务异常，会触发报警  ----Response code for step "smb-web" of scenario "smb-web".
-5. 如果需要设置认证，在步骤选项上添加post的用户名及密码
-#Action信息模板：
---默认标题：
-Problem: {EVENT.NAME}
---消息内容：
-状态：{TRIGGER.STATUS}
-恢复消息和消息内容：
-主机名：{HOST.NAME1}
-监控项：{ITEM.KEY1}
-监控项值：{ITEM.VALUE1}
-FROM:{TRIGGER.NAME}
-#针对zabbix agent来说，有两种模式
-1. 被动模式（默认模式zabbix-agent）
-2. 主动模式 （zabbix-agent(active)）
+-rw-rw-r-- 1 zabbix zabbix 1245 Jul  1 16:45 localhost-mysql_cacti_stats.txt  # 确定此文件为 zabbix 权限
+```
+
+#### WEB 监控（不依赖 zabbix agent，zabbix server 自带的）
+
+1. 在 zabbix web 中，点击目标主机旁边的 web 进行设置监控。
+2. 点击右上角新建方案。
+3. 设置方案名称、更新间隔时间、要监听的网址、最大超时时间、需要返回的状态码 200 等。
+4. 设置触发器，设置表达式为 web 监控自动添加的 web 类型的 item 项：
+
+   ```
+   {smb:web.test.fail[smb-web].last()}<>0
+   ```
+
+   设置失败的步骤是否不等于 0，不等于 0 表示有失败的步骤，会触发报警（Failed step of scenario "smb-web"）。
+
+   ```
+   {smb:web.test.rspcode[smb-web,smb-web].last()}<>200
+   ```
+
+   设置响应的代码是否不等于 200，不等于 200 表示服务异常，会触发报警（Response code for step "smb-web" of scenario "smb-web"）。
+
+5. 如果需要设置认证，在步骤选项上添加 post 的用户名及密码。
+
+#### Action 信息模板
+
+- 默认标题：
+
+  ```
+  Problem: {EVENT.NAME}
+  ```
+
+- 消息内容：
+
+  ```
+  状态：{TRIGGER.STATUS}
+  ```
+
+- 恢复消息和消息内容：
+
+  ```
+  主机名：{HOST.NAME1}
+  监控项：{ITEM.KEY1}
+  监控项值：{ITEM.VALUE1}
+  FROM:{TRIGGER.NAME}
+  ```
+
+### 2.5 主动模式与被动模式
+
+针对 zabbix agent 来说，有两种模式：
+
+1. 被动模式（默认模式 zabbix-agent）。
+2. 主动模式（zabbix-agent(active)）。
+
 什么时候切换为主动模式？
-1. 当队列（Queue）的item 1分钟、5分钟、10分钟有延迟时
-2. 当zabbix server监控300+服务器时（针对普通服务器配置）
-3. 主动模式可以不受防火墙的影响
+
+1. 当队列（Queue）的 item 1 分钟、5 分钟、10 分钟有延迟时。
+2. 当 zabbix server 监控 300+ 服务器时（针对普通服务器配置）。
+3. 主动模式可以不受防火墙的影响。
+
 怎么设置为主动模式？（实操失败）
-1. 在zabbix agent机器中，设置配置文件
-[root@linux-node1 ~]# vim /etc/zabbix/zabbix_agentd.conf 
-#Server=192.168.1.201   #注释被动模式
-StartAgents=0  #关闭agent监听端口
-ServerActive=192.168.1.201  #设置主动模式zabbix server地址
-Hostname=linux-node1	#设置本地agent主机名，唯一标识
-2. [root@linux-node1 ~]# systemctl restart zabbix-agent
-3. 在zabbix server上添加agent主机，并关联主动模式（zabbix agent (active)）的模板即可,因为默认无主动模式的模板（从模板中的item中可以看出item的类型为zabbix-agent），所以只能用全部克隆功能来克隆一个模板，并（mass update）批量更新来更改（type）类型为zabbix agent (active)模式。
-4. 由于是主动模式，所以在主机添加完成后，主机界面ZBX图标是不亮的(跟item的key：agent.ping有关)，而如果是被动模式则是开的
-###zabbix proxy
-#zabbix proxy没有触发器，不发报警，不能执行远程命令，只做收集，需要单独数据库
-zabbix proxy不仅能解决主机多的问题还能解决跨机房的问题
-zabbix proxy不能跟zabbix server装在一台机器上，而且zabbix proxy必须是单独的数据库
-安装 zabbix proxy:
-先要切换成阿里云的源
+
+1. 在 zabbix agent 机器中，设置配置文件：
+
+   ```bash
+   vim /etc/zabbix/zabbix_agentd.conf 
+   ```
+
+   ```ini
+   # Server=192.168.1.201    # 注释被动模式
+   StartAgents=0            # 关闭 agent 监听端口
+   ServerActive=192.168.1.201  # 设置主动模式 zabbix server 地址
+   Hostname=linux-node1	    # 设置本地 agent 主机名，唯一标识
+   ```
+
+2. 重启 zabbix-agent：
+
+   ```bash
+   systemctl restart zabbix-agent
+   ```
+
+3. 在 zabbix server 上添加 agent 主机，并关联主动模式（zabbix agent (active)）的模板即可。因为默认无主动模式的模板（从模板中的 item 中可以看出 item 的类型为 zabbix-agent），所以只能用全部克隆功能来克隆一个模板，并（mass update）批量更新来更改（type）类型为 zabbix agent (active) 模式。
+
+4. 由于是主动模式，所以在主机添加完成后，主机界面 ZBX 图标是不亮的（跟 item 的 key `agent.ping` 有关），而如果是被动模式则是开的。
+
+### 2.6 zabbix proxy
+
+zabbix proxy 没有触发器，不发报警，不能执行远程命令，只做收集，需要单独数据库。zabbix proxy 不仅能解决主机多的问题还能解决跨机房的问题。zabbix proxy 不能跟 zabbix server 装在一台机器上，而且 zabbix proxy 必须是单独的数据库。
+
+安装 zabbix proxy：
+
+```bash
+# 先要切换成阿里云的源
 yum install -y zabbix-proxy zabbix-proxy-mysql mariadb-server
 systemctl start mariadb
-#mysql
+```
+
+创建数据库：
+
+```sql
 create database zabbix_proxy character set utf8;
 grant all on zabbix_proxy.* to zabbix_proxy@localhost identified by 'zabbix_proxy';
+```
 
+```bash
 cd /usr/share/doc/zabbix-proxy-mysql-3.0.3/
 zcat schema.sql.gz | mysql -uzabbix_proxy -p zabbix_proxy
-#vim /etx/zabbix/zabbix-proxy.conf
-Server=192.168.1.201	#agent server的地址
-Hostname=192.168.1.234    #agent proxy的地址
+```
+
+修改代理配置：
+
+```bash
+vim /etx/zabbix/zabbix-proxy.conf
+```
+
+```ini
+Server=192.168.1.201	# agent server 的地址
+Hostname=192.168.1.234  # agent proxy 的地址
 DBHost=localhost        
 DBName-zabbix_proxy
 DBUser=zabbix_proxy
 DBPassword=zabbix_proxy
+```
 
-systemctl start zabbix-proxy  #zabbix-proxy端口是10051,和zabbix server端口一样，是简化版的zabbix server
-zabbix-proxy和zabbix-agent一样也可以设置主动和被动模式
+```bash
+systemctl start zabbix-proxy  # zabbix-proxy 端口是 10051，和 zabbix server 端口一样，是简化版的 zabbix server
+```
 
-附Server(1),Proxy(2),Agent(3)的配置信息
-#############
-1. [root@cobbler-Zabbix ~]# grep '^[a-Z]' /etc/zabbix/zabbix_server.conf 
+zabbix-proxy 和 zabbix-agent 一样也可以设置主动和被动模式。
+
+附 Server(1)、Proxy(2)、Agent(3) 的配置信息：
+
+**1. Server 配置**
+
+```bash
+grep '^[a-Z]' /etc/zabbix/zabbix_server.conf 
+```
+
+```ini
 LogFile=/var/log/zabbix/zabbix_server.log
 LogFileSize=0
 PidFile=/var/run/zabbix/zabbix_server.pid
@@ -579,7 +1042,15 @@ Timeout=4
 AlertScriptsPath=/usr/lib/zabbix/alertscripts
 ExternalScripts=/usr/lib/zabbix/externalscripts
 LogSlowQueries=3000
-2. [root@zabbix-proxy1 ~]# grep '^[a-Z]' /etc/zabbix/zabbix_proxy.conf 
+```
+
+**2. Proxy 配置**
+
+```bash
+grep '^[a-Z]' /etc/zabbix/zabbix_proxy.conf 
+```
+
+```ini
 Server=192.168.1.201
 ServerPort=10051
 Hostname=192.168.1.234
@@ -594,126 +1065,202 @@ SNMPTrapperFile=/var/log/snmptrap/snmptrap.log
 Timeout=4
 ExternalScripts=/usr/lib/zabbix/externalscripts
 LogSlowQueries=3000
-3. [root@linux-node1 ~]# grep '^[a-Z]' /etc/zabbix/zabbix_agentd.conf 
+```
+
+**3. Agent 配置**
+
+```bash
+grep '^[a-Z]' /etc/zabbix/zabbix_agentd.conf 
+```
+
+```ini
 PidFile=/var/run/zabbix/zabbix_agentd.pid
 LogFile=/var/log/zabbix/zabbix_agentd.log
 LogFileSize=0
 Server=192.168.1.234
 ListenPort=10050
 ServerActive=192.168.1.234
-Hostname=192.168.1.233       ##要么写localhost,要么写IP，其他名称因为没有DNS，所以解析不出来，Hostname都一样
+Hostname=192.168.1.233   # 要么写 localhost，要么写 IP，其他名称因为没有 DNS，所以解析不出来，Hostname 都一样
 Include=/etc/zabbix/zabbix_agentd.d/*.conf
-#############
+```
 
-###自动化监控
-1. 自动注册(zabbix server基于zabbix agent的主动模式)
-	1. Zabbix Agent自动添加
-2. 主动发现(zabbix server基于zabbix agent的被动模式)
-	2.1 自动发现Discovery
-	2.2 Zabbix API
-	##注：无论是主动模式还是被动模式下，触发条件应都先包含不能先等于，因为可能值中还包含其它的字符
-	#######自动注册操作：
-1. 在Agent中更改配置，关闭Agent被动模式，并设置StartAgents=0,设置主动模式的ServerActive地址。设置HostMetadataItem或者HostMetadata。HostMetadata是手动设置值，例：HostMetadata=Linux。HostMetadataItem是使用Zabbix Agent的key来自动获取值，例如HostMetadataItem=system.uname
-#vim /etc/zabbix/zabbix_agentd.conf
-[root@linux-node1 ~]# grep '^[a-Z]'  /etc/zabbix/zabbix_agentd.conf             
-PidFile=/var/run/zabbix/zabbix_agentd.pid
-LogFile=/var/log/zabbix/zabbix_agentd.log
-LogFileSize=0
-StartAgents=0
-ServerActive=192.168.1.201  
-Hostname=192.168.1.233
-HostMetadataItem=system.uname  #告诉server我的特征，和HostMetadata二选一，system.uname相当于在shell上执行uname功能
-Include=/etc/zabbix/zabbix_agentd.d/*.conf
-2. 然后去Zabbix Server Web界面里面Action选项添加自动注册功能（另外有子菜单tigger,自动发现）。设置名称，触发条件（主机元数据 包含 linux-node）,并设置添加操作(添加主机，添加到某个主机组，添加相匹配的模板)
-3. 查看自动成功添加的模板图形
-##########自动发现(Discovery)操作
-先在zabbix server web上的自动发现选项上添加一个自动发现规则，设置名称，IP范围、更新间隔、检查选项（使用zabbix客户端的key等于"system.uname"）--"system.uname"可以获取系统是Linux还是Windows，在后面用到
-在再动作（Action）上添加一个自动发现(Discovery)类型的action，设置名称，设置触发条件为：'接收到的值 包含 Linux'（如果有多个条件，则需要使用或模式），设置操作（添加主机，添加主机群组，链接模板[跟据获取到的值是linux还是windows来判断加什么模板]）
-1. 在Agent中更改配置，关闭Agent主动模式，并设置StartAgent=3(表示开启Agent监听端口，等于0则表示禁用端口),然后设置被动模式的Server地址。
-2. #vim /etc/zabbix/zabbix_agentd.conf
-[root@linux-node1 ~]# grep '^[a-Z]'  /etc/zabbix/zabbix_agentd.conf             
-PidFile=/var/run/zabbix/zabbix_agentd.pid
-LogFile=/var/log/zabbix/zabbix_agentd.log
-LogFileSize=0
-StartAgents=3
-Server=192.168.1.201
-Hostname=192.168.1.233
-Include=/etc/zabbix/zabbix_agentd.d/*.conf
-注：HostMetadata这个选项在被动模式下的Agent没什么用，在主动模式下的作用很大
-#############主动发现操作---Zabbix API
-去官网查找API使用方法：
-设置前端后，可以使用远程HTTP请求来调用API。为此，您需要将HTTP POST请求发送到api_jsonrpc.php位于前端目录中的文件。
-例如，如果您的Zabbix前端安装在http://company.com/zabbix下，则调用该apiinfo.version方法的HTTP请求可能如下所示：
+### 2.7 自动化监控
+
+1. 自动注册（zabbix server 基于 zabbix agent 的主动模式）。
+   - 1.1 Zabbix Agent 自动添加。
+2. 主动发现（zabbix server 基于 zabbix agent 的被动模式）。
+   - 2.1 自动发现 Discovery。
+   - 2.2 Zabbix API。
+
+> 注：无论是主动模式还是被动模式下，触发条件应都先包含不能先等于，因为可能值中还包含其它的字符。
+
+#### 自动注册操作
+
+1. 在 Agent 中更改配置，关闭 Agent 被动模式，并设置 `StartAgents=0`，设置主动模式的 `ServerActive` 地址。设置 `HostMetadataItem` 或者 `HostMetadata`。`HostMetadata` 是手动设置值，例：`HostMetadata=Linux`。`HostMetadataItem` 是使用 Zabbix Agent 的 key 来自动获取值，例如 `HostMetadataItem=system.uname`。
+
+   ```bash
+   vim /etc/zabbix/zabbix_agentd.conf
+   grep '^[a-Z]'  /etc/zabbix/zabbix_agentd.conf             
+   ```
+
+   ```ini
+   PidFile=/var/run/zabbix/zabbix_agentd.pid
+   LogFile=/var/log/zabbix/zabbix_agentd.log
+   LogFileSize=0
+   StartAgents=0
+   ServerActive=192.168.1.201  
+   Hostname=192.168.1.233
+   HostMetadataItem=system.uname  # 告诉 server 我的特征，和 HostMetadata 二选一，system.uname 相当于在 shell 上执行 uname 功能
+   Include=/etc/zabbix/zabbix_agentd.d/*.conf
+   ```
+
+2. 然后去 Zabbix Server Web 界面里面 Action 选项添加自动注册功能（另外有子菜单 trigger、自动发现）。设置名称，触发条件（主机元数据包含 linux-node），并设置添加操作（添加主机，添加到某个主机组，添加相匹配的模板）。
+3. 查看自动成功添加的模板图形。
+
+#### 自动发现（Discovery）操作
+
+先在 zabbix server web 上的自动发现选项上添加一个自动发现规则，设置名称、IP 范围、更新间隔、检查选项（使用 zabbix 客户端的 key 等于 `system.uname`），`system.uname` 可以获取系统是 Linux 还是 Windows，在后面用到。
+
+在动作（Action）上添加一个自动发现（Discovery）类型的 action，设置名称，设置触发条件为`接收到的值包含 Linux`（如果有多个条件，则需要使用或模式），设置操作（添加主机、添加主机群组、链接模板[跟据获取到的值是 linux 还是 windows 来判断加什么模板]）。
+
+1. 在 Agent 中更改配置，关闭 Agent 主动模式，并设置 `StartAgent=3`（表示开启 Agent 监听端口，等于 0 则表示禁用端口），然后设置被动模式的 Server 地址。
+
+   ```bash
+   vim /etc/zabbix/zabbix_agentd.conf
+   grep '^[a-Z]'  /etc/zabbix/zabbix_agentd.conf             
+   ```
+
+   ```ini
+   PidFile=/var/run/zabbix/zabbix_agentd.pid
+   LogFile=/var/log/zabbix/zabbix_agentd.log
+   LogFileSize=0
+   StartAgents=3
+   Server=192.168.1.201
+   Hostname=192.168.1.233
+   Include=/etc/zabbix/zabbix_agentd.d/*.conf
+   ```
+
+> 注：`HostMetadata` 这个选项在被动模式下的 Agent 没什么用，在主动模式下的作用很大。
+
+#### 主动发现操作——Zabbix API
+
+去官网查找 API 使用方法：设置前端后，可以使用远程 HTTP 请求来调用 API。为此，您需要将 HTTP POST 请求发送到 `api_jsonrpc.php` 位于前端目录中的文件。
+
+例如，如果您的 Zabbix 前端安装在 `http://company.com/zabbix` 下，则调用该 `apiinfo.version` 方法的 HTTP 请求可能如下所示：
+
+```http
 POST http://company.com/zabbix/api_jsonrpc.php
-Content-Type：application / json-rpc
-{ “jsonrpc”： “2.0”， “method”： “apiinfo.version”， “ID”：1， “AUTH”：NULL， “PARAMS”：{}}
-该请求必须具有Content-Type标头集合至这些值中的一个：application/json-rpc，application/json或application/jsonrequest
-#示例工作流程
+Content-Type: application/json-rpc
+```
 
-1	GET	请求指定的页面信息，并返回实体主体。
-2	HEAD	类似于 GET 请求，只不过返回的响应中没有具体的内容，用于获取报头
-3	POST	向指定资源提交数据进行处理请求（例如提交表单或者上传文件）。数据被包含在请求体中。POST 请求可能会导致新的资源的建立和/或已有资源的修改。
-4	PUT	    从客户端向服务器传送的数据取代指定的文档的内容。
-5	DELETE	请求服务器删除指定的页面。
-6	CONNECT	HTTP/1.1 协议中预留给能够将连接改为管道方式的代理服务器。
-7	OPTIONS	允许客户端查看服务器的性能。
-8	TRACE	回显服务器收到的请求，主要用于测试或诊断。
-9	PATCH	是对 PUT 方法的补充，用来对已知资源进行局部更新 。
+```json
+{"jsonrpc": "2.0", "method": "apiinfo.version", "id": 1, "auth": null, "params": {}}
+```
 
-在您可以访问Zabbix内部的任何数据之前，您需要登录并获取身份验证令牌。这可以使用该user.login方法完成。我们假设您要以标准Zabbix Admin用户身份登录。然后您的JSON请求将如下所示：
-{ 
-    “jsonrpc” ： “2.0” ，
-    “method” ： “user.login” ，
-    “params” ： { 
-        “user” ： “Admin” ，
-        “password” ： “zabbix” 
-    } ，
-    “id” ： 1 ，
-    “auth” ： null 
+该请求必须具有 `Content-Type` 标头集合至这些值中的一个：`application/json-rpc`、`application/json` 或 `application/jsonrequest`。
+
+HTTP 请求方法示例工作流程：
+
+| 序号 | 方法    | 描述                                                                                         |
+| ---- | ------- | -------------------------------------------------------------------------------------------- |
+| 1    | GET     | 请求指定的页面信息，并返回实体主体。                                                          |
+| 2    | HEAD    | 类似于 GET 请求，只不过返回的响应中没有具体的内容，用于获取报头。                             |
+| 3    | POST    | 向指定资源提交数据进行处理请求（例如提交表单或者上传文件）。数据被包含在请求体中。POST 请求可能会导致新的资源的建立和/或已有资源的修改。 |
+| 4    | PUT     | 从客户端向服务器传送的数据取代指定的文档的内容。                                              |
+| 5    | DELETE  | 请求服务器删除指定的页面。                                                                    |
+| 6    | CONNECT | HTTP/1.1 协议中预留给能够将连接改为管道方式的代理服务器。                                      |
+| 7    | OPTIONS | 允许客户端查看服务器的性能。                                                                  |
+| 8    | TRACE   | 回显服务器收到的请求，主要用于测试或诊断。                                                    |
+| 9    | PATCH   | 是对 PUT 方法的补充，用来对已知资源进行局部更新。                                              |
+
+在您可以访问 Zabbix 内部的任何数据之前，您需要登录并获取身份验证令牌。这可以使用 `user.login` 方法完成。我们假设您要以标准 Zabbix Admin 用户身份登录，则您的 JSON 请求将如下所示：
+
+```json
+{
+    "jsonrpc": "2.0",
+    "method": "user.login",
+    "params": {
+        "user": "Admin",
+        "password": "zabbix"
+    },
+    "id": 1,
+    "auth": null
 }
-让我们仔细看看请求对象。它具有以下属性：
-jsonrpc- API使用的是JSON-RPC协议版本; Zabbix API实现了JSON-RPC 2.0版;
-method- 被调用的API方法;
-params- 将传递给API方法的参数;
-id - 请求的任意标识符;
-auth - 用户认证令牌; 因为我们还没有，所以它设置为null。
+```
 
-如果您正确提供了凭据，则API返回的响应将包含用户身份验证令牌(token)：
-{ 
-    “jsonrpc” ： “2.0” ，
-    “result” ： “0424bd59b807674191e7d77572075f33” ，
-    “id” ： 1 
+请求对象具有以下属性：
+
+- `jsonrpc`：API 使用的是 JSON-RPC 协议版本；Zabbix API 实现了 JSON-RPC 2.0 版；
+- `method`：被调用的 API 方法；
+- `params`：将传递给 API 方法的参数；
+- `id`：请求的任意标识符；
+- `auth`：用户认证令牌；因为我们还没有，所以它设置为 null。
+
+如果您正确提供了凭据，则 API 返回的响应将包含用户身份验证令牌（token）：
+
+```json
+{
+    "jsonrpc": "2.0",
+    "result": "0424bd59b807674191e7d77572075f33",
+    "id": 1
 }
+```
+
 响应对象又包含以下属性：
-jsonrpc - 再次，JSON-RPC协议的版本;
-result - 方法返回的数据;
-id - 相应请求的标识符。
 
-#老男孩Zabbix API实操：
-linux curl 使用API方法：
-下面这两个可以成功获取token
-`curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth":null,"id":1}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool`
+- `jsonrpc`：再次，JSON-RPC 协议的版本；
+- `result`：方法返回的数据；
+- `id`：相应请求的标识符。
 
-`curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc": "2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth": null,"id":0}' http://192.168.1.201/zabbix/api_jsonrpc.php`
+### 2.8 老男孩 Zabbix API 实操
 
-###curl -s参数：静默  -X参数：请求命令  -H参数：标头集合值(application/json)  -d参数：请求的数据   最后是请求地址(http://192.168.1.201/zabbix/api_jsonrpc.php)调用API,并用python的json.tool工具来输出结果
-安装python-pip工具：
-[root@cobbler-Zabbix yum.repos.d]# yum install -y  python-setuptools
-[root@cobbler-Zabbix yum.repos.d]# rpm -ivh https://mirrors.aliyun.com/centos/7.5.1804/cloud/x86_64/openstack-pike/common/python-pip-8.1.2-1.el7.noarch.rpm
-[root@cobbler-Zabbix yum.repos.d]# pip install requests
-例子：获取token
-[root@cobbler-Zabbix ~]# curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth":null,"id":1}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+linux curl 使用 API 方法，下面这两个可以成功获取 token：
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth":null,"id":1}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc": "2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth": null,"id":0}' http://192.168.1.201/zabbix/api_jsonrpc.php
+```
+
+curl 参数说明：`-s` 参数静默；`-X` 参数请求命令；`-H` 参数标头集合值（application/json）；`-d` 参数请求的数据；最后是请求地址 `http://192.168.1.201/zabbix/api_jsonrpc.php` 调用 API，并用 python 的 json.tool 工具来输出结果。
+
+安装 python-pip 工具：
+
+```bash
+yum install -y python-setuptools
+rpm -ivh https://mirrors.aliyun.com/centos/7.5.1804/cloud/x86_64/openstack-pike/common/python-pip-8.1.2-1.el7.noarch.rpm
+pip install requests
+```
+
+例子：获取 token
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"user.login","params":{"user":"jackli","password":"Mu123"},"auth":null,"id":1}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
+
+```json
 {
     "id": 1,
     "jsonrpc": "2.0",
     "result": "82cee37adf4cc37374f9558dcb5310d8"
 }
+```
 
-下面可获取主机名
-`curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"host.get","params":{"output":["hostid","host"],"selectInterfaces":["interfaceid","ip"]},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool`
+下面可获取主机名：
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"host.get","params":{"output":["hostid","host"],"selectInterfaces":["interfaceid","ip"]},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
 
 例子：获取主机名
-[root@cobbler-Zabbix ~]# curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"host.get","params":{"output":["hostid","host"],"selectInterfaces":["interfaceid","ip"]},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"host.get","params":{"output":["hostid","host"],"selectInterfaces":["interfaceid","ip"]},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
+
+```json
 {
     "id": 3,
     "jsonrpc": "2.0",
@@ -737,14 +1284,24 @@ linux curl 使用API方法：
                     "ip": "192.168.1.254"
                 }
             ]
-        },
+        }
+    ]
+}
+```
 
+下面可获取模板：
 
-下面可获取模板
-`curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"template.get","params":{"output":"extend","filter":{"host":["Template OS Linux","Template OS Windows"]}},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool`
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"template.get","params":{"output":"extend","filter":{"host":["Template OS Linux","Template OS Windows"]}},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
 
 例子：获取模板
-[root@cobbler-Zabbix ~]# curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"template.get","params":{"output":"extend","filter":{"host":["Template OS Linux","Template OS Windows"]}},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+
+```bash
+curl -s -X POST -H 'Content-Type:application/json' -d'{"jsonrpc":"2.0","method":"template.get","params":{"output":"extend","filter":{"host":["Template OS Linux","Template OS Windows"]}},"auth":"82cee37adf4cc37374f9558dcb5310d8","id":3}' http://192.168.1.201/zabbix/api_jsonrpc.php | python -m json.tool
+```
+
+```json
 {
     "id": 3,
     "jsonrpc": "2.0",
@@ -831,12 +1388,17 @@ linux curl 使用API方法：
         }
     ]
 }
+```
 
+#### 获取 token 的 python 脚本
 
-#######获取token的python脚本
-[root@cobbler-Zabbix ~]# vim zabbix_auth.py
+```bash
+vim zabbix_auth.py
+```
+
+```python
 #!/usr/bin/env python
-#_*_ coding:utf-8 _*_
+# _*_ coding:utf-8 _*_
 
 import requests
 import json
@@ -859,19 +1421,24 @@ if not zabbix_ret.has_key('result'):
         print 'login error'
 else:
         print zabbix_ret.get('result')
-#############
+```
 
-##########用python添加zabbix agent主机
-[root@cobbler-Zabbix ~]# vim zabbix_host_create.py
+#### 用 python 添加 zabbix agent 主机
+
+```bash
+vim zabbix_host_create.py
+```
+
+```python
 #!/usr/bin/env python
-#_*_ coding:utf-8 _*_
+# _*_ coding:utf-8 _*_
 
 import requests
 import json
 
 url = 'http://192.168.1.201/zabbix/api_jsonrpc.php'
 post_data = {
-"jsonrpc": "2.0",
+    "jsonrpc": "2.0",
     "method": "host.create",
     "params": {
         "host": "Linux server",
@@ -895,7 +1462,7 @@ post_data = {
                 "templateid": "10001"
             }
         ]
- },
+    },
     "auth": "bbacb5612a00a60a6da1d1d782f8c080",
     "id": 1
 }
@@ -904,82 +1471,150 @@ ret = requests.post(url, data=json.dumps(post_data),headers=post_header)
 
 zabbix_ret = json.loads(ret.text)
 print zabbix_ret
-#####################
+```
+
 执行的结果：
-[root@cobbler-Zabbix ~]# python zabbix_host_create.py
+
+```bash
+python zabbix_host_create.py
+```
+
+```text
 {u'jsonrpc': u'2.0', u'result': {u'hostids': [u'10132']}, u'id': 1}
+```
 
+#### 自定义监控其他
 
-#设置ping网关看是否存活
-[root@zabbix zabbix_agentd.d]# cat /etc/zabbix/zabbix_agentd.d/ping-gw.conf 
+设置 ping 网关看是否存活：
+
+```bash
+cat /etc/zabbix/zabbix_agentd.d/ping-gw.conf 
+```
+
+```ini
 UserParameter=route-idc.ping,/usr/bin/ping -c 3 -W 1 211.152.62.226 | grep -c 'icmp_seq'
 UserParameter=route-qp.ping,/usr/bin/ping -c 3 -W 1 101.231.195.138 | grep -c 'icmp_seq'
 UserParameter=route-yw.ping,/usr/bin/ping -c 3 -W 1 122.226.124.58 | grep -c 'icmp_seq'
-#然后在对应的主机上增加item，并设置图表和触发器即可实现
+```
 
-#对web服务器进行探测，看是否存活
-[root@zabbix zabbix_agentd.d]# cat web.conf 
+然后在对应的主机上增加 item，并设置图表和触发器即可实现。
+
+对 web 服务器进行探测，看是否存活：
+
+```bash
+cat web.conf 
+```
+
+```ini
 UserParameter=smbweb.ping,curl -u jack:jackli -m 10 -o /dev/null -s -w %{http_code} http://192.168.1.19/server-status/
-#然后在对应的主机上增加item，并设置图表和触发器即可实现
-[root@lnmp zabbix_agentd.d]# cat nginx.conf 
+```
+
+然后在对应的主机上增加 item，并设置图表和触发器即可实现。
+
+```bash
+cat nginx.conf 
+```
+
+```ini
 UserParameter=nginx.active,/usr/bin/curl -s http://192.168.1.233/nginx_status |grep 'Active' | awk '{print $NF}'
 UserParameter=nginx.server,/usr/bin/curl -s http://192.168.1.233/nginx_status | awk '{print $1}' | awk 'NR==3{print}'
 UserParameter=nginx.accepts,/usr/bin/curl -s http://192.168.1.233/nginx_status | awk '{print $2}' | awk 'NR==3{print}'
 UserParameter=nginx.handled,/usr/bin/curl -s http://192.168.1.233/nginx_status | awk '{print $3}' | awk 'NR==3{print}'
 UserParameter=nginx.reading,/usr/bin/curl -s http://192.168.1.233/nginx_status | awk '{print $2}' | awk 'NR==4{print}'
 UserParameter=nginx.writing,/usr/bin/curl -s http://192.168.1.233/nginx_status | awk '{print $4}' | awk 'NR==4{print}'
-</pre>
+```
 
+---
 
-<pre>
-###源码安装zabbix
+## 第三章 源码安装 zabbix
+
 参考链接：https://www.cnblogs.com/me80/p/7232975.html
-#安装zabbix之前先准备好LAMP环境
-#yum安装lamp:
+
+安装 zabbix 之前先准备好 LAMP 环境。
+
+#### 3.1 yum 安装 lamp
+
+```bash
 yum install -y httpd php php-mbstring mariadb mariadb-server
-#注：如果是源码安装lamp时，php需要注意编译参数：
---------
-zabbix对PHP参数、PHP模块有特殊要求。
-PHP安装参数
-php具体安装方法参考上面的链接，不过如下模块要特别留意加上
+```
+
+注：如果是源码安装 lamp 时，php 需要注意编译参数。zabbix 对 PHP 参数、PHP 模块有特殊要求。
+
+PHP 安装参数（php 具体安装方法参考上面的链接，不过如下模块要特别留意加上）：
+
+```ini
 bcmath        --enable-bcmath
 mbstring    --enable-mbstring
 sockets        --enable-sockets
 gd            --with-gd
 libxml        --with-libxml-dir=/usr/local
-xmlwriter    同上
-xmlreader    同上
-ctype        默认支持
-session        默认支持
-gettext        默认支持
---------
+xmlwriter     同上
+xmlreader     同上
+ctype         默认支持
+session       默认支持
+gettext       默认支持
+```
 
-#下载源码包
-[root@zabbix2 download]# wget https://nchc.dl.sourceforge.net/project/zabbix/ZABBIX%20Latest%20Stable/3.0.28/zabbix-3.0.28.tar.gz
-[root@zabbix2 download]# tar xf zabbix-3.0.28.tar.gz 
-[root@zabbix2 download]#  cd zabbix-3.0.28/
-MariaDB [(none)]> create database zabbix character set utf8 collate utf8_bin;
-MariaDB [(none)]> grant all on zabbix.* to zabbix@'localhost' identified by 'zabbix';
-MariaDB [(none)]> flush privileges;
-[root@lamp-zabbix ~]# groupadd -r zabbix
-[root@lamp-zabbix ~]# useradd -r -g zabbix zabbix
-[root@lamp-zabbix mysql]# mysql -uroot -p zabbix <schema.sql  #导入数据库
-Enter password: 
-[root@lamp-zabbix mysql]# mysql -uroot -p zabbix < images.sql 
-Enter password: 
-[root@lamp-zabbix mysql]# mysql -uroot -p zabbix < data.sql 
-Enter password: 
+#### 3.2 下载源码包
 
-#编译安装
-[root@lamp-zabbix zabbix-3.0.28]# yum groupinstall " Development and Creative Workstation" "Development Tools" -y  #安装开发包
-[root@lamp-zabbix zabbix-3.0.28]# yum install mariadb-devel curl-devel net-snmp-devel libxml2-devel -y #安装依赖包
+```bash
+wget https://nchc.dl.sourceforge.net/project/zabbix/ZABBIX%20Latest%20Stable/3.0.28/zabbix-3.0.28.tar.gz
+tar xf zabbix-3.0.28.tar.gz 
+cd zabbix-3.0.28/
+```
 
-[root@zabbix2 zabbix-3.0.28]# ./configure --prefix=/usr/local/zabbix --enable-server --enable-agent --with-mysql --enable-ipv6 --with-net-snmp --with-libcurl --with-libxml2  #编译安装zabbix server和agent
-注：自Zabbix 3.0.0版本起，SMTP认证需要--with-libcurl 配置选项，同时要求cURL 7.20.0或者更改版本。\\自Zabbix 2.2.0版本起，虚拟机监控需 --with-libcurl 和 --with-libxml2 配置选项。
-[root@zabbix2 zabbix-3.0.28]# make install  #安装zabbix
-[root@lamp-zabbix zabbix-3.0.28]# /usr/local/zabbix/sbin/zabbix_server -V
-zabbix_server (Zabbix) 3.0.28 #显示已经安装
-[root@lamp-zabbix zabbix-3.0.28]# egrep -v '#|^$' /usr/local/zabbix/etc/zabbix_server.conf #编辑配置
+创建数据库：
+
+```sql
+create database zabbix character set utf8 collate utf8_bin;
+grant all on zabbix.* to zabbix@'localhost' identified by 'zabbix';
+flush privileges;
+```
+
+创建用户并导入数据库：
+
+```bash
+groupadd -r zabbix
+useradd -r -g zabbix zabbix
+
+mysql -uroot -p zabbix < schema.sql
+Enter password: 
+mysql -uroot -p zabbix < images.sql 
+Enter password: 
+mysql -uroot -p zabbix < data.sql 
+Enter password: 
+```
+
+#### 3.3 编译安装
+
+```bash
+# 安装开发包
+yum groupinstall "Development and Creative Workstation" "Development Tools" -y
+# 安装依赖包
+yum install mariadb-devel curl-devel net-snmp-devel libxml2-devel -y
+
+# 编译安装 zabbix server 和 agent
+./configure --prefix=/usr/local/zabbix --enable-server --enable-agent --with-mysql --enable-ipv6 --with-net-snmp --with-libcurl --with-libxml2
+
+# 安装 zabbix
+make install
+
+/usr/local/zabbix/sbin/zabbix_server -V
+```
+
+```text
+zabbix_server (Zabbix) 3.0.28   # 显示已经安装
+```
+
+> 注：自 Zabbix 3.0.0 版本起，SMTP 认证需要 `--with-libcurl` 配置选项，同时要求 cURL 7.20.0 或者更新版本。自 Zabbix 2.2.0 版本起，虚拟机监控需 `--with-libcurl` 和 `--with-libxml2` 配置选项。
+
+编辑配置：
+
+```bash
+egrep -v '#|^$' /usr/local/zabbix/etc/zabbix_server.conf
+```
+
+```ini
 ListenPort=10051
 LogFile=/tmp/zabbix_server.log
 DBHost=localhost
@@ -989,26 +1624,73 @@ DBPassword=zabbix
 DBPort=3306
 Timeout=4
 LogSlowQueries=3000
-[root@lamp-zabbix zabbix-3.0.28]# egrep -v '#|^$' /usr/local/zabbix/etc/zabbix_agentd.conf
+```
+
+```bash
+egrep -v '#|^$' /usr/local/zabbix/etc/zabbix_agentd.conf
+```
+
+```ini
 LogFile=/tmp/zabbix_agentd.log
 Server=192.168.1.239
 ListenPort=10050
 ServerActive=192.168.1.239
 Hostname=zabbix-server
-[root@lamp-zabbix zabbix-3.0.28]# cp misc/init.d/fedora/core/zabbix_* /etc/init.d/ -v #复制zabbix-server和zabbix-agent开机启动脚本
-‘misc/init.d/fedora/core/zabbix_agentd’ -> ‘/etc/init.d/zabbix_agentd’
-‘misc/init.d/fedora/core/zabbix_server’ -> ‘/etc/init.d/zabbix_server’
-[root@lamp-zabbix zabbix-3.0.28]# vim /etc/init.d/zabbix_server
-BASEDIR=/usr/local/zabbix  #修改zabbix路径
-[root@lamp-zabbix zabbix-3.0.28]# vim /etc/init.d/zabbix_agentd 
-BASEDIR=/usr/local/zabbix  #修改zabbix路径
-[root@lamp-zabbix zabbix-3.0.28]# chkconfig --add zabbix_server
-[root@lamp-zabbix zabbix-3.0.28]# chkconfig --add zabbix_agentd
-[root@lamp-zabbix zabbix-3.0.28]# service zabbix_server start#启动
-Starting zabbix_server (via systemctl):  [  OK  ] 
-[root@lamp-zabbix zabbix-3.0.28]# service zabbix_agentd start
+```
+
+复制开机启动脚本：
+
+```bash
+cp misc/init.d/fedora/core/zabbix_* /etc/init.d/ -v
+```
+
+```text
+'misc/init.d/fedora/core/zabbix_agentd' -> '/etc/init.d/zabbix_agentd'
+'misc/init.d/fedora/core/zabbix_server' -> '/etc/init.d/zabbix_server'
+```
+
+```bash
+vim /etc/init.d/zabbix_server
+```
+
+```ini
+BASEDIR=/usr/local/zabbix  # 修改 zabbix 路径
+```
+
+```bash
+vim /etc/init.d/zabbix_agentd 
+```
+
+```ini
+BASEDIR=/usr/local/zabbix  # 修改 zabbix 路径
+```
+
+添加开机自启并启动服务：
+
+```bash
+chkconfig --add zabbix_server
+chkconfig --add zabbix_agentd
+
+service zabbix_server start    # 启动
+```
+
+```text
+Starting zabbix_server (via systemctl):  [  OK  ]
+```
+
+```bash
+service zabbix_agentd start
+```
+
+```text
 Starting zabbix_agentd (via systemctl):  [  OK  ]
-[root@lamp-zabbix zabbix-3.0.28]# ss -tnl
+```
+
+```bash
+ss -tnl
+```
+
+```text
 State       Recv-Q Send-Q Local Address:Port               Peer Address:Port              
 LISTEN      0      50          *:3306                    *:*                  
 LISTEN      0      128         *:111                     *:*                  
@@ -1020,22 +1702,44 @@ LISTEN      0      128        :::80                     :::*
 LISTEN      0      128        :::22                     :::*                  
 LISTEN      0      128        :::10050                  :::*                  
 LISTEN      0      128        :::10051                  :::*             
-[root@lamp-zabbix zabbix-3.0.28]# chkconfig --level 35 zabbix_server on 
-[root@lamp-zabbix zabbix-3.0.28]# chkconfig --level 35 zabbix_agentd on 
-#前端web配置
-[root@lamp-zabbix zabbix-3.0.28]# vim /etc/httpd/conf/httpd.conf 
-DocumentRoot "/var/www/html" #确保文档根目录位置
-#拷贝源码包中的前端PHP代码到apache根目录
-[root@lamp-zabbix zabbix-3.0.28]# mkdir -pv /var/www/html/zabbix
+```
+
+```bash
+chkconfig --level 35 zabbix_server on 
+chkconfig --level 35 zabbix_agentd on 
+```
+
+#### 3.4 前端 web 配置
+
+```bash
+vim /etc/httpd/conf/httpd.conf 
+```
+
+```ini
+DocumentRoot "/var/www/html"   # 确保文档根目录位置
+```
+
+拷贝源码包中的前端 PHP 代码到 apache 根目录：
+
+```bash
+mkdir -pv /var/www/html/zabbix
+```
+
+```text
 mkdir: created directory ‘/var/www/html/zabbix’
-[root@lamp-zabbix zabbix-3.0.28]# pwd
-/download/zabbix-3.0.28
-[root@lamp-zabbix zabbix-3.0.28]# cp -a ./frontends/php/* /var/www/html/zabbix/ #复制前端web源码到zabbix目录下
-[root@lamp-zabbix zabbix-3.0.28]# chown -R zabbix.zabbix  /var/www/html/zabbix/
-[root@lamp-zabbix zabbix-3.0.28]# systemctl restart httpd
-访问：http://192.168.1.239/zabbix
-#解决访问报错：Check of pre-requisites
------------------
+```
+
+```bash
+cp -a ./frontends/php/* /var/www/html/zabbix/
+chown -R zabbix.zabbix  /var/www/html/zabbix/
+systemctl restart httpd
+```
+
+访问：`http://192.168.1.239/zabbix`。
+
+解决访问报错（Check of pre-requisites）：
+
+```text
 Minimum required size of PHP post is 16M (configuration option "post_max_size").
 Minimum required limit on execution time of PHP scripts is 300 (configuration option "max_execution_time").
 Minimum required limit on input parse time for PHP scripts is 300 (configuration option "max_input_time").
@@ -1047,24 +1751,47 @@ PHP gd JPEG image support missing.
 PHP gd FreeType support missing.
 PHP xmlwriter extension missing.
 PHP xmlreader extension missing.
------------------
-#解决php依赖报错问题：
+```
+
+解决 php 依赖报错问题：
+
+```bash
 vim /etc/php.ini:
+```
+
+```ini
 post_max_size = 16M
 max_execution_time = 300
 max_input_time = 300
 date.timezone = Asia/Shanghai
-[root@lamp-zabbix gettext]# yum install -y php-bcmath php-gd.x86_64 php-xml php-devel php-ldap
-[root@lamp-zabbix zabbix]# systemctl restart httpd
-#访问又报错：
-Unable to create the configuration file.
+```
 
-[root@lamp-zabbix conf]# cd /var/www/html/zabbix/conf/ 
-[root@lamp-zabbix conf]# ls
+```bash
+yum install -y php-bcmath php-gd.x86_64 php-xml php-devel php-ldap
+systemctl restart httpd
+```
+
+访问又报错：
+
+```text
+Unable to create the configuration file.
+```
+
+```bash
+cd /var/www/html/zabbix/conf/ 
+ls
+```
+
+```text
 maintenance.inc.php  zabbix.conf.php.example
-[root@lamp-zabbix conf]# cp zabbix.conf.php.example zabbix.conf.php
-[root@lamp-zabbix conf]# vim zabbix.conf.php
---------
+```
+
+```bash
+cp zabbix.conf.php.example zabbix.conf.php
+vim zabbix.conf.php
+```
+
+```php
 <?php
 // Zabbix GUI configuration file.
 global $DB;
@@ -1083,17 +1810,30 @@ $ZBX_SERVER_PORT                = '10051';
 $ZBX_SERVER_NAME                = 'zabbix-server';
 
 $IMAGE_FORMAT_DEFAULT   = IMAGE_FORMAT_PNG;
---------
-[root@lamp-zabbix conf]# chown zabbix.zabbix zabbix.conf.php
+```
 
-##钉钉报警
-#一. 钉钉机器人创建
-登录钉钉客户端,创建一个群,把需要收到报警信息的人员都拉到这个群内.然后点击群右上角的"群机器人"->"添加机器人"->"自定义",记录该机器人的webhook值!
-#二. 脚本1：
-[root@zabbix alertscripts]# cat dingding.py 
+```bash
+chown zabbix.zabbix zabbix.conf.php
+```
+
+---
+
+## 第四章 钉钉报警
+
+### 4.1 钉钉机器人创建
+
+登录钉钉客户端，创建一个群，把需要收到报警信息的人员都拉到这个群内。然后点击群右上角的"群机器人"->"添加机器人"->"自定义"，记录该机器人的 webhook 值。
+
+### 4.2 脚本 1：dingding.py
+
+```bash
+cat dingding.py 
+```
+
+```python
 #!/usr/bin/env python
-#coding:utf-8
-#zabbix钉钉报警
+# coding:utf-8
+# zabbix钉钉报警
 import requests,json,sys,os,datetime
 webhook="https://oapi.dingtalk.com/robot/send?access_token=dcdb94119d8f6d349bb1311c60fa749ab701b55a5d5a6b9f41ae9548bf1ea0"
 user=sys.argv[1]
@@ -1116,15 +1856,22 @@ if os.path.exists("/usr/local/zabbix/logs/dingding.log"):
     f=open("/usr/local/zabbix/logs/dingding.log","a+")
 else:
     f=open("/usr/local/zabbix/logs/dingding.log","w+")
-f.write("\n"+"--"*30)
+f.write("\n"+"-"*30)
 if x.json()["errcode"] == 0:
     f.write("\n"+str(datetime.datetime.now())+"    "+str(user)+"    "+"发送成功"+"\n"+str(text))
     f.close()
 else:
     f.write("\n"+str(datetime.datetime.now()) + "    " + str(user) + "    " + "发送失败" + "\n" + str(text))
     f.close()
-#脚本2：
-[root@zabbix alertscripts]# cat post.sh 
+```
+
+### 4.3 脚本 2：post.sh
+
+```bash
+cat post.sh 
+```
+
+```bash
 #!/bin/bash
 header="Content-Type: application/json;charset=utf-8"
 url="https://oapi.dingtalk.com/robot/send?access_token=dcdb94119d8f6d349bb1311c60fa749ab701b55a5d5a6b9f41ae9548bf1ea0"
@@ -1139,50 +1886,77 @@ txt='{
                  }
      }'
 curl  -X POST "${url}" -H "${header}"  -d "${txt}"
-##测试：
-1. ./post.sh waninthisisaest 13661196xxx #第一个值为消息内容，第二个值为你要@特的手机号
-2. ./dingding.py 13661196xxx test "这个条测试信息,忽略" #第一个值为要@特的手机号，第二个值为主题，第三个值为消息内容
-3. 编辑zabbix_server.conf配置文件
-	AlertScriptsPath=/usr/local/zabbix/share/zabbix/alertscripts
-	#设成报警脚本的目录，后面在zabbixGUI上新建媒介才有用
-	##测试通过后去zabbix WEBGUI进行添加媒介：
-	名称:dingding_alert
-	类型:script
-	脚本名称：dingding.py
-	脚本参数：
-	{ALERT.SENDTO}   #接收的用户地址
-	{ALERT.SUBJECT}  #消息主题
-	{ALERT.MESSAGE}  #消息内容
-	##去用户添加媒介：
-	收件人：就是你的接收着地址，这里是发到钉钉群里，所以填写@的人手机号即可
-	##在对应主机上添加web监测
-	新建web场景，并添加设置步骤，步骤内容为对应的WEB URL地址、设定超时时间、和你需要的代码200
-	##新建触发器
-	{smb:web.test.fail[smb-web].last()}<>0  #设置失败的步骤是否不等于0，不等于0表示有失败的步骤，会触发报警
-	{smb:web.test.rspcode[smb-web,smb-web].last()}<>200 #设置响应的代码是否不等于200，不等于200表示服务异常，会触发报警
-	##发送消息内容模板
-	Trigger: {TRIGGER.NAME}
-	Trigger status: {TRIGGER.STATUS}
-	Trigger severity: {TRIGGER.SEVERITY}
-	Original event ID: {EVENT.ID}
+```
 
-{ITEM.NAME} ({HOST.NAME}:{ITEM.KEY}): {ITEM.VALUE}
+### 4.4 测试
 
+1. `./post.sh waninthisisaest 13661196xxx`，第一个值为消息内容，第二个值为你要@的特定手机号。
+2. `./dingding.py 13661196xxx test "这个条测试信息,忽略"`，第一个值为要@的特定手机号，第二个值为主题，第三个值为消息内容。
+3. 编辑 zabbix_server.conf 配置文件：
 
-###zabbix auto add host to zabbix web (pass zabbixAPI)
-[root@node3 ~]# tree .
+   ```bash
+   AlertScriptsPath=/usr/local/zabbix/share/zabbix/alertscripts
+   ```
+
+   设成报警脚本的目录，后面在 zabbix GUI 上新建媒介才有用。
+
+   测试通过后去 zabbix WEB GUI 进行添加媒介：
+
+   - 名称：dingding_alert
+   - 类型：script
+   - 脚本名称：dingding.py
+   - 脚本参数：
+     - `{ALERT.SENDTO}`   # 接收的用户地址
+     - `{ALERT.SUBJECT}`  # 消息主题
+     - `{ALERT.MESSAGE}`  # 消息内容
+
+   去用户添加媒介：收件人就是你的接收者地址，这里是发到钉钉群里，所以填写 @ 的人手机号即可。
+
+   在对应主机上添加 web 监测：新建 web 场景，并添加设置步骤，步骤内容为对应的 WEB URL 地址、设定超时时间、和你需要的代码 200。
+
+   新建触发器：
+
+   - `{smb:web.test.fail[smb-web].last()}<>0`，设置失败的步骤是否不等于 0，不等于 0 表示有失败的步骤，会触发报警。
+   - `{smb:web.test.rspcode[smb-web,smb-web].last()}<>200`，设置响应的代码是否不等于 200，不等于 200 表示服务异常，会触发报警。
+
+   发送消息内容模板：
+
+   ```
+   Trigger: {TRIGGER.NAME}
+   Trigger status: {TRIGGER.STATUS}
+   Trigger severity: {TRIGGER.SEVERITY}
+   Original event ID: {EVENT.ID}
+
+   {ITEM.NAME} ({HOST.NAME}:{ITEM.KEY}): {ITEM.VALUE}
+   ```
+
+---
+
+## 第五章 zabbix auto add host to zabbix web（pass zabbixAPI）
+
+```bash
+tree .
+```
+
+```text
 .
 ├── zabbix-add-host.py
 ├── zabbix-agent-ip.txt
 ├── zabbixBaseAPI.py
-└── zabbix-process.txt  #脚本执行过程生成的日志文件
---------------
-#自定义的zabbix基本API库
-[root@node3 ~]# cat zabbixBaseAPI.py 
+└── zabbix-process.txt  # 脚本执行过程生成的日志文件
+```
+
+### 5.1 自定义的 zabbix 基本 API 库
+
+```bash
+cat zabbixBaseAPI.py 
+```
+
+```python
 #!/usr/bin/env python3
-#filename: zabbixBaseAPI.py
-#author: jack
-#datetime:20200419
+# filename: zabbixBaseAPI.py
+# author: jack
+# datetime:20200419
 
 import json
 import urllib.request 
@@ -1233,7 +2007,7 @@ class zabbixBaseAPI(object):
             print ('认证失败,用户名或密码错误')
             exit()
     
-    #ip file process
+    # ip file process
     def text_process(self,file):
         import re
         find = re.compile(r"^#")
@@ -1260,16 +2034,22 @@ class zabbixBaseAPI(object):
         })
         a = self.post_request(self.url, data.encode('utf-8'), self.header)
         return '认证信息已注销'
---------------
-#zabbix 添加主机的python脚本
-[root@node3 ~]# cat zabbix-add-host.py   
+```
+
+### 5.2 zabbix 添加主机的 python 脚本
+
+```bash
+cat zabbix-add-host.py   
+```
+
+```python
 #!/usr/bin/env python3
-#import zabbix_base_api  # import custom class for zabbix_base_api.py
+# import zabbix_base_api  # import custom class for zabbix_base_api.py
 import zabbixBaseAPI
 import time 
 import re
 
-#write zabbix API address replace old address
+# write zabbix API address replace old address
 z_api_con = zabbixBaseAPI.zabbixBaseAPI(url='http://192.168.43.201/zabbix/api_jsonrpc.php')
 
 # get host id function
@@ -1286,24 +2066,24 @@ def hostGet(method,ip,authid):
     responses = z_api_con.json_data(method, data, authid)
     return responses
 
-#will mouse move zabbix web front hostGroup,template can get id
+# will mouse move zabbix web front hostGroup,template can get id
 def hostCreate(method,ip,hostname,serverType,authid):
     data = {
         "host": hostname,
-        #"proxy_hostid": 13323,                    #proxy id
+        # "proxy_hostid": 13323,                    # proxy id
         "interfaces": [
             {
                 "type": 1,
                 "main": 1,
                 "useip": 1,
-                "ip": ip,			    #zabbix agent ip
+                "ip": ip,			    # zabbix agent ip
                 "dns": "",
-                "port": "10050"                     #zabbix agent port 
+                "port": "10050"                     # zabbix agent port 
             }
         ],
         "groups": [
             {
-                "groupid": 2                        #host group id
+                "groupid": 2                        # host group id
             }
         ],
         "tags": [
@@ -1314,7 +2094,7 @@ def hostCreate(method,ip,hostname,serverType,authid):
         ],
         "templates": [
             {
-                "templateid": 10001                 #require join of template id
+                "templateid": 10001                 # require join of template id
             }
         ]
     }
@@ -1327,7 +2107,7 @@ def hostDelete(method,authid,*hostids):
     responses = z_api_con.json_data(method, data, authid)
     return responses
 
-#get all proxyAgent info(proxyAgent id,name.....)
+# get all proxyAgent info(proxyAgent id,name.....)
 def proxyGet(method,authid):
     data = {
         "output": "extend",
@@ -1336,10 +2116,10 @@ def proxyGet(method,authid):
     responses = z_api_con.json_data(method, data, authid)
     return responses
 
-#update proxyAgent manager of host
+# update proxyAgent manager of host
 def proxyUpdate(method,hostid,authid):
     data = {
-        "proxyid": 10255,              #proxyAgent id 
+        "proxyid": 10255,              # proxyAgent id 
         "hosts": [
             hostid
         ]
@@ -1348,7 +2128,7 @@ def proxyUpdate(method,hostid,authid):
     return responses
 
 def main_all(authid):
-    #call text_process function
+    # call text_process function
     lists = z_api_con.text_process('zabbix-agent-ip.txt')
     add_file = open("zabbix-process.txt","a+")
     for list in lists:
@@ -1357,7 +2137,7 @@ def main_all(authid):
         hostname = rlist[1]
         serverType = rlist[2]
         hostget = hostGet("host.get",ip,authid)["result"]
-    #judge host whether exist,if exist will 'hostid' and 'host name' write file 'zabbix_process.txt'
+    # judge host whether exist,if exist will 'hostid' and 'host name' write file 'zabbix_process.txt'
         if hostget:
             print("info: " + ip + '  This host already exist!')
             hostid = hostget[0]["hostid"]
@@ -1369,7 +2149,7 @@ def main_all(authid):
             hostcreate = hostCreate("host.create",ip,hostname,serverType,authid)
             add_file.writelines(ip+"\n")
     add_file.close()
-    #file.close()
+    # file.close()
 
 
 if __name__ == "__main__":
@@ -1380,24 +2160,43 @@ if __name__ == "__main__":
     z_api_con.login_out(authid)
     endtime = time.time()
     print (endtime-starttime)
------------
-[root@node3 ~]# cat zabbix-agent-ip.txt  #zabbix agent ip file
-#ip		serverName		serverType   
+```
+
+```bash
+cat zabbix-agent-ip.txt   # zabbix agent ip file
+```
+
+```text
+# ip		serverName		serverType   
 192.168.43.202   node2 			 docker-server      
 192.168.43.203   node3       		 windows_server   
------------
-</pre>
+```
 
-<pre>
-#zabbix3.4
-#under all use zabbix-seder plugin
-chown root:zabbit -R /etc/zabbix/  && chown root:zabbix -R /etc/zabbix/
-##monitor for mysql
-[root@node2 zabbix_agentd.d]# rpm -qa | grep zabbix-sender
-zabbix-sender-3.4.15-1.el7.x86_64   #install zabbix-sender plugin
-[root@node2 zabbix_agentd.d]# pwd
-/etc/zabbix/zabbix_agentd.d
-[root@node2 zabbix_agentd.d]# cat mysql_stat.sh
+---
+
+## 第六章 zabbix 3.4
+
+下面的使用均基于 zabbix-sender 插件。
+
+```bash
+chown root:zabbix -R /etc/zabbix/
+```
+
+### 6.1 monitor for mysql
+
+```bash
+rpm -qa | grep zabbix-sender
+```
+
+```text
+zabbix-sender-3.4.15-1.el7.x86_64   # install zabbix-sender plugin
+```
+
+```bash
+cat mysql_stat.sh
+```
+
+```bash
 #!/bin/bash
 RespStr=$(/usr/bin/mysqladmin --silent --user=zbx_monitor --password=zbx_monitor extended-status 2>/dev/null)
 [ $? != 0 ] && echo 0 && exit 1
@@ -1411,16 +2210,35 @@ EOF
 }' | /usr/bin/zabbix_sender --config /etc/zabbix/zabbix_agentd.conf --host=`hostname` --input-file - >/dev/null 2>&1
 echo 1
 exit 0
-[root@node2 zabbix_agentd.d]# cat mysql_status.conf 
-UserParameter		= mysql_status,/etc/zabbix/scripts/mysql_stat.sh
-#mysql database operation
-GRANT PROCESS,SHOW DATABASES,REPLICATION CLIENT,SHOW VIEW ON *.* TO 'zbx_monitor'@'localhost' IDENTIFIED BY PASSWORD 'zbx_monitor';
-[root@node2 zabbix_agentd.d]# chmod 750 mysql_stat.sh
-[root@node2 zabbix_agentd.d]# chgrp zabbix mysql_stat.sh
-[root@node2 zabbix_agentd.d]# systemctl restart zabbix-agent
+```
 
-##monitor for redis
-[root@node2 zabbix_agentd.d]# cat redis_stat.sh 
+```bash
+cat mysql_status.conf 
+```
+
+```ini
+UserParameter		= mysql_status,/etc/zabbix/scripts/mysql_stat.sh
+```
+
+mysql database operation：
+
+```sql
+GRANT PROCESS,SHOW DATABASES,REPLICATION CLIENT,SHOW VIEW ON *.* TO 'zbx_monitor'@'localhost' IDENTIFIED BY PASSWORD 'zbx_monitor';
+```
+
+```bash
+chmod 750 mysql_stat.sh
+chgrp zabbix mysql_stat.sh
+systemctl restart zabbix-agent
+```
+
+### 6.2 monitor for redis
+
+```bash
+cat redis_stat.sh 
+```
+
+```bash
 #!/bin/bash
 RespStr=$(/usr/local/redis/bin/redis-cli -h 127.0.0.1 -p 6379 info all 2>/dev/null)
 [ $? != 0 ] && echo 0 && exit 1
@@ -1453,17 +2271,28 @@ EOF
  }
  END { print "{\"data\":[" OutStr "]}" }'
 fi
-[root@node2 zabbix_agentd.d]# cat redis_stat.conf 
+```
+
+```bash
+cat redis_stat.conf 
 UserParameter		= redis_status,/etc/zabbix/scripts/redis_stat.sh
 UserParameter		= redis.discovery_db,/etc/zabbix/scripts/redis_stat.sh db
-[root@node2 zabbix_agentd.d]# chgrp zabbix redis_stat.sh
-[root@node2 zabbix_agentd.d]# chmod 750 redis_stat.sh
-[root@node2 zabbix_agentd.d]# systemctl restart redis-agent
-#注：redis模板中图形的get,setex等指标只有在redis中使用相应命令操作后才显示，否则为未捕捉到数据
+chgrp zabbix redis_stat.sh
+chmod 750 redis_stat.sh
+systemctl restart redis-agent
+```
 
-#monitor for rqbbitmq
-#this no zabbix-sender plugin,base python2.x
-[root@node2 rabbitmq]# cat ../rabbitmq/api.py 
+> 注：redis 模板中图形的 get、setex 等指标只有在 redis 中使用相应命令操作后才显示，否则为未捕捉到数据。
+
+### 6.3 monitor for rabbitmq
+
+此部分不使用 zabbix-sender 插件，基于 python2.x。
+
+```bash
+cat ../rabbitmq/api.py 
+```
+
+```python
 #!/usr/bin/env /usr/bin/python
 '''Python module to query the RabbitMQ Management Plugin REST API and get
 results that can then be used by Zabbix.
@@ -1763,7 +2592,13 @@ def main():
 
 if __name__ == '__main__':
     main()
-[root@node2 rabbitmq]# cat list_rabbit_nodes.sh 
+```
+
+```bash
+cat list_rabbit_nodes.sh 
+```
+
+```bash
 #!/bin/bash
 #
 # https://github.com/jasonmcintosh/rabbitmq-zabbix
@@ -1779,23 +2614,13 @@ if [[ -z "$NODE" ]]; then
 fi
 
 ./api.py --username=$USERNAME --password=$PASSWORD --check=list_nodes --filter="$FILTER" --conf=$CONF --hostname=$HOSTNAME --node="$NODE" --loglevel=${LOGLEVEL} --logfile=${LOGFILE} --port=$PORT --protocol=$PROTOCOL
-[root@node2 rabbitmq]# cat list_rabbit_nodes.sh 
-#!/bin/bash
-#
-# https://github.com/jasonmcintosh/rabbitmq-zabbix
-#
-cd "$(dirname "$0")"
-. .rab.auth
+```
 
-if [[ -z "$HOSTNAME" ]]; then
-    HOSTNAME=`hostname`
-fi
-if [[ -z "$NODE" ]]; then
-    NODE=`hostname`
-fi
+```bash
+cat list_rabbit_queues.sh 
+```
 
-./api.py --username=$USERNAME --password=$PASSWORD --check=list_nodes --filter="$FILTER" --conf=$CONF --hostname=$HOSTNAME --node="$NODE" --loglevel=${LOGLEVEL} --logfile=${LOGFILE} --port=$PORT --protocol=$PROTOCOL
-[root@node2 rabbitmq]# cat list_rabbit_queues.sh 
+```bash
 #!/bin/bash
 #
 # https://github.com/jasonmcintosh/rabbitmq-zabbix
@@ -1811,7 +2636,13 @@ if [[ -z "$NODE" ]]; then
 fi
 
 ./api.py --username=$USERNAME --password=$PASSWORD --check=list_queues --filter="$FILTER" --conf=$CONF --hostname=$HOSTNAME --node="$NODE"  --loglevel=${LOGLEVEL} --logfile=${LOGFILE} --port=$PORT --protocol=$PROTOCOL
-[root@node2 rabbitmq]# cat list_rabbit_shovels.sh 
+```
+
+```bash
+cat list_rabbit_shovels.sh 
+```
+
+```bash
 #!/bin/bash
 #
 # https://github.com/jasonmcintosh/rabbitmq-zabbix
@@ -1828,12 +2659,18 @@ fi
 
 
 ./api.py --username=$USERNAME --password=$PASSWORD --check=list_shovels --filter="$FILTER"  --hostname=$HOSTNAME --node="$NODE"  --conf=$CONF  --loglevel=${LOGLEVEL} --logfile=${LOGFILE} --port=$PORT --protocol=$PROTOCOL
-[root@node2 rabbitmq]# cat rabbitmq-status.sh 
+```
+
+```bash
+cat rabbitmq-status.sh 
+```
+
+```bash
 #!/bin/bash
 #
 # https://github.com/jasonmcintosh/rabbitmq-zabbix
 #
-#UserParameter=rabbitmq[*],<%= zabbix_script_dir %>/rabbitmq-status.sh
+# UserParameter=rabbitmq[*],<%= zabbix_script_dir %>/rabbitmq-status.sh
 cd "$(dirname "$0")"
 
 . .rab.auth
@@ -1848,40 +2685,70 @@ fi
 if [[ -z "$NODE" ]]; then
     NODE=`hostname`
 fi
-#rabbitmq[queues]
-#rabbitmq[server,disk_free]
-#rabbitmq[check_aliveness]
+# rabbitmq[queues]
+# rabbitmq[server,disk_free]
+# rabbitmq[check_aliveness]
 
 # This assumes that the server is going to then use zabbix_sender to feed the data BACK to the server.  Right now, I'm doing that
 # in the python script
 
 ./api.py --hostname=$HOSTNAME --username=$USERNAME --password=$PASSWORD --check=$TYPE_OF_CHECK --metric=$METRIC --node="$NODE" --filters="$FILTER" --conf=$CONF  --loglevel=${LOGLEVEL} --logfile=${LOGFILE} --port=$PORT --protocol=$PROTOCOL
-[root@node2 rabbitmq]# cat ../rabbitmq/.rab.auth  #this require create
+```
+
+```bash
+cat ../rabbitmq/.rab.auth   # this require create
+```
+
+```ini
 USERNAME=zabbix
 PASSWORD=pass
 CONF=/etc/zabbix/zabbix_agent.conf
 LOGLEVEL=INFO
 LOGFILE=/var/log/zabbix/rabbitmq_zabbix.log
 PORT=15672
-[root@node2 rabbitmq-zabbix-master]# cat zabbix_agentd.d/zabbix-rabbitmq.conf 
+```
+
+```bash
+cat zabbix_agentd.d/zabbix-rabbitmq.conf 
+```
+
+```ini
 UserParameter=rabbitmq.discovery_queues,/etc/zabbix/scripts/rabbitmq/list_rabbit_queues.sh
 UserParameter=rabbitmq.discovery_shovels,/etc/zabbix/scripts/rabbitmq/list_rabbit_shovels.sh
 UserParameter=rabbitmq.discovery_nodes,/etc/zabbix/scripts/rabbitmq/list_rabbit_nodes.sh
 UserParameter=rabbitmq[*],/etc/zabbix/scripts/rabbitmq/rabbitmq-status.sh $1 $2 $3
-#SET rabbitmq monitor user
-[root@node2 zabbix_agentd.d]# rabbitmqctl add_user zabbix pass
-[root@node2 zabbix_agentd.d]# rabbitmqctl set_user_tags zabbix monitoring
-[root@node2 zabbix_agentd.d]# rabbitmqctl set_permissions -p / zabbix '.*' '.*' '.*'
-#set rabbitmq-zabbix.log permissions 
-[root@node2 rabbitmq-zabbix-master]# chown root:zabbix /var/log/zabbix/rabbitmq_zabbix.log
-[root@node2 rabbitmq-zabbix-master]# chmod 770 /var/log/zabbix/rabbitmq_zabbix.log
+```
 
-#monitor for elasticsearch
-#refrence https://github.com/RuslanMahotkin/zabbix
-#refrence https://github.com/dominictarr/JSON.sh
-install zabbix-sender plugin: zabbix-sender
-#这个脚本我更改过才有值，原作者的脚本在elasticsearch7.1.1中没有获取值,原作者脚本放在下面
-[root@node2 zabbix]# cat elasticsearch_stat.sh
+SET rabbitmq monitor user：
+
+```bash
+rabbitmqctl add_user zabbix pass
+rabbitmqctl set_user_tags zabbix monitoring
+rabbitmqctl set_permissions -p / zabbix '.*' '.*' '.*'
+```
+
+set rabbitmq-zabbix.log permissions：
+
+```bash
+chown root:zabbix /var/log/zabbix/rabbitmq_zabbix.log
+chmod 770 /var/log/zabbix/rabbitmq_zabbix.log
+```
+
+### 6.4 monitor for elasticsearch
+
+参考：
+- https://github.com/RuslanMahotkin/zabbix
+- https://github.com/dominictarr/JSON.sh
+
+安装 zabbix-sender 插件。
+
+> 这个脚本我更改过才有值，原作者的脚本在 elasticsearch 7.1.1 中没有获取值，原作者脚本放在下面。
+
+```bash
+cat elasticsearch_stat.sh
+```
+
+```bash
 #!/bin/bash
 CurlAPI(){
  RespStr=$(/usr/bin/curl --max-time 20 --no-keepalive --silent "http://127.0.0.1:9200/$1" | /etc/zabbix/JSON.sh -l 2>/dev/null | sed -e 's/\[//g' -e 's/\]//g' -e 's/\"//g')
@@ -1914,7 +2781,13 @@ EOF
 ) | /usr/bin/zabbix_sender --config /etc/zabbix/zabbix_agentd.conf --host=`hostname` --input-file - >/dev/null 2>&1
 echo 1
 exit 0
-[root@node2 zabbix]# cat elasticsearch_stat.sh.source  #is source author
+```
+
+```bash
+cat elasticsearch_stat.sh.source  # is source author
+```
+
+```bash
 #!/bin/bash
 CurlAPI(){
  RespStr=$(/usr/bin/curl --max-time 20 --no-keepalive --silent "http://127.0.0.1:9200/$1" | /etc/zabbix/JSON.sh -l 2>/dev/null)
@@ -1948,7 +2821,13 @@ EOF
 ) | /usr/bin/zabbix_sender --config /etc/zabbix/zabbix_agentd.conf --host=`hostname` --input-file - >/dev/null 2>&1
 echo 1
 exit 0
-[root@node2 zabbix]# cat JSON.sh 
+```
+
+```bash
+cat JSON.sh 
+```
+
+```sh
 #!/bin/sh
 
 throw() {
@@ -2157,16 +3036,25 @@ then
 fi
 
 # vi: expandtab sw=2 ts=2
-[root@node2 zabbix_agentd.d]# cat elasticsearch_stat.conf 
-UserParameter		= elasticsearch_status,/etc/zabbix/elasticsearch_stat.sh
-  chmod 750 elasticsearch_stat.sh
-  chgrp zabbix elasticsearch_stat.sh
-  chmod 750 JSON.sh   #JSON.sh AND elasticsearch_stat.sh will together
-  chgrp zabbix JSON_stat.sh
-service restart: systemctl restart redis-agent
+```
 
-----------docker install zabbix3.4-------------
-#install mysql
+```bash
+cat elasticsearch_stat.conf 
+UserParameter		= elasticsearch_status,/etc/zabbix/elasticsearch_stat.sh
+chmod 750 elasticsearch_stat.sh
+chgrp zabbix elasticsearch_stat.sh
+chmod 750 JSON.sh   # JSON.sh AND elasticsearch_stat.sh will together
+chgrp zabbix JSON.sh
+systemctl restart redis-agent
+```
+
+---
+
+## 第七章 docker 安装 zabbix 3.4
+
+### 7.1 安装 mysql
+
+```bash
 docker run --name zabbix-mysql-server --hostname zabbix-mysql-server \
 -e MYSQL_ROOT_PASSWORD="123456" \
 -e MYSQL_USER="zabbix" \
@@ -2176,8 +3064,11 @@ docker run --name zabbix-mysql-server --hostname zabbix-mysql-server \
 -p 33061:3306 \
 -d mysql:5.7 \
 --character-set-server=utf8 --collation-server=utf8_bin
+```
 
-#create zabbix server
+### 7.2 创建 zabbix server
+
+```bash
 docker run  --name zabbix-server-mysql --hostname zabbix-server-mysql \
 --link zabbix-mysql-server:mysql \
 -e DB_SERVER_HOST="mysql" \
@@ -2190,8 +3081,11 @@ docker run  --name zabbix-server-mysql --hostname zabbix-server-mysql \
 -p 10051:10051 \
 -d \
 zabbix/zabbix-server-mysql:centos-3.4.15
+```
 
-#install nginx web front
+### 7.3 安装 nginx web front
+
+```bash
 docker run --name zabbix-web-nginx-mysql --hostname zabbix-web-nginx-mysql \
 --link zabbix-mysql-server:mysql \
 --link zabbix-server-mysql:zabbix-server \
@@ -2204,8 +3098,15 @@ docker run --name zabbix-web-nginx-mysql --hostname zabbix-web-nginx-mysql \
 -p 80:80 \
 -d \
 zabbix/zabbix-web-nginx-mysql:centos-3.4.15
-----------------------------------------------
----------docker-compose install zabbix3.4------
+```
+
+### 7.4 docker-compose 安装 zabbix3.4
+
+```bash
+cat /data/docker/zabbix/docker-compose.yml 
+```
+
+```yaml
 version: '3.4'
 services:
   zabbix-mysql-server:                    # 服务名称
@@ -2269,16 +3170,17 @@ services:
 networks:
   default:
     driver: bridge
-----------------------------------------------
+```
 
-</pre>
+### 7.5 zabbix for docker（部署 zabbix）
 
-<pre>
-#zabbix for docker   ----202107012034
-#一、部署zabbix
-#mysql、zabbix-server-mysql、zabbix-web-nginx-mysql DEPLOY.
-[root@LocalServer ~]# cat /data/docker/zabbix/docker-compose.yml 
-----
+mysql、zabbix-server-mysql、zabbix-web-nginx-mysql DEPLOY。
+
+```bash
+cat /data/docker/zabbix/docker-compose.yml 
+```
+
+```yaml
 version: '3.4'
 services:
   zabbix-mysql-server:                    # 服务名称
@@ -2287,7 +3189,7 @@ services:
     hostname: zabbix-mysql-server
     restart: always                 # 失败自动重启策略
     environment:                                    
-      - MYSQL_ROOT_PASSWORD=123456		# `=`号以后都是密码
+      - MYSQL_ROOT_PASSWORD=123456		# `=` 号以后都是密码
       - MYSQL_USER=zabbix
       - MYSQL_PASSWORD=123456
       - MYSQL_DATABASE=zabbix
@@ -2365,10 +3267,15 @@ services:
 networks:
   default:
     driver: bridge
-----
-#zabbix-server-mysql、zabbix-web-nginx-mysql DEPLOY.
-[root@harbor /etc/sysconfig/network-scripts]# cat /shell/docker-compose.yml 
-----
+```
+
+zabbix-server-mysql、zabbix-web-nginx-mysql DEPLOY：
+
+```bash
+cat /shell/docker-compose.yml 
+```
+
+```yaml
 version: '3.4'
 services:
   zabbix-server-mysql:                   
@@ -2431,13 +3338,17 @@ services:
 networks:
   default:
     driver: bridge
-----
-注：默认用户：Admin  默认密码：zabbix
-
-
-**zabbix-server-mysql如果启动不了，是因为配置缓存（CacheSize）过小或者系统整体内存不足所致，报错和解决问题如下**
 ```
-# 问题
+
+> 注：默认用户 Admin，默认密码 zabbix。
+
+### 7.6 zabbix-server-mysql 启动不了的问题
+
+如果 zabbix-server-mysql 启动不了，是因为配置缓存（CacheSize）过小或者系统整体内存不足所致。
+
+**问题报错：**
+
+```text
 ** Starting Zabbix server
 Starting Zabbix Server. Zabbix 3.4.15 (revision 86739).
 Press Ctrl+C to exit.
@@ -2490,150 +3401,225 @@ Press Ctrl+C to exit.
    128:20241205:192120.913 2: /usr/sbin/zabbix_server(main+0x31e) [0x56060ad86ee8]
    128:20241205:192120.914 1: /lib64/libc.so.6(__libc_start_main+0xf5) [0x7eff3bc39445]
    128:20241205:192120.914 0: /usr/sbin/zabbix_server(+0x344d9) [0x56060ad7b4d9]
+```
 
+**解决办法：增加缓存大小**
 
-
-# 解决办法：增加缓存大小   
-# vim /etc/zabbix/zabbix_server.conf
+```bash
+vim /etc/zabbix/zabbix_server.conf
 CacheSize=256M
 ```
 
+### 7.7 测试 snmp
 
+zabbix-server 安装 snmpget 工具：
 
+```bash
+yum -y install net-snmp-utils
+```
 
+测试是否可获取值：
 
-#二、测试snmp
-----zabbix-server安装snmpget工具
-sh-4.2# yum -y install net-snmp-utils
-----测试是否可获取值 
-sh-4.2# snmpget -v 2c -c public 192.168.0.201 .1.3.6.1.4.1.674.10892.2.1.1.2.0
+```bash
+snmpget -v 2c -c public 192.168.0.201 .1.3.6.1.4.1.674.10892.2.1.1.2.0
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.2.1.1.2.0 = STRING: "iDRAC6"
-注：值为iDRAC6，类型是string
---使用snmpwalk命令获取父OID下所以子OID的key和值。
-[root@harbor ~]# snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1
+```
+
+注：值为 iDRAC6，类型是 string。
+
+使用 snmpwalk 命令获取父 OID 下所有子 OID 的 key 和值：
+
+```bash
+snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.2.1.1 = INTEGER: 1
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.2.1.2 = INTEGER: 2
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.2.1.3 = INTEGER: 3
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.2.1.4 = INTEGER: 4
-注：值为1\2\3\4，类型是INTEGER
-[root@harbor ~]# snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.1
+```
+
+注：值为 1、2、3、4，类型是 INTEGER。
+
+```bash
+snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.1
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.3.1.1 = INTEGER: 3
-[root@harbor ~]# snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.2
+```
+
+```bash
+snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.2
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.3.1.2 = INTEGER: 3
-[root@harbor ~]# snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.3
+```
+
+```bash
+snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.3
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.3.1.3 = INTEGER: 3
-[root@harbor ~]# snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.4
+```
+
+```bash
+snmpwalk -v 2c -c public 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.3.1.4
+```
+
+```text
 SNMPv2-SMI::enterprises.674.10892.5.4.1100.90.1.3.1.4 = INTEGER: 3
---在Discovery rules中建立发现规则:
-Name: Network Enumeration
-Type: SNMPv2 agent
-Key: NetworkEnum
-SNMP OID: discovery[{#NETIF},1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1]      --此discovery[]函数为zabbix内置函数，作用是使用snmpwalk命令获取父OID 192.168.0.202 1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1下所有子OID的key和值并且赋值给变量数组{#NETIF}
-SNMP community: {$SNMP_COMMUNITY}
-Update interval: 7200
---在Discovery rules中新建的Network Enumeration中建立item prototypes:
-Name: 网卡 {#NETIF} : 连接状态    --此变量数组就是在Network Enumeration中建立的，这里会引用此变量数组的所有值并且遍历，就是会有网卡 1 : 连接状态、 网卡 2 : 连接状态、 网卡 3 : 连接状态、 网卡 4 : 连接状态 这些item产生
-Type: SNMPv2 agent
-Key: NetConnStatus.[{#SNMPINDEX}]     --此{#SNMPINDEX}变量数组是zabbix内置的变量，此变量的值是此变量数组{#NETIF}中所有子OID标签符最后一位，就是1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1中的最后一位，结果是1、2、3、4
-SNMP OID: 1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.{#SNMPINDEX}    --此OID就是要具体查找的oid，这个oid结合1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1中的最后一位，结果是1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.1、1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.2   。。。。。。。。
-SNMP community: {$SNMP_COMMUNITY}
-Type of information: Numeric(unsigned)
-Update interval: 120    
-Show value: Dell iDRAC Network Device Connections Status    --引用值映射模板
-Applications: Network Cards
+```
 
-#三、配置zabbix-web端
-1. 下载模板：Dell idrac(chinese)
-模板共享网址：https://share.zabbix.com/
-下载URL:https://share.zabbix.com/index.php?option=com_mtree&task=att_download&link_id=659&cf_id=40
+在 Discovery rules 中建立发现规则：
 
-2. 把下载的模板导入到zabbix_server中。配置—>模板—>选择文件—>导入
-	1. 将item为型号的配置进行更改：Populates host inventory field为None
+- Name: Network Enumeration
+- Type: SNMPv2 agent
+- Key: NetworkEnum
+- SNMP OID: `discovery[{#NETIF},1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1]`，此 `discovery[]` 函数为 zabbix 内置函数，作用是使用 snmpwalk 命令获取父 OID `1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1` 下所有子 OID 的 key 和值，并且赋值给变量数组 `{#NETIF}`。
+- SNMP community: `{$SNMP_COMMUNITY}`
+- Update interval: 7200
 
-3. 添加监控服务器。配置—>主机—>创建主机，
-	1. 填写snmp相关信息。端口为161
-	2. 在'模板'栏中链接模板Template Server Dell iDRAC SNMPv2
-	3. 在'宏菜单'栏中设置团体名称:{$SNMP_COMMUNITY} ==> public
-	4. 修改最新的数据是否正常
+在 Discovery rules 中新建的 Network Enumeration 中建立 item prototypes：
 
-4. 监控告警
---安装mailx软件，提供发送邮件功能：
-sh-4.2# yum install -y mailx
-sh-4.2# vi /etc/mail.rc  --最后面增加
+- Name: 网卡 {#NETIF} : 连接状态。此变量数组就是在 Network Enumeration 中建立的，这里会引用此变量数组的所有值并且遍历，就是会有网卡 1 : 连接状态、网卡 2 : 连接状态、网卡 3 : 连接状态、网卡 4 : 连接状态这些 item 产生。
+- Type: SNMPv2 agent
+- Key: `NetConnStatus.[{#SNMPINDEX}]`。此 `{#SNMPINDEX}` 变量数组是 zabbix 内置的变量，此变量的值是此变量数组 `{#NETIF}` 中所有子 OID 标签符最后一位，就是 `1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1` 中的最后一位，结果是 1、2、3、4。
+- SNMP OID: `1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.{#SNMPINDEX}`。此 OID 就是要具体查找的 oid，这个 oid 结合 `1.3.6.1.4.1.674.10892.5.4.1100.90.1.2.1` 中的最后一位，结果是 `1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.1`、`1.3.6.1.4.1.674.10892.5.4.1100.90.1.4.1.2` 等。
+- SNMP community: `{$SNMP_COMMUNITY}`
+- Type of information: Numeric(unsigned)
+- Update interval: 120
+- Show value: Dell iDRAC Network Device Connections Status（引用值映射模板）
+- Applications: Network Cards
+
+### 7.8 配置 zabbix-web 端
+
+1. 下载模板：Dell idrac(chinese)。
+
+   模板共享网址：https://share.zabbix.com/
+   下载 URL：https://share.zabbix.com/index.php?option=com_mtree&task=att_download&link_id=659&cf_id=40
+
+2. 把下载的模板导入到 zabbix_server 中。配置 - 模板 - 选择文件 - 导入。
+
+   - 将 item 为型号的配置进行更改：Populates host inventory field 为 None。
+
+3. 添加监控服务器。配置 - 主机 - 创建主机。
+
+   1. 填写 snmp 相关信息。端口为 161。
+   2. 在"模板"栏中链接模板 Template Server Dell iDRAC SNMPv2。
+   3. 在"宏菜单"栏中设置团体名称：`{$SNMP_COMMUNITY}` ==> public。
+   4. 修改最新的数据是否正常。
+
+4. 监控告警。
+
+   安装 mailx 软件，提供发送邮件功能：
+
+   ```bash
+   yum install -y mailx
+   ```
+
+   修改 `/etc/mail.rc`，最后面增加：
+
+   ```bash
+   vi /etc/mail.rc
+   ```
+
+   ```ini
+   set from=prometheus@homsom.com
+   set smtp=smtp.qiye.163.com
+   set smtp-auth=login
+   set smtp-auth-user=username
+   set smtp-auth-password=password
+   set ssl-verify=ignore
+   set nss-config-dir=/etc/aildbs/
+   ```
+
+   邮件发送脚本：
+
+   ```bash
+   cat email.sh 
+   ```
+
+   ```bash
+   #!/bin/bash
+   # send mail
+   messages=`echo $3 | tr '\r\n' '\n'`
+   subject=`echo $2 | tr '\r\n' '\n'`
+   echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
+   ```
+
+   钉钉发送脚本：
+
+   ```bash
+   cat dingding.sh 
+   ```
+
+   ```bash
+   #!/bin/bash
+   header="Content-Type: application/json;charset=utf-8"
+   url="https://oapi.dingtalk.com/robot/send?access_token=546b346e9ddc0bbcf180f203f2cd446565893ec50100c467f808e50ba7f3c5d2"
+   txt='{
+         "msgtype":"text",
+             "text":{
+                    "content":"'$1'"
+                    },
+             "at":{
+                    "atMobiles":["'$2'"],
+                    "isAtAll":false
+                    }
+        }'
+   curl  -X POST "${url}" -H "${header}"  -d "${txt}"
+   ```
+
+   添加告警类型：
+
+   - Name: email-homsom
+   - Type: Script
+   - Script name: email.sh
+   - Script parameters:
+     - `{ALERT.SENDTO}`
+     - `{ALERT.SUBJECT}`
+     - `{ALERT.MESSAGE}`
+
+   - Name: dingding-homsom
+   - Type: Script
+   - Script name: dingding.sh
+   - Script parameters:
+     - `{ALERT.MESSAGE}`
+     - `{ALERT.SENDTO}`
+
+> 注：邮件收到信息显示中文乱码，建议使用英文。
+
 ---
-set from=prometheus@homsom.com
-set smtp=smtp.qiye.163.com
-set smtp-auth=login
-set smtp-auth-user=username
-set smtp-auth-password=password
-set ssl-verify=ignore
-set nss-config-dir=/etc/aildbs/
----
-sh-4.2# cat email.sh 
-#!/bin/bash
-#send mail
-messages=`echo $3 | tr '\r\n' '\n'`
-subject=`echo $2 | tr '\r\n' '\n'`
-echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
----
-sh-4.2# cat dingding.sh 
-#!/bin/bash
-header="Content-Type: application/json;charset=utf-8"
-url="https://oapi.dingtalk.com/robot/send?access_token=546b346e9ddc0bbcf180f203f2cd446565893ec50100c467f808e50ba7f3c5d2"
-txt='{
-      "msgtype":"text",
-          "text":{
-                 "content":"'$1'"
-                 },
-          "at":{
-                 "atMobiles":["'$2'"],
-                 "isAtAll":false
-                 }
-     }'
-curl  -X POST "${url}" -H "${header}"  -d "${txt}"
----
-添加告警类型：
----
-Name: email-homsom
-Type: Script
-Script name: email.sh
-Script parameters
-	{ALERT.SENDTO}
-	{ALERT.SUBJECT}
-	{ALERT.MESSAGE}
----
-Name: dingding-homsom
-Type: Script
-Script name: dingding.sh
-Script parameters
-	{ALERT.MESSAGE}
-	{ALERT.SENDTO}
----
-注：邮件收到信息显示中文乱码,建议使用英文
-</pre>
 
+## 第八章 zabbix 3.4.15 部署
 
-
-
-## zabbix3.4.15部署
-
-### docker部署
+### 8.1 docker 部署
 
 环境：
 
 | 名称            | 角色          | 描述                                     |
 | --------------- | ------------- | ---------------------------------------- |
-| zabbix-server01 | zabbix-server | zabbix节点1                              |
-| zabbix-server02 | zabbix-server | zabbix节点2                              |
-| zabbix-proxy    | zabbix代理    | 代理zabbix-server收集数据给zabbix-server |
-| mysql.test.com  | mysql集群     | 确保zabbix-server集群高可用              |
+| zabbix-server01 | zabbix-server | zabbix 节点 1                            |
+| zabbix-server02 | zabbix-server | zabbix 节点 2                            |
+| zabbix-proxy    | zabbix 代理   | 代理 zabbix-server 收集数据给 zabbix-server |
+| mysql.test.com  | mysql 集群    | 确保 zabbix-server 集群高可用            |
 
+#### 8.1.1 zabbix-server01
 
+依赖文件：
 
-#### 1. zabbix-server01
-依赖文件
 ```bash
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+```
+
+```ini
 LogType=console
 DBHost=mysql.test.com
 DBName=zabbix
@@ -2653,11 +3639,21 @@ StartJavaPollers=4
 JavaGateway=127.0.0.1
 CacheSize=256M
 Timeout=30
+```
 
+```bash
+ls /data/docker/zabbix/zabbix-server/alertscripts
+```
 
-[root@harbor ~]# ls /data/docker/zabbix/zabbix-server/alertscripts
+```text
 dingding.sh  email.sh
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+```
+
+```bash
+cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+```
+
+```bash
 #!/bin/bash
 header="Content-Type: application/json;charset=utf-8"
 url="https://oapi.dingtalk.com/robot/send?access_token=XXXXXX"
@@ -2672,16 +3668,25 @@ txt='{
                  }
      }'
 curl  -X POST "${url}" -H "${header}"  -d "${txt}"
+```
 
+```bash
+cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+```
 
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+```bash
 #!/bin/bash
-#send mail
+# send mail
 messages=`echo $3 | tr '\r\n' '\n'`
 subject=`echo $2 | tr '\r\n' '\n'`
 echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
+```
 
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/mail.rc
+```bash
+cat /data/docker/zabbix/zabbix-server/mail.rc
+```
+
+```text
 ....
 set from=prometheus@test.com
 set smtp=smtp.qiye.163.com
@@ -2692,11 +3697,13 @@ set ssl-verify=ignore
 set nss-config-dir=/etc/aildbs/
 ```
 
+部署清单（使用新 mysql 数据库部署）：
 
-部署清单
+```bash
+cat docker-compose.yml 
 ```
-## 使用新mysql数据库部署
-[root@prometheus02 zabbix]# cat docker-compose.yml 
+
+```yaml
 # docker exec -it zabbix-server-mysql bash
 # rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
 
@@ -2740,7 +3747,7 @@ services:
       - /data/docker/zabbix/zabbix-server/alertscripts:/usr/lib/zabbix/alertscripts
       - /data/docker/zabbix/zabbix-server/externalscripts:/usr/lib/zabbix/externalscripts
       - /data/docker/zabbix/zabbix-server/mail.rc:/etc/mail.rc
-        #- /data/docker/zabbix/zabbix-server/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
+        # - /data/docker/zabbix/zabbix-server/zabbix_server.conf:/etc/zabbix/zabbix_server.conf
     depends_on:
       - zabbix-mysql-server
     networks:
@@ -2801,10 +3808,15 @@ networks:
     ipam:
       config:
         - subnet: 172.30.238.0/16
-		
-		
-## 使用已有外部数据库部署
-[root@prometheus02 zabbix]# cat docker-compose-no-mysql.yml 
+```
+
+使用已有外部数据库部署：
+
+```bash
+cat docker-compose-no-mysql.yml 
+```
+
+```yaml
 # docker exec -it zabbix-server-mysql bash
 # rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
 
@@ -2836,47 +3848,6 @@ services:
       - 192.168.13.186
       - 192.168.13.251
       - 192.168.10.110
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '4'
-#          memory: 4096M
-#        reservations:
-#          memory: 100M
-  zabbix-web-nginx-mysql:            
-    image: harborrepo.test.com/ops/zabbix/zabbix-web-nginx-mysql:centos-3.4.15
-    container_name: zabbix-web-nginx-mysql 
-    hostname: zabbix-web-nginx-mysql
-    links:
-      - zabbix-server-mysql:zabbix-server
-    restart: always        
-    environment:    
-      - DB_SERVER_HOST=mysql.test.com
-      - MYSQL_USER=zabbix
-      - MYSQL_PASSWORD=aaa123456
-      - MYSQL_DATABASE=zabbix
-      - ZBX_SERVER_HOST=zabbix-server
-      - PHP_TZ=Asia/Shanghai
-    volumes:
-      - /data/docker/zabbix/zabbix-web-nginx/graphfont.ttf:/usr/share/zabbix/fonts/graphfont.ttf
-    depends_on:
-      - zabbix-server-mysql
-    networks:
-      zabbix:
-        ipv4_address: 172.30.238.12
-    ports:
-      - 80:80
-    dns:
-      - 192.168.13.186
-      - 192.168.13.251
-      - 192.168.10.110
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '4'
-#          memory: 4096M
-#        reservations:
-#          memory: 100M
 networks:
   zabbix:
     driver: bridge
@@ -2885,12 +3856,15 @@ networks:
         - subnet: 172.30.238.0/16
 ```
 
+#### 8.1.2 zabbix-server02
 
-#### 1. zabbix-server02
+依赖配置文件：
 
-依赖配置文件
 ```bash
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+cat /data/docker/zabbix/zabbix-server/zabbix_server.conf 
+```
+
+```ini
 LogType=console
 DBHost=mysql.test.com
 DBName=zabbix
@@ -2910,11 +3884,21 @@ StartJavaPollers=4
 JavaGateway=127.0.0.1
 CacheSize=256M
 Timeout=30
+```
 
+```bash
+ls /data/docker/zabbix/zabbix-server/alertscripts
+```
 
-[root@harbor ~]# ls /data/docker/zabbix/zabbix-server/alertscripts
+```text
 dingding.sh  email.sh
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+```
+
+```bash
+cat /data/docker/zabbix/zabbix-server/alertscripts/dingding.sh 
+```
+
+```bash
 #!/bin/bash
 header="Content-Type: application/json;charset=utf-8"
 url="https://oapi.dingtalk.com/robot/send?access_token=XXXXXX"
@@ -2929,16 +3913,25 @@ txt='{
                  }
      }'
 curl  -X POST "${url}" -H "${header}"  -d "${txt}"
+```
 
+```bash
+cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+```
 
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/alertscripts/email.sh 
+```bash
 #!/bin/bash
-#send mail
+# send mail
 messages=`echo $3 | tr '\r\n' '\n'`
 subject=`echo $2 | tr '\r\n' '\n'`
 echo "${messages}" | mail -s "${subject}" $1 >>/tmp/mailx.log 2>&1
+```
 
-[root@harbor ~]# cat /data/docker/zabbix/zabbix-server/mail.rc
+```bash
+cat /data/docker/zabbix/zabbix-server/mail.rc
+```
+
+```text
 ....
 set from=prometheus@test.com
 set smtp=smtp.qiye.163.com
@@ -2949,9 +3942,13 @@ set ssl-verify=ignore
 set nss-config-dir=/etc/aildbs/
 ```
 
-docker部署清单
+docker 部署清单：
+
 ```bash
-[root@harbor ~]# cat zabbix/docker-compose-no-mysql.yml 
+cat zabbix/docker-compose-no-mysql.yml 
+```
+
+```yaml
 # docker exec -it zabbix-server-mysql bash
 # rm -rf /etc/yum.repos.d/* && curl -o /etc/yum.repos.d/CentOS-Base.repo https://mirrors.aliyun.com/repo/Centos-7.repo && yum --disablerepo=* --enablerepo=base install -y mailx
 
@@ -2983,13 +3980,6 @@ services:
       - 192.168.13.186
       - 192.168.13.251
       - 192.168.10.110
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '4'
-#          memory: 4096M
-#        reservations:
-#          memory: 100M
   zabbix-web-nginx-mysql:            
     image: zabbix/zabbix-web-nginx-mysql:centos-3.4.15
     container_name: zabbix-web-nginx-mysql 
@@ -3017,13 +4007,6 @@ services:
       - 192.168.13.186
       - 192.168.13.251
       - 192.168.10.110
-#    deploy:
-#      resources:
-#        limits:
-#          cpus: '4'
-#          memory: 4096M
-#        reservations:
-#          memory: 100M
 networks:
   zabbix:
     driver: bridge
@@ -3032,13 +4015,16 @@ networks:
         - subnet: 172.30.238.0/16
 ```
 
+#### 8.1.3 zabbix-proxy
 
-#### 3. zabbix-proxy
+依赖配置文件：
 
-依赖配置文件
 ```bash
-[root@syslog /data/docker/zabbix]# cat /data/docker/zabbix/zabbix-proxy/zabbix_proxy.conf 
-#ProxyMode: 0主动，1被动，默认是主动模式
+cat /data/docker/zabbix/zabbix-proxy/zabbix_proxy.conf 
+```
+
+```ini
+# ProxyMode: 0主动，1被动，默认是主动模式
 ProxyMode=0
 Server=192.168.13.235
 ServerPort=10051
@@ -3061,9 +4047,13 @@ CacheSize=256M
 Timeout=30
 ```
 
-部署清单
+部署清单：
+
 ```bash
-[root@syslog ~]# cat zabbix/docker-compose.yml
+cat zabbix/docker-compose.yml
+```
+
+```yaml
 version: '3.7'
 services:
   zabbix-mysql-server:                   
@@ -3119,20 +4109,17 @@ networks:
         - subnet: 172.30.238.0/16
 ```
 
-> 问题：如果监控设备添加了zabbix_proxy去监控，但是主机界面仍然无法看到有数据，原因如下：
-> 1. zabbix-proxy无法获取目标对象数据，例如无法获取snmp对象数据，可用命令进行测试：
+> **问题**：如果监控设备添加了 zabbix_proxy 去监控，但是主机界面仍然无法看到有数据，原因如下：
 >
->    ````
+> 1. zabbix-proxy 无法获取目标对象数据，例如无法获取 snmp 对象数据，可用命令进行测试：
+>
+>    ```bash
 >    snmpwalk -v2c -c public 192.168.102.15 1.3.6.1.2.1.1.3.0
->    ````
->
-> 2. 另外一个原因是zabbix-proxy数据缓冲区填满了，如果 Proxy 和 Server 的连接出现问题，且无法及时同步数据，Proxy 的本地缓存可能会填满，导致数据丢失或无法进一步采集。解决办法在zabbix-server.conf和zabbix-proxy.conf中配置如下参数
->
 >    ```
+>
+> 2. 另外一个原因是 zabbix-proxy 数据缓冲区填满了。如果 Proxy 和 Server 的连接出现问题，且无法及时同步数据，Proxy 的本地缓存可能会填满，导致数据丢失或无法进一步采集。解决办法在 zabbix-server.conf 和 zabbix-proxy.conf 中配置如下参数：
+>
+>    ```bash
 >    CacheSize=256M
 >    Timeout=30
 >    ```
->
->    
->
-> 

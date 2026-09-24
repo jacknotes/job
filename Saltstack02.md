@@ -1,8 +1,12 @@
-﻿#Saltstack深入
-####YAML语法：
-简介：YAML语法写成sls描述文件，sls全称：Salt State
-<pre>
+# Saltstack 深入
+
+## YAML 语法
+
+简介：YAML 语法写成 sls 描述文件，sls 全称：Salt State。
+
 例子：
+
+```yaml
 apache-install:
   pkg.installed:
     - names:
@@ -12,22 +16,32 @@ apache-service:
   service.running:
     - name: httpd
     - enable: True
+```
 
-1. apache-service为名称(ID)声明,不写names,则默认name就是名称声明的名称。ID声明在高级状态下必须唯一
-2. service.running为State声明，状态声明，模块声明
-3. - name: httpd为名称选项声明
+说明：
 
-实际应用例子：LAMP架构
-1. 安装软件包		pkg
-2. 修改配置文件	file
-3. 启动服务 		service
+1. apache-service 为名称 (ID) 声明，不写 names，则默认 name 就是名称声明的名称。ID 声明在高级状态下必须唯一。
+2. service.running 为 State 声明，状态声明，模块声明。
+3. - name: httpd 为名称选项声明。
 
-pkg.installed	安装
-pkg.latest	确保最新版本软件
-pkg.remove	卸载
-pkg.purge	卸载并删除配置文件
+### 实际应用例子：LAMP 架构
 
-1.同时安装多个包：
+1. 安装软件包 —— pkg
+2. 修改配置文件 —— file
+3. 启动服务 —— service
+
+pkg 模块常用方法：
+
+| 方法 | 说明 |
+| --- | --- |
+| pkg.installed | 安装 |
+| pkg.latest | 确保最新版本软件 |
+| pkg.remove | 卸载 |
+| pkg.purge | 卸载并删除配置文件 |
+
+#### 1. 同时安装多个包
+
+```yaml
 common_packages:
   pkg.installed:
     - pkgs:
@@ -38,8 +52,11 @@ common_packages:
       - php-mysql
       - php-cli
       - php-mbstring
+```
 
-2.配置管理
+#### 2. 配置管理
+
+```yaml
 apache-config:
   file.managed:#一个ID声明中只能是不同的状态模块，因为会冲突
     - name: /etc/httpd/conf/httpd.conf #要被配置的文件
@@ -63,8 +80,11 @@ mysql-config:
     - user: root
     - group: root
     - mode: 644
+```
 
-3.服务管理
+#### 3. 服务管理
+
+```yaml
 apache-service:
   service.running:
     - name: httpd
@@ -76,9 +96,17 @@ mysql-service:
     - name: mariadb
     - enable: True
     - reload: True
-注：salt://这个根目录是当前base环境下的根目录/srv/salt，如果是其他环境时，则寻找其他环境时的根目录
+```
 
+注：salt:// 这个根目录是当前 base 环境下的根目录 /srv/salt，如果是其他环境时，则寻找其他环境时的根目录。
+
+### LAMP 完整示例
+
+```bash
 #vim /srv/salt/lamp/lamp.sls
+```
+
+```yaml
 lamp-pkg:
   pkg.installed:
     - pkgs:
@@ -125,8 +153,11 @@ mysql-service:
     - name: mariadb
     - enable: True
     - reload: True
+```
 
-#or
+or：
+
+```yaml
 lamp-pkg:
   pkg.installed:
     - pkgs:
@@ -137,7 +168,7 @@ lamp-pkg:
       - php-mysql
       - php-cli
       - php-mbstring
-     
+
 apache-server:
   file.managed:
     - name: /etc/httpd/conf/httpd.conf
@@ -169,29 +200,55 @@ php-config:
     - user: root
     - group: root
     - mode: 644
-salt 'linux*' state.sls lamp.lamp
+```
 
-状态间关系：
- 1. 我依赖谁    require: 
-    require: #我依赖下面两个模块的id是否为True，为True我才能成功执行
-      - pkg: lamp-pkg  #pkg是模块名，后面是相关的ID
-      - file: apache-config
- 2. 我被谁依赖   require_in
-    require_in: mysql-service #我被其他模块依赖，我必须先成功执行，其他依赖我的模块才能成功执行
- 3. 我监控谁  watch，监控salt://lamp/files/httpd.conf配置文件是否被更改，如果被更改则重载配置文件到各个minion
-  - reload: True#写了就是重载配置文件，不写这个就是重启服务 
-  - watch:
-      - file: apache-config #watch包括require,也就是apache-config首先存在，然后apache-config被更改了才用reload进行重载
- 4. 我被谁监控 watch_in
- 5. 我引用谁  include
- include: 
-   - lamp.mysql
-   - lamp.apache
- 6. 我扩展谁
-编写SLS技巧：
-1. 按状态分类，如果单独使用，很清晰
-2. 按服务分类，可以被其他的SLS include。例如LNMP的sls include mysql的sls
+```bash
+salt 'linux*' state.sls lamp.lamp
+```
+
+### 状态间关系
+
+1. 我依赖谁 —— require
+
+```yaml
+require: #我依赖下面两个模块的id是否为True，为True我才能成功执行
+  - pkg: lamp-pkg  #pkg是模块名，后面是相关的ID
+  - file: apache-config
+```
+
+2. 我被谁依赖 —— require_in
+
+```yaml
+require_in: mysql-service #我被其他模块依赖，我必须先成功执行，其他依赖我的模块才能成功执行
+```
+
+3. 我监控谁 —— watch，监控 salt://lamp/files/httpd.conf 配置文件是否被更改，如果被更改则重载配置文件到各个 minion。
+
+```yaml
+- reload: True   #写了就是重载配置文件，不写这个就是重启服务
+- watch:
+    - file: apache-config   #watch 包括 require，也就是 apache-config 首先存在，然后 apache-config 被更改了才用 reload 进行重载
+```
+
+4. 我被谁监控 —— watch_in
+5. 我引用谁 —— include
+
+```yaml
+include:
+  - lamp.mysql
+  - lamp.apache
+```
+
+6. 我扩展谁
+
+### 编写 SLS 技巧
+
+1. 按状态分类，如果单独使用，很清晰。
+2. 按服务分类，可以被其他的 SLS include。例如 LNMP 的 sls include mysql 的 sls。
+
 例：
+
+```yaml
 lamp-pkg:
   pkg.installed:
     - pkgs:
@@ -210,17 +267,17 @@ apache-config:
     - user: root
     - group: root
     - mode: 644
-    
+
 apache-service:
   service.running:
     - name: httpd
     - enable: True
     - reload: True
-    - require:   #依赖关系 
-      - pkg: lamp-pkg  
+    - require:   #依赖关系
+      - pkg: lamp-pkg
     - watch:
       - file: apache-config
- 
+
 mysql-config:
    file.managed:
     - name: /etc/my.cnf
@@ -229,30 +286,47 @@ mysql-config:
     - group: root
     - mode: 644
     - require_in: mysql-service
-  
+
 mysql-service:
   service.running:
     - name: mariadb
     - enable: True
     - reload: True
-</pre>
+```
 
-###Jinja模板(python的模板语言)
-<pre>
-两种分隔符:
-1 {%……%}条件语句
-2 {{……}}变量
-使用一个模板需要3步走：
-1. 告诉File模块，使用Jinja模板，这样jinja格式就可以生效了
+## Jinja 模板（python 的模板语言）
+
+两种分隔符：
+
+1. {%……%} 条件语句
+2. {{……}} 变量
+
+使用一个模板需要 3 步走：
+
+1. 告诉 File 模块，使用 Jinja 模板，这样 jinja 格式就可以生效了。
+
+```yaml
 - template: jinja
-2. 你要列出参数列表
+```
+
+2. 你要列出参数列表。
+
+```yaml
 - defaults:
   PORT: 88  #指定PORT变量值为88
-3. 模板引用
-{{ PORT }} #在source文件中添加jinja格式的变量
-#注：jinja模板不支持-这个符号，只能用_下划线表示,file.directory默认makeDirs为False，如果目录存在也想新建则要设为True
+```
 
-例:
+3. 模板引用。
+
+```jinja
+{{ PORT }}   #在 source 文件中添加 jinja 格式的变量
+```
+
+注：jinja 模板不支持 - 这个符号，只能用 _ 下划线表示，file.directory 默认 makeDirs 为 False，如果目录存在也想新建则要设为 True。
+
+例：
+
+```yaml
 apache-config:
   file.managed:
     - name: /etc/httpd/conf/httpd.conf
@@ -263,43 +337,81 @@ apache-config:
     - template: jinja
     - defaults:
       PORT: 99
+```
 
-#jinja模板可以使用：salt grains pillar 赋值
+jinja 模板可以使用 salt、grains、pillar 赋值。
 
-grains目标选择fqdn_ip4这个item是跟minion的主机名绑定的，是唯一的，vim /etc/hosts 后，使用 `salt '*' saltutil.sync_grains` 直接同步即可
-FQDN:完全合格域名
+grains 目标选择 fqdn_ip4 这个 item 是跟 minion 的主机名绑定的，是唯一的，vim /etc/hosts 后，使用 `salt '*' saltutil.sync_grains` 直接同步即可。
 
-一、写在模板文件中
-使用grains进行赋值：
+FQDN：完全合格域名。
+
+### 一、写在模板文件中
+
+使用 grains 进行赋值：
+
+```jinja
 Listen {{grains['fqdn_ip4'][0]}}:{{ PORT }}
-Salt远程执行模块：
+```
+
+Salt 远程执行模块：
+
+```jinja
 {{ salt['network.hw_addr']('eth0') }}
-#一样效果：取eth0的mac地址：salt '*' network.hw_addr eth0
-使用pillar赋值：{{ pillar['apache']}}
-二、写在SLS文件里面的Defaults变量列表中
+```
+
+一样效果：取 eth0 的 mac 地址：salt '*' network.hw_addr eth0。
+
+使用 pillar 赋值：
+
+```jinja
+{{ pillar['apache']}}
+```
+
+### 二、写在 SLS 文件里面的 Defaults 变量列表中
+
+```yaml
 - defaults:
     IPADDR: {{ grains['fqdn_ip4'][0] }}
     PORT: 88
+```
 
-混合匹配：and,or,not
-戴明环又叫质量环（PDCA(plan do check action)）
-yum install lrzsz -y 
-rz:上传    sz：下载
+### 混合匹配
 
-salt实战：
+and、or、not。
+
+戴明环又叫质量环（PDCA（plan do check action））。
+
+```bash
+yum install lrzsz -y
+```
+
+rz：上传    sz：下载。
+
+## salt 实战
+
 首先头脑风暴：
-1. 系统初始化
-2. 功能模板：设置单独的目录,nginx,php,mysql,memcached,尽可能的全、独立
-3. 业务模块：根据业务类型划分，例如web服务。论坛bbs，然后用include包括进来
-干活：
-salt环境配置：开发、测试（功能测试、性能测试）、预生产、生产
-注：file_roots和pillar_roots的base环境和base环境相对应，prod环境的base环境相对应，写top.file时，这个文件应该放在file_roots的base根环境下
-1. base基础环境
-init目录，环境初始化（在salt基础上）：1.dns配置，2.history记录时间3.记录命令操作4.内核参数优化5.安装yum仓库6.安装zabbix-agent
 
-2. prod生产环境
-步骤：
-1. vim /etc/salt/master
+1. 系统初始化
+2. 功能模板：设置单独的目录，nginx、php、mysql、memcached，尽可能的全、独立。
+3. 业务模块：根据业务类型划分，例如 web 服务、论坛 bbs，然后用 include 包括进来。
+
+干活：
+
+salt 环境配置：开发、测试（功能测试、性能测试）、预生产、生产。
+
+注：file_roots 和 pillar_roots 的 base 环境和 base 环境相对应，prod 环境的 base 环境相对应，写 top.file 时，这个文件应该放在 file_roots 的 base 根环境下。
+
+1. base 基础环境：init 目录，环境初始化（在 salt 基础上）：1. dns 配置，2. history 记录时间，3. 记录命令操作，4. 内核参数优化，5. 安装 yum 仓库，6. 安装 zabbix-agent。
+
+2. prod 生产环境。
+
+### 配置 prod 生产环境
+
+```bash
+# vim /etc/salt/master
+```
+
+```yaml
 file_roots:
   base:
     - /srv/salt/base
@@ -310,14 +422,21 @@ pillar_roots:
     - /srv/pillar/base
   prod:
     - /srv/pillar/prod
+```
 
-[root@SaltstackServer /srv/salt]# mkdir base 
+```bash
+[root@SaltstackServer /srv/salt]# mkdir base
 [root@SaltstackServer /srv/salt]# mkdir prod
 [root@SaltstackServer /srv/pillar]# mkdir base
 [root@SaltstackServer /srv/pillar]# mkdir prod
-[root@SaltstackServer /srv/pillar]# systemctl restart salt-master.service 
-1.base基础环境初始化编写基础模块sls
-#dns.sls----dns配置
+[root@SaltstackServer /srv/pillar]# systemctl restart salt-master.service
+```
+
+#### base 基础环境初始化编写基础模块 sls
+
+dns.sls —— dns 配置：
+
+```bash
 [root@SaltstackServer /srv/salt/base/init]# cat dns.sls
 /etc/resolve.conf:
   file.managed:
@@ -326,22 +445,49 @@ pillar_roots:
     - group: root
     - mode: 644
 [root@SaltstackServer /srv/salt/base/init/files]# cat resolv.conf
+```
+
+```text
 nameserver 8.8.8.8
-#history.sls----history记录时间
-[root@SaltstackServer /srv/salt/base/init]# cat history.sls 
+```
+
+history.sls —— history 记录时间：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat history.sls
+```
+
+```yaml
 /etc/profile:
   file.append:
     - text:
       - export HISTTIMEFORMAT="%F %T `whoami` "
-#audit.sls----记录命令操作
-[root@SaltstackServer /srv/salt/base/init]# cat audit.sls 
+```
+
+audit.sls —— 记录命令操作：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat audit.sls
+```
+
+```yaml
 /etc/profile:
   file.append:
     - text:
       - export PROMPT_COMMAND='{ date "+%Y-%m-%d %T %A [$(id | cut -c 1-11)]:[$(who am i |awk "{print \$2\" \"\$3\" \"\$4\" \"\$5}")]:[$(pwd)]:[$(history 1 | { read a b c d e; echo $e;})]"; } >> /var/log/messages'
+```
+
+```text
 ##export PROMPT_COMMAND='{ msg=$(history 1 | { read x y; echo $y; });logger "[euid=$(whoami)]":$(who am i):[`pwd`]"$msg"; }'
-#sysctl.sls----内核参数优化
-[root@SaltstackServer /srv/salt/base/init]# cat sysctl.sls 
+```
+
+sysctl.sls —— 内核参数优化：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat sysctl.sls
+```
+
+```yaml
 net.ipv4.ip_local_port_range:    #客户端打口随机端口范围
   sysctl.present:
     - value: 10000 65000
@@ -354,14 +500,28 @@ net.ipv4.ip_forward:     #打开ipv4转发
 vm.swappiness:   #swap为0,尽量不要使用swap内存
   sysctl.present:
     - value: 0
-#epel.sls----安装yum仓库
-[root@SaltstackServer /srv/salt/base/init]# cat epel.sls 
+```
+
+epel.sls —— 安装 yum 仓库：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat epel.sls
+```
+
+```yaml
 yum_repo_release:
   pkg.installed:
     - sources:
       - epel-release: https://mirrors.aliyun.com/epel/epel-release-latest-7.noarch.rpm
-#zabbix-agent.sls----安装zabbix-agent
-[root@SaltstackServer /srv/salt/base/init]# cat zabbix-agent.sls 
+```
+
+zabbix-agent.sls —— 安装 zabbix-agent：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat zabbix-agent.sls
+```
+
+```yaml
 zabbix-agent:
   pkg.installed:
     - name: zabbix-agent
@@ -381,26 +541,49 @@ zabbix-agent:
 zabbix_agentd.conf.d:
   file.directory:
     - name: /etc/zabbix/zabbix_agentd.d
-    - watch_in: 
+    - watch_in:
       - service: zabbix-agent
     - require:
       - pkg: zabbix-agent
+```
 
+```bash
+# [root@SaltstackServer /srv/pillar/base]# vim /srv/salt/base/init/files/zabbix_agentd.conf
+```
 
-#[root@SaltstackServer /srv/pillar/base]# vim /srv/salt/base/init/files/zabbix_agentd.conf
+```jinja
 Server={{ Zabbix_Server }}
+```
 
-#/srv/pillar/base/zabbix/agent.sls--编写pillar
-[root@SaltstackServer /srv/pillar/base]# cat zabbix/agent.sls 
+编写 pillar —— /srv/pillar/base/zabbix/agent.sls：
+
+```bash
+[root@SaltstackServer /srv/pillar/base]# cat zabbix/agent.sls
+```
+
+```yaml
 Zabbix_Server: 192.168.1.201
-#/srv/pillar/base/top.sls--编写top file
-[root@SaltstackServer /srv/pillar/base]# cat top.sls 
+```
+
+编写 top file —— /srv/pillar/base/top.sls：
+
+```bash
+[root@SaltstackServer /srv/pillar/base]# cat top.sls
+```
+
+```yaml
 base:
   '*':
     - zabbix.agent
+```
 
-#init.sls
-[root@SaltstackServer /srv/salt/base/init]# cat init.sls 
+init.sls：
+
+```bash
+[root@SaltstackServer /srv/salt/base/init]# cat init.sls
+```
+
+```yaml
 include:
   - init.dns
   - init.history
@@ -408,19 +591,31 @@ include:
   - init.sysctl
   - init.epel
   - init.zabbix-agent
+```
 
-#top.sls
-[root@SaltstackServer /srv/salt/base]# cat top.sls 
+top.sls：
+
+```bash
+[root@SaltstackServer /srv/salt/base]# cat top.sls
+```
+
+```yaml
 base:
   '*':
     - init.init
+```
 
+注意：当你在执行 "salt '*' state.sls init.zabbix-agent" 时，总共有两个机器，一个机器能执行成功，一个则报错 "Specified SLS 'zabbix.agent' in environment 'base' is not available on the salt master"，而这个机器正好是 slat-master。实践得出，在 salt-master 上 pillar 的 base 环境下，不能有 zabbix.agent 这个模块，因为对关键字敏感，最终我把 zabbix.agent 改成 zb.agent 后，在使用 "salt '*' saltutil.refresh_pillar" 同步 pillar 后可以执行成功。
 
-注意：当你在执行： “salt '*' state.sls init.zabbix-agent ” 时，总共有两个机器，一个机器能执行成功，一个则报错  “ Specified SLS 'zabbix.agent' in environment 'base' is not available on the salt master ”，而这个机器正好是slat-master,实践得出，在salt-master上pillar的base环境下，不能有zabbix.agent这个模块，因为对关键字敏感，最终我把zabbix.agent改成zb.agent后，在使用“salt '*' saltutil.refresh_pillar”同步pillar后可以执行成功
-##在CentOS8上salt-3000.1-1.el8.noarch版本可以
+在 CentOS8 上 salt-3000.1-1.el8.noarch 版本可以。
 
-层级关系：
+#### 层级关系
+
+```bash
 [root@SaltstackServer /srv/salt/base]# tree
+```
+
+```text
 .
 ├── init
 │?? ├── audit.sls
@@ -434,7 +629,13 @@ base:
 │?? ├── sysctl.sls
 │?? └── zabbix-agent.sls
 └── top.sls
+```
+
+```bash
 [root@SaltstackServer /srv/salt/base]# salt '*' state.show_top
+```
+
+```text
 SaltstackServer.com:
     ----------
     base:
@@ -443,22 +644,32 @@ linux-node1:
     ----------
     base:
         - init.init
-[root@SaltstackServer /srv/salt/base]# salt '*' state.highstate  --执行高级状态
+```
 
+执行高级状态：
 
-##haproxy部署
+```bash
+[root@SaltstackServer /srv/salt/base]# salt '*' state.highstate
+```
+
+## haproxy 部署
+
+```bash
 [root@SaltstackServer /srv/salt/prod]# tree
+```
 
+```text
+.
 ├── cluster
-│   ├── files
-│   │   ── haproxy-outside.cfg.template
-│   └── haproxy-outside.sls
+│?? ├── files
+│?? │?? ── haproxy-outside.cfg.template
+│?? └── haproxy-outside.sls
 └── modules
     ├── haproxy
-    │   ├── files
-    │   │   ├── haproxy-1.9.0.tar.gz
-    │   │   └── haproxy.init
-    │   └── install.sls
+    │?? ├── files
+    │?? │?? ├── haproxy-1.9.0.tar.gz
+    │?? │?? └── haproxy.init
+    │?? └── install.sls
     ├── keepalived
     ├── libevent
     ├── memcached
@@ -466,9 +677,9 @@ linux-node1:
     ├── php
     ├── pkg
          ── make.sls
+```
 
-
---------------------------------------------------------------
+```bash
 [root@SaltstackServer /srv/salt/prod/modules/pkg]# cat make.sls
 make-pkg:
   pkg.installed:
@@ -482,7 +693,6 @@ make-pkg:
       - openssl-devel
       - pcre
       - pcre-devel
----------------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/modules/haproxy]# cat install.sls
 include:
   - modules.pkg.make
@@ -521,8 +731,10 @@ net.ipv4.ip_nonlocal_bind:
     - user: root
     - group: root
     - mode: 755
--------------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/modules/haproxy/files]# cat haproxy.init
+```
+
+```bash
 #!/bin/sh
 #
 # chkconfig: - 85 15
@@ -660,7 +872,9 @@ case "$1" in
 esac
 
 exit $?
------------------------------------------------------------
+```
+
+```bash
 [root@SaltstackServer /srv/salt/prod/cluster]# cat haproxy-outside.sls
 include:
   - modules.haproxy.install
@@ -680,8 +894,10 @@ haproxy-service:
       - cmd: haproxy-install
     - watch:
       - file: haproxy-service
---------------------------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/cluster/files]# cat haproxy-outside.cfg.template
+```
+
+```text
 global
 maxconn 100000
 chroot /usr/local/haproxy
@@ -724,37 +940,42 @@ option httpchk HEAD / HTTP/1.0
 balance source
 server web-node1  192.168.1.231:8080 check inter 2000 rise 30 fall 15
 server web-node2  192.168.1.232:8080 check inter 2000 rise 30 fall 15
----------------------------------------------------------
+```
 
+## keepalived 部署
 
-##keepalived部署：
+```bash
 [root@SaltstackServer /srv/salt/prod]# tree
+```
+
+```text
 .
 ├── cluster
-│   ├── files
-│   │   ├── haproxy-outside.cfg.template
-│   │   └── haproxy-outside-keepalived.conf
-│   ├── haproxy-outside-keepalived.sls
-│   └── haproxy-outside.sls
+│?? ├── files
+│?? │?? ├── haproxy-outside.cfg.template
+│?? │?? └── haproxy-outside-keepalived.conf
+│?? ├── haproxy-outside-keepalived.sls
+│?? └── haproxy-outside.sls
 └── modules
     ├── haproxy
-    │   ├── files
-    │   │   ├── haproxy-1.9.0.tar.gz
-    │   │   └── haproxy.init
-    │   └── install.sls
+    │?? ├── files
+    │?? │?? ├── haproxy-1.9.0.tar.gz
+    │?? │?? └── haproxy.init
+    │?? └── install.sls
     ├── keepalived
-    │   ├── files
-    │   │   ├── keepalived-1.2.17.tar.gz
-    │   │   ├── keepalived.init
-    │   │   └── keepalived.sysconfig
-    │   └── install.sls
+    │?? ├── files
+    │?? │?? ├── keepalived-1.2.17.tar.gz
+    │?? │?? ├── keepalived.init
+    │?? │?? └── keepalived.sysconfig
+    │?? └── install.sls
     ├── libevent
     ├── nginx
     ├── php
     ├── pkg
-        └── make.sls
+        └── make.sls
+```
 
----------------------------------------------------------
+```bash
 [root@SaltstackServer /srv/salt/prod/modules/keepalived]# cat install.sls
 {% set keepalived_tar= 'keepalived-1.2.17.tar.gz'  %}
 {% set keepalived_source= 'salt://modules/keepalived/files/'  %}
@@ -797,9 +1018,10 @@ keepalived-init:
   file.directory:
     - user: root
     - group: root
-
----------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/modules/keepalived]# cat files/keepalived.sysconfig
+```
+
+```bash
 # Options for keepalived. See `keepalived --help' output and keepalived(8) and
 # keepalived.conf(5) man pages for a list of all options. Here are the most
 # common ones :
@@ -814,8 +1036,13 @@ keepalived-init:
 #
 
 KEEPALIVED_OPTIONS="-D"
----------------------------------------------------------   
+```
+
+```bash
 [root@SaltstackServer /srv/salt/prod/modules/keepalived]# cat files/keepalived.init
+```
+
+```bash
 #!/bin/sh
 #
 # Startup script for the Keepalived daemon
@@ -891,7 +1118,9 @@ case "$1" in
 esac
 
 exit $RETVAL
----------------------------------------------------------
+```
+
+```bash
 [root@SaltstackServer /srv/salt/prod/cluster]# cat haproxy-outside-keepalived.sls
 include:
   - modules.keepalived.install
@@ -918,7 +1147,6 @@ keepalived-server:
     - enable: True
     - watch:
       - file: keepalived-server
----------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/cluster/files]# cat haproxy-outside-keepalived.conf
 ! Configuration File for keepalived
 global_defs {
@@ -945,8 +1173,6 @@ auth_type PASS
        192.168.1.236
     }
 }
-
----------------------------------------------------------
 [root@SaltstackServer /srv/salt/base]# cat top.sls
 base:
   '*':
@@ -958,14 +1184,20 @@ prod:
   'Linux-node4*':
     - cluster.haproxy-outside
     - cluster.haproxy-outside-keepalived
----------------------------------------------------------
 [root@SaltstackServer /srv/salt/prod/cluster/files]# salt '*' state.highstate
+```
 
-##memcached部署
-1. session保持
-2. session复制
-3. session共享（php把session写到memcached上，session用于唯一标识，php也可以写入到redis，但memcached单纯的写和读优于redis）
+## memcached 部署
+
+1. session 保持
+2. session 复制
+3. session 共享（php 把 session 写到 memcached 上，session 用于唯一标识，php 也可以写入到 redis，但 memcached 单纯的写和读优于 redis）
+
+```bash
 [root@salt-server /srv/salt/prod]# tree
+```
+
+```text
 .
 ├── bbs
 │?? └── memcached.sls
@@ -1001,8 +1233,10 @@ prod:
     │?? └── make.sls
     └── user
         └── www.sls
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod]# cat modules/user/www.sls 
+```
+
+```bash
+[root@salt-server /srv/salt/prod]# cat modules/user/www.sls
 www-user-group:
   group.present:
     - name: www
@@ -1014,8 +1248,7 @@ www-user-group:
     - shell: /sbin/nologin
     - uid: 1000
     - gid: 1000
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod]# cat modules/libevent/install.sls 
+[root@salt-server /srv/salt/prod]# cat modules/libevent/install.sls
 libevent-source-install:
   file.managed:
     - name: /usr/local/src/libevent-2.0.22-stable.tar.gz
@@ -1028,8 +1261,7 @@ libevent-source-install:
     - unless: test -d /usr/local/libevent
     - require:
       - file: libevent-source-install
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod]# cat modules/memcached/install.sls 
+[root@salt-server /srv/salt/prod]# cat modules/memcached/install.sls
 include:
   - modules.libevent.install
 
@@ -1046,8 +1278,7 @@ memcached-source-install:
     - require:
       - cmd: libevent-source-install
       - file: memcached-source-install
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod]# cat bbs/memcached.sls 
+[root@salt-server /srv/salt/prod]# cat bbs/memcached.sls
 include:
   - modules.memcached.install
   - modules.user.www
@@ -1059,11 +1290,12 @@ memcached-service:
     - require:
       - cmd: memcached-source-install
       - user: www-user-group
-------------------------------------------------------------      
-注：memcached没有配置文件，memcached只能关闭或重启，不能重载，只要重新启动就可以了，
-memcached安装时先要安装libevent软件 
------------------------------------------------------------- 
-[root@salt-server /srv/salt/base]# cat top.sls 
+```
+
+注：memcached 没有配置文件，memcached 只能关闭或重启，不能重载，只要重新启动就可以了；memcached 安装时先要安装 libevent 软件。
+
+```bash
+[root@salt-server /srv/salt/base]# cat top.sls
 base:
   '*':
     - init.init
@@ -1076,12 +1308,16 @@ prod:
     - cluster.haproxy-outside
     - cluster.haproxy-outside-keepalived
     - bbs.memcached
------------------------------------------------------------- 
 [root@salt-server /srv/salt/base]# salt '*' state.highstate
+```
 
-##nginx+php配置
-------------------------------------------------------------
+## nginx + php 配置
+
+```bash
 [root@salt-server /srv/salt/prod]# tree
+```
+
+```text
 .
 ├── bbs
 │?? ├── files
@@ -1140,11 +1376,12 @@ prod:
     │?? └── make.sls
     └── user
         └── www.sls
+```
 
-------------------------------------------------------------
-##1.php部署
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/php]# cat install.sls 
+### 1. php 部署
+
+```bash
+[root@salt-server /srv/salt/prod/modules/php]# cat install.sls
 include:
   - modules.pkg.make
   - modules.user.www
@@ -1202,9 +1439,7 @@ php-fastcgi-service:
     - unless: chkconfig --list | grep php-fpm
     - require:
       - file: php-fastcgi-service
-  
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/php]# cat php-memcache.sls 
+[root@salt-server /srv/salt/prod/modules/php]# cat php-memcache.sls
 memcache-plugin:
   file.managed:
     - name: /usr/local/src/memcache-2.2.7.tgz  #memecache插件，并不是memcache软件
@@ -1218,9 +1453,7 @@ memcache-plugin:
     - unless: test -f /usr/local/php-fastcgi/lib/php/extensions/*/memcache.so
     - require:
       - file: memcache-plugin
-
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/php]# cat php-redis.sls 
+[root@salt-server /srv/salt/prod/modules/php]# cat php-redis.sls
 redis-plugin:
   file.managed:
     - name: /usr/local/src/phpredis-2.2.7.tgz
@@ -1233,9 +1466,10 @@ redis-plugin:
     - unless: test -f /usr/local/php-fastcgi/lib/php/extensions/*/redis.so
     - require:
       - file: redis-plugin
+[root@salt-server /srv/salt/prod/modules/php/files]# cat init.d.php-fpm
+```
 
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/php/files]# cat init.d.php-fpm 
+```bash
 #! /bin/sh
 
 ### BEGIN INIT INFO
@@ -1388,11 +1622,14 @@ case "$1" in
         ;;
 
 esac
-------------------------------------------------------------
-#nginx部署
-------------------------------------------------------------
---nginx组件pcre
-[root@salt-server /srv/salt/prod/modules/pcre]# cat install.sls 
+```
+
+### 2. nginx 部署
+
+#### nginx 组件 pcre
+
+```bash
+[root@salt-server /srv/salt/prod/modules/pcre]# cat install.sls
 pcre-source-install:
   file.managed:
     - name: /usr/local/src/pcre-8.37.tar.gz
@@ -1405,8 +1642,7 @@ pcre-source-install:
     - unless: test -d /usr/local/pcre
     - require:
       - file: pcre-source-install
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/nginx]# cat install.sls 
+[root@salt-server /srv/salt/prod/modules/nginx]# cat install.sls
 include:
   - modules.user.www
   - modules.pcre.install  #安装pcre，后面有程序会用到这个包
@@ -1423,9 +1659,8 @@ nginx-source-install:
     - require:
       - user: www-user-group
       - file: nginx-source-install
-      - cmd: pcre-source-install 
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/nginx]# cat service.sls 
+      - cmd: pcre-source-install
+[root@salt-server /srv/salt/prod/modules/nginx]# cat service.sls
 include:
   - modules.nginx.install
 
@@ -1447,7 +1682,7 @@ nginx-init:
     - source: salt://modules/nginx/files/nginx.conf
     - user: www
     - group: www
-    - mode: 644 
+    - mode: 644
 
 nginx-service:
   service.running:
@@ -1467,8 +1702,7 @@ nginx-online:
 nginx-offline:
   file.directory:
     - name: /usr/local/nginx/conf/vhost_offline
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/nginx]# cat files/nginx.conf 
+[root@salt-server /srv/salt/prod/modules/nginx]# cat files/nginx.conf
 user  www;
 worker_processes  16;
 error_log  logs/error.log  error;
@@ -1499,37 +1733,39 @@ server {
                 }
         }
 }
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/modules/nginx]# cat files/nginx-init 
+[root@salt-server /srv/salt/prod/modules/nginx]# cat files/nginx-init
+```
+
+```bash
 #!/bin/sh
 #
 # nginx - this script starts and stops the nginx daemon
 #
-# chkconfig:   - 85 15 
+# chkconfig:   - 85 15
 # description:  Nginx is an HTTP(S) server, HTTP(S) reverse \
 #               proxy and IMAP/POP3 proxy server
 # processname: nginx
 # config:      /usr/local/nginx/conf/nginx.conf  //这里虽说是#号开头，但是nginx还会去这个路径找配置文件
 # pidfile:     /usr/local/nginx/logs/nginx.pid   //这里虽说是#号开头，但是nginx还会去这个路径找pid
- 
+
 # Source function library.
 . /etc/rc.d/init.d/functions
- 
+
 # Source networking configuration.
 . /etc/sysconfig/network
- 
+
 # Check that networking is up.
 [ "$NETWORKING" = "no" ] && exit 0
- 
+
 nginx="/usr/local/nginx/sbin/nginx"
 prog=$(basename $nginx)
- 
+
 NGINX_CONF_FILE="/usr/local/nginx/conf/nginx.conf"
- 
+
 [ -f /etc/sysconfig/nginx ] && . /etc/sysconfig/nginx
- 
+
 lockfile=/var/lock/subsys/nginx
- 
+
 make_dirs() {
    # make required directories
    user=`$nginx -V 2>&1 | grep "configure arguments:" | sed 's/[^*]*--user=\([^ ]*\).*/\1/g' -`
@@ -1547,7 +1783,7 @@ make_dirs() {
        fi
    done
 }
- 
+
 start() {
     [ -x $nginx ] || exit 5
     [ -f $NGINX_CONF_FILE ] || exit 6
@@ -1559,7 +1795,7 @@ start() {
     [ $retval -eq 0 ] && touch $lockfile
     return $retval
 }
- 
+
 stop() {
     echo -n $"Stopping $prog: "
     killproc $prog -QUIT
@@ -1568,14 +1804,14 @@ stop() {
     [ $retval -eq 0 ] && rm -f $lockfile
     return $retval
 }
- 
+
 restart() {
     configtest || return $?
     stop
     sleep 1
     start
 }
- 
+
 reload() {
     configtest || return $?
     echo -n $"Reloading $prog: "
@@ -1583,23 +1819,23 @@ reload() {
     RETVAL=$?
     echo
 }
- 
+
 force_reload() {
     restart
 }
- 
+
 configtest() {
   $nginx -t -c $NGINX_CONF_FILE
 }
- 
+
 rh_status() {
     status $prog
 }
- 
+
 rh_status_q() {
     rh_status >/dev/null 2>&1
 }
- 
+
 case "$1" in
     start)
         rh_status_q && exit 0
@@ -1629,8 +1865,10 @@ case "$1" in
         echo $"Usage: $0 {start|stop|status|restart|condrestart|try-restart|reload|force-reload|configtest}"
         exit 2
 esac
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/bbs]# cat web.sls 
+```
+
+```bash
+[root@salt-server /srv/salt/prod/bbs]# cat web.sls
 include:
   - modules.php.install
   - modules.php.php-memcache
@@ -1674,9 +1912,10 @@ web-bbs:
       - service: bbs-php
     - watch_in:
       - service: nginx-service
+[root@salt-server /srv/salt/prod/bbs/files]# grep ^[a-Z1-9] php.ini-production
+```
 
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/bbs/files]# grep ^[a-Z1-9] php.ini-production 
+```ini
 engine = On
 short_open_tag = Off
 asp_tags = Off
@@ -1815,8 +2054,13 @@ opcache.enable=1
 extension=pdo_mysql.so
 extension=memcache.so
 extension=redis.so
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/bbs/files]# grep -v '^;' php-fpm.conf.default 
+```
+
+```bash
+[root@salt-server /srv/salt/prod/bbs/files]# grep -v '^;' php-fpm.conf.default
+```
+
+```ini
 [global]
 error_log = /tmp/php-fpm.log
 [www]
@@ -1832,8 +2076,13 @@ pm.start_servers = 20
 pm.min_spare_servers = 10
 pm.max_spare_servers = 30
 pm.max_requests = 50000
-------------------------------------------------------------
-[root@salt-server /srv/salt/prod/bbs]# cat files/nginx-bbs.conf 
+```
+
+```bash
+[root@salt-server /srv/salt/prod/bbs]# cat files/nginx-bbs.conf
+```
+
+```nginx
 server {
         listen         8080;
         root /usr/local/nginx/html;
@@ -1843,11 +2092,17 @@ server {
               fastcgi_pass unix:/usr/local/php-fastcgi/php-fpm.sock;
               fastcgi_index index.php;
               include fastcgi.conf;
-        } 
+        }
 }
-------------------------------------------------------------
---top file文件
-[root@salt-server /srv/salt/base]# cat top.sls 
+```
+
+### top file 文件
+
+```bash
+[root@salt-server /srv/salt/base]# cat top.sls
+```
+
+```yaml
 base:
   '*':
     - init.init
@@ -1863,94 +2118,159 @@ prod:
     - cluster.haproxy-outside-keepalived
     - bbs.memcached  #安装memcached并启动
     - bbs.web  #安装php,php-memcached,php-redis,nginx,并启动php和nginx
-------------------------------------------------------------
+```
 
+## 使 master 端用 job_cache 写入到 mysql
 
-##使master端用job_cache写入到mysql
-master端的job_cache路径：/var/cache/salt/master/jobs/下
-minion端正在运行的salt程序id路径：/var/cache/salt/minion/proc下
+master 端的 job_cache 路径：/var/cache/salt/master/jobs/ 下。
 
-#使master的job_cache写入到mysql数据库
-第一步：修改master的配置文件/etc/salt/master
-添加：
+minion 端正在运行的 salt 程序 id 路径：/var/cache/salt/minion/proc 下。
+
+使 master 的 job_cache 写入到 mysql 数据库。
+
+第一步：修改 master 的配置文件 /etc/salt/master，添加：
+
+```yaml
 master_job_cache: mysql
 mysql.user: salt
 mysql.pass: salt
-mysql.host: localhost 
+mysql.host: localhost
 mysql.port: 3306
 mysql.db: salt
+```
 
-第二步：重启master
-[root@salt-server ~]# systemctl restart salt-master.service 
-结果：以后每次执行的结果就都会从master的job_cache写入到mysql上了，从job_cache写入到mysql上的这种方法都用在生产环境中。
+第二步：重启 master：
 
-#salt-run这个命令是在master上执行的，并非在minion上执行的，而salt这个命令是master分发工作给minion执行的
-#salt-run命令：
+```bash
+[root@salt-server ~]# systemctl restart salt-master.service
+```
+
+结果：以后每次执行的结果就都会从 master 的 job_cache 写入到 mysql 上了，从 job_cache 写入到 mysql 上的这种方法都用在生产环境中。
+
+salt-run 这个命令是在 master 上执行的，并非在 minion 上执行的，而 salt 这个命令是 master 分发工作给 minion 执行的。
+
+### salt-run 命令
+
+```bash
 salt '*' saltutil.running  #查看正在运行的job_id
 salt '*' saltutil.kill_job job_id  #结束job_id的工作
-注：当你ctrl+c时，salt还在运行，所以你要用salt '*' saltutil.kill_job job_id来结束不需要的salt工作，用sal-run jobs.lookup_id 2016...  查看详细的job_id工作
-列出正在运行的jid：salt-run jobs.list_jobs
-显示指定的jid执行情况：salt-run jobs.lookup_jid jid
-在master端执行看minion的状态：
+```
+
+注：当你 ctrl+c 时，salt 还在运行，所以你要用 salt '*' saltutil.kill_job job_id 来结束不需要的 salt 工作，用 sal-run jobs.lookup_id 2016... 查看详细的 job_id 工作。
+
+列出正在运行的 jid：salt-run jobs.list_jobs。
+
+显示指定的 jid 执行情况：salt-run jobs.lookup_jid jid。
+
+在 master 端执行看 minion 的状态：
+
 - salt-run manage.status
 - salt-run manage.up
 - salt-run manage.down
-在master端执行看minion的版本：salt-run manage.versions
 
-#salt帮助文档
+在 master 端执行看 minion 的版本：salt-run manage.versions。
+
+### salt 帮助文档
+
+```bash
 salt -d  | grep saltutil
 salt-run -d | grep jobs
+```
 
+## 无 master 状态下运行 salt
 
-###无master状态下运行salt
-就是只一台机器minion，它想运行salt，就可以使用salt-call命令。
-第零步：关闭master-minion进程，因为本地运行，不用跟master建立连接，所以进程也没必要开启
+就是只一台机器 minion，它想运行 salt，就可以使用 salt-call 命令。
+
+第零步：关闭 master-minion 进程，因为本地运行，不用跟 master 建立连接，所以进程也没必要开启。
+
 第一步：vim /etc/salt/minion，把状态文件客户端从远端改成本地：
+
+```yaml
 #file_client: remote
 file_client: local
-第二步：设置salt和pillar环境：
+```
+
+第二步：设置 salt 和 pillar 环境：
+
+```yaml
 file_roots:
   base: /srv/salt/base
 pillar_roots:
   base: /srv/pillar/base
-第三步：本地编写sls文件
-第四步：salt-call --local state.highstate
-###一键安装master:cobbler自动化安装时已经安装好salt-minion,在minion上执行salt-call --local state.highstate执行master状态文件安装，使本机安装并配置好master
+```
 
-###多master，Multi-Master
-共享：（1.可以使用NFS共享，只限内网指定IP连接2.把共享的信息放到git上，再重装个master[用得不多可以用一个master]）
-1. keys (master,minion的公钥和私钥)
-2. file_roots的文件
-3. pillar_roots的文件
-minion的配置：
+第三步：本地编写 sls 文件。
+
+第四步：salt-call --local state.highstate。
+
+一键安装 master：cobbler 自动化安装时已经安装好 salt-minion，在 minion 上执行 salt-call --local state.highstate 执行 master 状态文件安装，使本机安装并配置好 master。
+
+## 多 master，Multi-Master
+
+共享：
+
+1. 可以使用 NFS 共享，只限内网指定 IP 连接。
+2. 把共享的信息放到 git 上，再重装个 master（用得不多可以用一个 master）。
+
+共享的内容：
+
+1. keys（master、minion 的公钥和私钥）
+2. file_roots 的文件
+3. pillar_roots 的文件
+
+minion 的配置：
+
+```yaml
 master:
   - 192.168.1.235
   - 192.168.1.236
+```
 
-##salt syndic   --类似于zabbix的代理一样
+## salt syndic（类似于 zabbix 的代理一样）
+
+```bash
 [root@saltsrv ~]# yum install salt-syndic -y
-salt syndic必须运行在master上，syndic没有配置文件，通过master配置来更改。
-#sydic master for node2
-vim /etc/salt/master编辑配置文件:
-syndic_master: 192.168.56.12 --设置sydic master的ip
-systemctl restart salt-master  --重启服务
-systemctl restart salt-syndic   --重启服务,这个时候192.168.56.13变成syndic了
-#top master for node1 192.168.56.12
+```
+
+salt syndic 必须运行在 master 上，syndic 没有配置文件，通过 master 配置来更改。
+
+sydic master for node2：
+
+```bash
+vim /etc/salt/master   #编辑配置文件:
+# syndic_master: 192.168.56.12  --设置sydic master的ip
+systemctl restart salt-master   #重启服务
+systemctl restart salt-syndic   #重启服务，这个时候192.168.56.13变成syndic了
+```
+
+top master for node1 192.168.56.12：
+
+```bash
 vim /etc/salt/master：
-order_masters: True  --开启最高级Master，也就是top master
-systemctl restart salt-master  --这个时候sydic(master)就成了top master 192.168.56.12的minion了
-##top master和syndic的工作流程：
-发：top master-->syndic-->master-->minion1,minion2
-收：minion1,minion2-->syndic,master-->top master
-syndic的file_roots和pillar_roots必须和top master高度一致(用共享或git来保持)
-缺点：top master不知道自己到底有多少minion
+# order_masters: True  --开启最高级Master，也就是top master
+systemctl restart salt-master   #这个时候sydic(master)就成了top master 192.168.56.12的minion了
+```
 
-##salt-SSH:
-salt的0.17版本就支持salt-ssh了
-salt-ssh 是串行的，minion是并行的，所以salt-ssh慢于minion
+top master 和 syndic 的工作流程：
 
-master安装salt-ssh:yum install salt-ssh -y
-vim /etc/salt/roster   --salt-ssh的配置文件
+- 发：top master --> syndic --> master --> minion1, minion2
+- 收：minion1, minion2 --> syndic, master --> top master
+
+syndic 的 file_roots 和 pillar_roots 必须和 top master 高度一致（用共享或 git 来保持）。
+
+缺点：top master 不知道自己到底有多少 minion。
+
+## salt-SSH
+
+salt 的 0.17 版本就支持 salt-ssh 了。
+
+salt-ssh 是串行的，minion 是并行的，所以 salt-ssh 慢于 minion。
+
+master 安装 salt-ssh：yum install salt-ssh -y。
+
+vim /etc/salt/roster —— salt-ssh 的配置文件：
+
+```yaml
 Linux-node3-salt:
   host: 192.168.1.232
   user: root
@@ -1959,121 +2279,202 @@ Linux-node4-salt:
   host: 192.168.1.231
   user: root
   port: 22
+```
 
-使用命令完成秘钥的拷贝认证：salt-ssh -i --key-deploy '*' test.ping 
---salt-ssh会把自己的公钥拷贝到目标机器的~/.ssh/authorized_keys文件中，当下次salt-ssh链接目标机器时，就会用自己的私钥去解密目标主机自己存放的公钥，就不会再要输入密码了
-salt-ssh的公私钥路径：/etc/salt/pki/master/ssh/目录下
+使用命令完成秘钥的拷贝认证：
 
-salt-ssh使用：
+```bash
+salt-ssh -i --key-deploy '*' test.ping
+```
+
+salt-ssh 会把自己的公钥拷贝到目标机器的 ~/.ssh/authorized_keys 文件中，当下次 salt-ssh 链接目标机器时，就会用自己的私钥去解密目标主机自己存放的公钥，就不会再要输入密码了。
+
+salt-ssh 的公私钥路径：/etc/salt/pki/master/ssh/ 目录下。
+
+salt-ssh 使用：
+
+```bash
 salt-ssh '*' -r 'ifconfig'
+```
 
-salt-ssh生产环境使用得比较少，一般结合master和minion来用，
-用salt-ssh 安装minion,升级minion等。
+salt-ssh 生产环境使用得比较少，一般结合 master 和 minion 来用，用 salt-ssh 安装 minion、升级 minion 等：
+
+```bash
 [root@node1 salt]# salt-ssh '*' -v -r 'yum -y install https://repo.saltstack.com/py3/redhat/salt-py3-repo-latest.el8.noarch.rpm'
 [root@node1 salt]# salt-ssh '*' -v -r 'yum -y install salt-minion'   #yum时一定要加-y选项，否则会一直卡住
+```
 
-细节：远程的时候老是要询问是否连接，可以在目标机器上~/.ssh/目录下建立config文件，并添加：StricHostKeyChecking no 即可
+细节：远程的时候老是要询问是否连接，可以在目标机器上 ~/.ssh/ 目录下建立 config 文件，并添加：StricHostKeyChecking no 即可。
 
-[root@jumpserver init]# cat /etc/salt/roster 
+```bash
+[root@jumpserver init]# cat /etc/salt/roster
 docker01:
   host: docker01.ops.hs.com
-  user: root        
-  sudo: True         
+  user: root
+  sudo: True
   passwd: password
 docker02:
   host: docker02.ops.hs.com
-  user: root        
-  sudo: True   
+  user: root
+  sudo: True
   passwd: password
-
 [root@jumpserver init]# salt-ssh -i --key-deploy '*' test.ping
 [root@jumpserver init]# salt-ssh '*' test.ping
 [root@jumpserver init]# salt-ssh '*' state.sls init.salt-minion test=True
 [root@jumpserver init]# salt-ssh '*' state.sls init.salt-minion
+```
 
+## salt API：进行 salt 的管理
 
+python 框架：http://docs.saltstack.cn/ref/netapi/all/salt.netapi.rest_cherrypy.html
 
-####salt API:进行salt的管理
-python框架：
-http://docs.saltstack.cn/ref/netapi/all/salt.netapi.rest_cherrypy.html
-1.https证书
-2.配置文件
-3.验证。使用PAM验证
-4.启动salt-api
+1. https 证书
+2. 配置文件
+3. 验证（使用 PAM 验证）
+4. 启动 salt-api
 
 建用户：
+
+```bash
 [root@salt-server ~]# useradd -M -s /sbin/nologin saltapi
+```
+
 设密码：
+
+```bash
 [root@salt-server ~]# passwd saltapi
+```
+
+```text
 Changing password for user saltapi.
 New password:
 BAD PASSWORD: The password is shorter than 8 characters
 Retype new password:
 passwd: all authentication tokens updated successfully.
-第一步：证书：
+```
+
+### 第一步：证书
+
+```bash
+# 生成自签名证书，过程中需要输入key密码及RDNs
 1.[root@salt-server /etc/pki/tls/certs]# make testcert
-# 生成自签名证书, 过程中需要输入key密码及RDNs
-2.[root@salt-server /etc/pki/tls/certs]# ls  //生成了localhost.crt证书
+
+# 生成了localhost.crt证书
+2.[root@salt-server /etc/pki/tls/certs]# ls
 ca-bundle.crt        localhost.crt    Makefile
 ca-bundle.trust.crt  make-dummy-cert  renew-dummy-cert
+
 3.[root@salt-server /etc/pki/tls/certs]# cd ../private/
+
+# 生成了localhost.key秘钥
 4.[root@salt-server /etc/pki/tls/private]# ls
-localhost.key  //生成了localhost.key秘钥
-5.[root@salt-server /etc/pki/tls/private]# openssl rsa -in localhost.key -out salt_nopass.key  
-# 解密key文件，生成无密码的key文件, 过程中需要输入key密码，该密码为之前生成证书时设置的密码
+localhost.key
+
+# 解密key文件，生成无密码的key文件，过程中需要输入key密码，该密码为之前生成证书时设置的密码
+5.[root@salt-server /etc/pki/tls/private]# openssl rsa -in localhost.key -out salt_nopass.key
 Enter pass phrase for localhost.key:
 writing RSA key
---------------
-插曲：openssl的常见用法
-CA 自签证书
-生成私钥
+```
+
+插曲：openssl 的常见用法。
+
+CA 自签证书：
+
+生成私钥：
+
+```bash
 cd /etc/pki/CA/(umask 066; openssl genrsa -out /etc/pki/CA/private/cakey.pem 2048)
-生成自签名证书
+```
+
+生成自签名证书：
+
+```bash
 openssl req -new -x509 –key /etc/pki/CA/private/cakey.pem -days 7300 -out /etc/pki/CA/cacert.pem
+```
 
--new: 生成新证书签署请求
--x509: 专用于CA 生成自签证书
--key: 生成请求时用到的私钥文件
--days n ：证书的有效期限
--out / PATH/TO/SOMECERTFILE : 证书的保存路径
+参数说明：
 
-1：在需要使用证书的主机生成证书请求。
-给web服务器生成私钥
+- -new：生成新证书签署请求
+- -x509：专用于 CA 生成自签证书
+- -key：生成请求时用到的私钥文件
+- -days n：证书的有效期限
+- -out /PATH/TO/SOMECERTFILE：证书的保存路径
+
+1. 在需要使用证书的主机生成证书请求。
+
+给 web 服务器生成私钥：
+
+```bash
 (umask 066; openssl genrsa -out /etc/pki/tls/private/service.key 2048)
-生成证书申请文件
+```
+
+生成证书申请文件：
+
+```bash
 openssl req -new -key /etc/pki/tls/private/service.key -days 365 -out /etc/pki/tls/service.csr
-2：将证书请求文件传输给CA
+```
+
+2. 将证书请求文件传输给 CA：
+
+```bash
 scp /etc/pki/tls/service.csr 172.16.251.13:/etc/pki/tls/
-172.16.251.13：centos7 的IP
-/etc/pki/tls/：指定路径
-3：在centos7上为CA 签署证书，并将证书颁发给请求者（centos6）
+```
+
+- 172.16.251.13：centos7 的 IP
+- /etc/pki/tls/：指定路径
+
+3. 在 centos7 上为 CA 签署证书，并将证书颁发给请求者（centos6）：
+
+```bash
 openssl ca -in /etc/pki/tls/service.csr –out /etc/pki/CA/certs/service.crt -days 365
-注意：默认国家，省，公司名称三项必须和CA一致
-4：在centos7中 查看 证书中的信息：
+```
+
+注意：默认国家、省、公司名称三项必须和 CA 一致。
+
+4. 在 centos7 中查看证书中的信息：
+
+```bash
 openssl x509 -in /etc/pki/CA/certs/service.crt -noout -text
-查看 指定 编号的证书状态
+```
+
+查看指定编号的证书状态：
+
+```bash
 openssl ca -status serial
-----------
+```
 
-1. 安装pip：yum install python2-pip -y
-使用pip安装CherryPy==3.2.6组件：
-2. pip install CherryPy==3.2.6
-！！！python ssl报错生产当中也遇到，是一个坑。
+1. 安装 pip：yum install python2-pip -y。
 
-第二步：配置：
+使用 pip 安装 CherryPy==3.2.6 组件：
+
+```bash
+pip install CherryPy==3.2.6
+```
+
+注意！！！python ssl 报错生产当中也遇到，是一个坑。
+
+### 第二步：配置
+
+```bash
 [root@salt-server ~]# yum install salt-api -y
 [root@salt-server ~]# vim /etc/salt/master
 default_include: master.d/*.conf
 [root@salt-server ~]# systemctl restart salt-master
 [root@salt-server ~]# cd /etc/salt/master.d
 [root@salt-server /etc/salt/master.d]# cat api.conf
+```
+
+```yaml
 rest_cherrypy:
   host: 192.168.1.235
   port: 8000
   ssl_crt: /etc/pki/tls/certs/localhost.crt
   ssl_key: /etc/pki/tls/private/salt_nopass.key
+```
 
-第三步：验证：使用PAM验证
+### 第三步：验证，使用 PAM 验证
+
+```bash
 [root@salt-server /etc/salt/master.d]# cat eauth.conf
 external_auth:
   pam:
@@ -2081,23 +2482,34 @@ external_auth:
       - .*   #能够执行所有模块
       - '@wheel'  #salt-key用的
       - '@runner'  #让它看机器是否存活
-
 [root@salt-server /etc/salt/master.d]# systemctl start salt-api
 [root@salt-server /etc/salt/master.d]# netstat -tunlp
-tcp        0      0 192.168.1.235:8000      0.0.0.0:*               LISTEN
-#注意执行步骤，否则salt-api有可能无法正常启动：
-1. 先安装pip,然后安装CherryPy==3.2.6 
-2. 再修master配置文件，打开/etc/salt/master.d/*.conf配置
-3. 重启master服务，并配置api.conf和eauth.conf配置
-4. 重启salt-api服务
+```
 
-#####获取token
+```text
+tcp        0      0 192.168.1.235:8000      0.0.0.0:*               LISTEN
+```
+
+注意执行步骤，否则 salt-api 有可能无法正常启动：
+
+1. 先安装 pip，然后安装 CherryPy==3.2.6
+2. 再修 master 配置文件，打开 /etc/salt/master.d/*.conf 配置
+3. 重启 master 服务，并配置 api.conf 和 eauth.conf 配置
+4. 重启 salt-api 服务
+
+### 获取 token
+
+```bash
 [root@salt-server /etc/salt/master.d]# curl -k https://192.168.1.235:8000/login \
 > -H 'Accept: application/x-yaml' \
 > -d username='saltapi' \
 > -d password='saltapi' \
 > -d eauth='pam'
-return:
+```
+
+return：
+
+```yaml
 - eauth: pam
   expire: 1546972037.344875
   perms:
@@ -2107,12 +2519,19 @@ return:
   start: 1546928837.344873
   token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4
   user: saltapi
+```
 
-###查询Minion(Linux-node3-salt)的信息
-[root@salt-server ~]# curl  -k https://192.168.1.235:8000/minions/Linux-node3-salt \
+### 查询 Minion（Linux-node3-salt）的信息
+
+```bash
+[root@salt-server ~]# curl -k https://192.168.1.235:8000/minions/Linux-node3-salt \
 > -H "Accept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4"
-return:
+```
+
+return：
+
+```yaml
 - Linux-node3-salt:
     SSDs: []
     biosreleasedate: 09/30/2014
@@ -2126,15 +2545,21 @@ return:
     - msr
     - pae
     - .........
+```
 
+### job 管理
 
-###job管理
-获取缓存的jobs列表
-[root@salt-server ~]# curl  -k https://192.168.1.235:8000/jobs/ \
+获取缓存的 jobs 列表：
+
+```bash
+[root@salt-server ~]# curl -k https://192.168.1.235:8000/jobs/ \
 >  -H "Accept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4"
+```
 
-return:
+return：
+
+```yaml
 - '20190107220235665576':
     Arguments: []
     Function: runner.manage.versions
@@ -2150,30 +2575,50 @@ return:
     Target-type: glob
     User: root
     ............
+```
 
-###查询指定的job
+### 查询指定的 job
+
+```bash
 [root@salt-server ~]# curl -k https://192.168.1.235:8000/jobs/20190108144904235175 \
 > -H "Aaccept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4"
-{"info": [{"Function": "grains.items", "jid": "20190108144904235175", "Target": "Linux-node3-salt", "Target-type": "glob", "Result": {"Linux-node3-salt": {"fun_args": [], "jid": "20190108144904235175", "return": {"biosversion": "6.00", "kernel": "Linux", "domain": "", "uid": 0, "zmqversion": "4.1.4", "kernelrelease": "3.10.0-862.el7.x86_64", "selinux": {"enforced": "Disabled", "enabled": false}, "serialnumber": "VMware-42 2d 74 25 4d b4 e5 b4-e2 ee 35 15 66 73 cf 17", "pid": 1599, "ip_interfaces": {"lo": ["127.0.0.1", "::1"], "eth0": ["192.168.1.232", "192.168.1.236", "fe80::250:56ff:fead:4c16"]}..........
+```
 
-###远程执行模块
-#client="local"  #类似本地salt
-[root@salt-server ~]# curl  -k https://192.168.1.235:8000/ \
+```json
+{"info": [{"Function": "grains.items", "jid": "20190108144904235175", "Target": "Linux-node3-salt", "Target-type": "glob", "Result": {"Linux-node3-salt": {"fun_args": [], "jid": "20190108144904235175", "return": {"biosversion": "6.00", "kernel": "Linux", "domain": "", "uid": 0, "zmqversion": "4.1.4", "kernelrelease": "3.10.0-862.el7.x86_64", "selinux": {"enforced": "Disabled", "enabled": false}, "serialnumber": "VMware-42 2d 74 25 4d b4 e5 b4-e2 ee 35 15 66 73 cf 17", "pid": 1599, "ip_interfaces": {"lo": ["127.0.0.1", "::1"], "eth0": ["192.168.1.232", "192.168.1.236", "fe80::250:56ff:fead:4c16"]}..........
+```
+
+### 远程执行模块
+
+client="local"（类似本地 salt）：
+
+```bash
+[root@salt-server ~]# curl -k https://192.168.1.235:8000/ \
 > -H "Aaccept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4" \
 > -d client="local" \
 > -d tgt="*" \
-> -d fun="test.ping" 
-{"return": [{"Linux-node6-slave-mysql": true, "Linux-node3-salt": true, "Linux-node1-salt": true, "Linux-node5-master-mysql": true, "salt-server": true, "Linux-node4-salt": true}]}
+> -d fun="test.ping"
+```
 
-###运行runner,(salt-run)
-[root@salt-server ~]# curl  -k https://192.168.1.235:8000/ \
+```json
+{"return": [{"Linux-node6-slave-mysql": true, "Linux-node3-salt": true, "Linux-node1-salt": true, "Linux-node5-master-mysql": true, "salt-server": true, "Linux-node4-salt": true}]}
+```
+
+### 运行 runner（salt-run）
+
+```bash
+[root@salt-server ~]# curl -k https://192.168.1.235:8000/ \
 > -H "Aaccept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4" \
 > -d client="runner" \
-> -d tgt="manage.status" 
-return:
+> -d tgt="manage.status"
+```
+
+return：
+
+```yaml
 - down: []
   up:
   - Linux-node1-salt
@@ -2182,15 +2627,23 @@ return:
   - Linux-node5-master-mysql
   - Linux-node6-slave-mysql
   - salt-server
+```
 
-###运行wheel
-#类似获取salt-key一样
+### 运行 wheel
+
+类似获取 salt-key 一样：
+
+```bash
 [root@salt-server ~]# curl -k https://192.168.1.235:8000/ \
 > -H "Accept: application/x-yaml" \
 > -H "X-Auth-Token: 7453b2facb592ffa7be3b1c1de4e2a51d796acf4" \
 > -d client="wheel" \
 > -d fun='key.list_all'
-return:
+```
+
+return：
+
+```yaml
 - data:
     _stamp: '2019-01-08T07:07:51.835321'
     fun: wheel.key.list_all
@@ -2216,18 +2669,19 @@ return:
     tag: salt/wheel/20190108150750623661
     user: saltapi
   tag: salt/wheel/20190108150750623661
+```
 
-#资料：
-www.github.com/binbin91/oms
-oms系统:
+## 资料
+
+- OMS 系统：www.github.com/binbin91/oms
+
+```bash
 git clone --depth 1 https://www.github.com/binbin91/oms
-saltshaker系统:
-https://github.com/yueyongyue/saltshaker
+```
 
-</pre>
+- saltshaker 系统：https://github.com/yueyongyue/saltshaker
 
-<pre>
-注意：
-1.salt中file.managed模块：source只能salt://路径下文件，不能使用https://路径
-2.salt中配置文件执行时，应该尽量少执行下载的动作，会堵塞执行进程造成很慢的效果
-</pre>
+## 注意
+
+1. salt 中 file.managed 模块：source 只能 salt:// 路径下文件，不能使用 https:// 路径。
+2. salt 中配置文件执行时，应该尽量少执行下载的动作，会堵塞执行进程造成很慢的效果。

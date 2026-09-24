@@ -1,12 +1,20 @@
-# Samba服务器安装
+# Samba
 
+## Samba服务器安装
 
+1. 准备做 RAID 的磁盘，对磁盘进行 LVM 分区（在 Linux 系统中，例如 CentOS，用 `fdisk /dev/sda` 命令进入，新建一个分区并指定大小，然后按 `t` 把分区格式由 83 改成 LVM 的格式 8e，最后按 `w` 保存并退出，退出后用命令 `partprobe` 或重启使分区立即生效）。
+2. 分区建立好后，就要新建 PV 了，用 `pvcreate /dev/sda7`；由于已经有 LVM 分区了，所以就不用 `vgcreate` 新建了，要用 `vgextend` 添加到现有的 vg 中，使用 `pvdisplay`、`vgdisplay` 查看 pv、vg 状态。要想最后成功添加到 LVM，则要最后添加到 lv，使用 `lvresize -L +12.58G /dev/myvg/mylv` 来添加 12.58G 容量到现有的 mylv 中，最后使用 `resize2fs` 来扩展文件系统。
+3. 安装 samba、samba-client、samba-common 三个软件，并设置开启自动启动 smb、nmb 服务：
 
-1. 准备做RAID的磁盘，对磁盘进行LVM分区（在Linux系统中，例如CentOS,用fdisk /dev/sda命令进入，新建一个分区并指定大小，然后按t把分区格式由83改成LVM的格式8e，最后按w保存并退出，退出后用命令partprobe或重启使分区立即生效）
-2. 分区建立好后，就要新建pv了，用pvcreate /dev/sda7;由于已经有LVM分区了，所以就不用vgcreate新建了，要用vgextend添加到现有的vg中，使用pvdisplay,vgdisplay查看pv,vg状态，要想最后成功添加到LVM,则要最后添加到lv,使用lvresize -L +12.58G /dev/myvg/mylv来添加12.58G容量到现有的mylv中，最后使用resize2fs来扩展文件系统
-3. 安装samba,samba-client,samba-common三个软件，并设置开启自动启动smb,nmb服务，chkconfig --level 35 smb on; chkconfig --level 35 nmb on;然后使用脚本设置linux帐户和smb帐户，首先创建需要的群组，使用sys-groups.sh可创建，sys-groupsdel.sh可删除群组，设置linux帐户时不要创建家目录，创建密码时使用mkpassword创建随机密码，这里使用脚本sys-users.sh可以自动创建，亦可使用sys-usersdel.sh自动删除linux帐户和smb帐户，首先得创建用户信息在sys-usersinfo里面。
-4. 编辑smb配置文件/etc/samba/smb.cnf文件，设置如下，并依例信息部设置各部门文件夹，设置特定的部门群组可读写，新建文档默认权限，新建目录默认权限。
-```bash
+   ```bash
+   chkconfig --level 35 smb on
+   chkconfig --level 35 nmb on
+   ```
+
+   然后使用脚本设置 linux 帐户和 smb 帐户，首先创建需要的群组，使用 `sys-groups.sh` 可创建，`sys-groupsdel.sh` 可删除群组。设置 linux 帐户时不要创建家目录，创建密码时使用 mkpassword 创建随机密码，这里使用脚本 `sys-users.sh` 可以自动创建，亦可使用 `sys-usersdel.sh` 自动删除 linux 帐户和 smb 帐户，首先得创建用户信息在 sys-usersinfo 里面。
+4. 编辑 smb 配置文件 `/etc/samba/smb.cnf` 文件，设置如下，并依例信息部设置各部门文件夹，设置特定的部门群组可读写，新建文档默认权限，新建目录默认权限。
+
+   ```ini
    [global] 
    	workgroup = jackligroup
            netbios name = jackliserver
@@ -32,20 +40,14 @@
         valid users = @Info	#有效群组
         create mode = 0664
         directory mode = 0775
-```
-5. 使用testparm来测试配置文件是否正确，可以排解，亦可使用testparm -v来详细测试，还要对共享的目录进行setfacl来设置跟smb.cnf
-文件中一样的权限，这样才能使smb服务权限生效，否则会造成无法写入，完后成用户可以使用\\IP的方式来访问smb服务器了，
-而smb服务器可以使用smbstatus来观察客户端情况。
+   ```
+5. 使用 `testparm` 来测试配置文件是否正确，可以排解，亦可使用 `testparm -v` 来详细测试，还要对共享的目录进行 `setfacl` 来设置跟 smb.cnf 文件中一样的权限，这样才能使 smb 服务权限生效，否则会造成无法写入。完成后用户可以使用 `\\IP` 的方式来访问 smb 服务器了，而 smb 服务器可以使用 `smbstatus` 来观察客户端情况。
 
-> 注意：使用smbpassword来更改smb帐户密码，使用pdbedit -a user --增加、pdbedit -x user --删除
+> 注意：使用 smbpassword 来更改 smb 帐户密码，使用 `pdbedit -a user` 增加、`pdbedit -x user` 删除。
 
+## 随手记
 
-
-
-
-# 随手记
-
-**202104211550**
+### 202104211550
 
 ```bash
 [root@HOMSOM-LINUX01 files]# useradd -s /sbin/nologin jack
@@ -331,22 +333,11 @@ mask::rwx
 other::r-x
 ```
 
-
-
-
-
-
-
-
-
-
-# Samba
+## Samba 配置（Ubuntu 18）
 
 OS: ubuntu18
 
-
-
-## 1.安装
+### 1. 安装
 
 ```bash
 root@repo:/data/syncthing# apt install samba samba-common cifs-utils smbclient -y
@@ -355,9 +346,7 @@ Version 4.7.6-Ubuntu
 
 ```
 
-
-
-## 2. 配置Samba共享及权限
+### 2. 配置Samba共享及权限
 
 ```bash
 # 创建samba目录
@@ -375,19 +364,11 @@ root@repo:/data/syncthing# smbpasswd -a smb_ops
 New SMB password:					# 123456
 Retype new SMB password:
 Added user smb_ops.
+```
 
+**setfacl 工具的使用参数：**
 
-# 安装setfacl、getfactl工具
-root@repo:/data/syncthing/samba# apt install acl -y
-root@repo:/data/syncthing/samba# getfacl iisbackup/
-# file: iisbackup/
-# owner: root
-# group: root
-user::rwx
-group::r-x
-other::r-x
-
-# setfacl使用参数
+```text
 -b 清空扩展访问控制列表策略  
 -P 找到符号链接对应的文件
 -m 更改文件访问控制列表策略
@@ -398,7 +379,18 @@ other::r-x
 -L 跟踪符号链接文件
 --vesion 显示版本信息
 --help 显示帮助信息
+```
 
+```bash
+# 安装setfacl、getfactl工具
+root@repo:/data/syncthing/samba# apt install acl -y
+root@repo:/data/syncthing/samba# getfacl iisbackup/
+# file: iisbackup/
+# owner: root
+# group: root
+user::rwx
+group::r-x
+other::r-x
 
 # 配置目录权限，配置用户组ops具有rwx权限
 root@repo:/data/syncthing/samba# setfacl -d -m g:ops:rwx iisbackup/
@@ -504,13 +496,9 @@ default:group:ops:rwx
 default:mask::rwx
 default:other::r-x
 
-
-
 ```
 
-
-
-## 3. 配置Samba服务
+### 3. 配置Samba服务
 
 ```bash
 root@repo:/etc/samba# vim /etc/samba/smb.conf 
@@ -590,9 +578,7 @@ LISTEN   0         50                     [::]:445                 [::]:*       
 
 ```
 
-
-
-## 4. 查看smbd状态
+### 4. 查看smbd状态
 
 ```bash
 # 检测smbd配置文件
@@ -685,16 +671,12 @@ aliyun       1853    192.168.13.182 Mon May 13 03:32:27 PM 2024 CST  -          
 # kill共享会话1853
 ```
 
+### 5. 问题汇总
 
+#### 5.1 服务器启用密码策略后带来的问题
 
-
-
-## 5.问题汇总
-
-### 5.1服务器启用密码策略后带来的问题
-
-* 提示密码过期，需要更改密码，使用chpasswd来更改密码
-* 使用smbpassword更改密码（可选）
+* 提示密码过期，需要更改密码，使用 `chpasswd` 来更改密码。
+* 使用 `smbpassword` 更改密码（可选）。
 
 ```bash
 # 第一步更改用户密码
@@ -705,7 +687,7 @@ New SMB password:
 Retype new SMB password:
 ```
 
-> 如果禁用密码更改，可以将用户过期时间设置足够大，例如99999，使用以下方法：
+> 如果禁用密码更改，可以将用户过期时间设置足够大，例如 99999，使用以下方法：
 >
 > ```bash
 > root@repo:~# chage -l smb_ops 

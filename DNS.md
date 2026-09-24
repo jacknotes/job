@@ -1,5 +1,5 @@
-﻿#DNS（Centos6未测试）
-<pre>
+# DNS（Centos6未测试）
+
 域名的层级不得超过127层，最长63个字符
 类型：
 A：正向解析
@@ -18,9 +18,12 @@ dig,nslookup,host三个linux域名解析命令，linux底层用的是host，例�
 
 TCP和UDP53端口都要开，才能使DNS生效。
 
-#master主DNS服务器搭建：bind软件
+## master主DNS服务器搭建：bind软件
+
 1. [root@SaltstackServer ~]# yum install bind-utils bind bind-devel bind-chroot （bind9.8有漏动）
 2. [root@SaltstackServer ~]# vim /etc/named.conf
+
+```ini
 options {
   version "1.1.1";#bind版本
   listen-on port 53 {any;};#dns监听端口
@@ -72,14 +75,20 @@ logging { #不同警告级别日志存储位置
 include "/var/named/chroot/etc/view.conf";
 
 };
-
+```
 
 3. [root@SaltstackServer ~]# vim /etc/rndc.key
+
+```text
 key "rndc-key" {
         algorithm hmac-md5;
         secret "Eqw4hC1GExUWeDkKBX/pBg==";
 };
+```
+
 4. [root@SaltstackServer ~]# vim /etc/rndc.conf
+
+```text
 key "rndc-key" {
         algorithm hmac-md5;
         secret "Eqw4hC1GExUWeDkKBX/pBg==";
@@ -90,8 +99,11 @@ options {
         default-server 127.0.0.1;
         defalut-port 953;
 };
+```
 
 5. [root@SaltstackServer ~]# vim /var/named/chroot/etc/view.conf#配置主从更新的配置
+
+```ini
 view "View" {
   zone "lnh.com" {
         type    master;
@@ -105,9 +117,11 @@ view "View" {
         };
   };
 };
-
+```
 
 6. [root@SaltstackServer ~]# vim /var/named/chroot/etc/lnh.com.zone
+
+```text
 $ORIGIN .
 $TTL 3600       : 1 hour
 lnh.com                 IN SOA op.lnh.com. dns.lnh.com. (
@@ -118,18 +132,24 @@ lnh.com                 IN SOA op.lnh.com. dns.lnh.com. (
                                 )
                         NS      op.lnh.com.
 $ORIGIN lnh.com.
+```
 
-shanks                  A       1.2.3.4
-op              A       1.2.3.4
-a               A       1.2.3.4
+
+| shanks | A | 1.2.3.4 |
+| --- | --- | --- |
+| op | A | 1.2.3.4 |
+| a | A | 1.2.3.4 |
 
 7. [root@SaltstackServer /var]# chown -R named.named named/
 8. [root@SaltstackServer /var]# systemctl start named
 9. [root@SaltstackServer /var]# systemctl enable named
 
-#Slave从DNS服务器
+## Slave从DNS服务器
+
 1. [root@SaltstackServer ~]# yum install bind-utils bind bind-devel bind-chroot （bind9.8有漏动）
 2. [root@SaltstackServer ~]# vim /etc/named.conf
+
+```ini
 options {
   version "1.1.1";#bind版本
   listen-on port 53 {any;};#dns监听端口
@@ -181,14 +201,20 @@ logging { #不同警告级别日志存储位置
 include "/var/named/chroot/etc/view.conf";
 
 };
-
+```
 
 3. [root@SaltstackServer ~]# vim /etc/rndc.key
+
+```text
 key "rndc-key" {
         algorithm hmac-md5;
         secret "Eqw4hC1GExUWeDkKBX/pBg==";
 };
+```
+
 4. [root@SaltstackServer ~]# vim /etc/rndc.conf
+
+```ini
 key "rndc-key" {
         algorithm hmac-md5;
         secret "Eqw4hC1GExUWeDkKBX/pBg==";
@@ -207,6 +233,8 @@ options {
         file	"slave.lnh.com.zone";
         };
 };
+```
+
 6. 注意：除了更改/etc/named.conf文件要重启named服务外，其他关于bind的配置文件，只需要使用命令rndc reload就可以了
 
 7. [root@SaltstackServer /var]# chown -R named.named named/
@@ -218,31 +246,38 @@ options {
 slave默认每隔15分钟去跟master进行同步，根据master的修订版本号进行同步的
 
 主从同步成功后，全部操作在master上操作：
+
+```ini
 [root@SaltstackServer /var]# vim /var/named/chroot/etc/lnh.com.zone#在这个文件下进行a记录等操作，在这个配置文件下更改后一定要修改下修订版本号，一版加1，这样才能使slave同步master的记录过去 
+```
 
 
-</pre>
+## DNS(Centos7)
 
-
-#DNS(Centos7)
-<pre>
 环境准备
 主服务器IP :192.168.1.150
 从服务器IP:192.168.1.200
 关闭firewalld和selinux
 OS:CentOS Linux release 7.1.1503 (Core)
 bind软件：# yum install bind bind-utils
+
+```text
 # rpm -qa bind*
 bind-license-9.9.4-18.el7_1.5.noarch
 bind-libs-lite-9.9.4-18.el7_1.5.x86_64
 bind-libs-9.9.4-18.el7_1.5.x86_64
 bind-utils-9.9.4-18.el7_1.5.x86_64
 bind-9.9.4-18.el7_1.5.x86_64
+```
 
-##配置主DNS服务器:
+
+## 配置主DNS服务器:
+
 1. 安装bind软件
 yum install bind bind-utils
 2. 配置/etc/named.conf
+
+```ini
  [root@SaltstackServer ~]# cat /etc/named.conf
 options {
         directory        "/var/named";
@@ -269,8 +304,12 @@ zone "." IN {
         file "named.ca";
 };
 include"/etc/named.rfc1912.zones";
+```
+
 zone的配置也可以直接写在named.conf里面，也可以单独写到其他文件里，用include包含进来
 3. 配置/etc/named.rfc1912.zones
+
+```ini
 [root@SaltstackServer ~]# cat /etc/named.rfc1912.zones
 zone "salt.com" IN {
         type master;
@@ -290,7 +329,11 @@ zone "0.in-addr.arpa" IN {
         file "named.empty";
         allow-update { none; };
 };
+```
+
 4. 配置/var/named/数据库文件，创建正向解析数据库文件/var/named/zrd.com.zone
+
+```ini
 [root@SaltstackServer ~]# cat /var/named/salt.com.zone 
 $TTL 600
 @       IN      SOA     dns.salt.com.   admin.salt.com.(
@@ -306,9 +349,17 @@ dns     IN      A       192.168.1.150
 www     IN      A       192.168.1.151
 mail    IN      A       192.168.1.152
 pop     IN      CNAME   mail
+```
+
 修改属组
+
+```ini
 [root@ns1 ~]#chown named:named /var/named/zrd.com.zone
+```
+
 5. 创建反向解析数据库文件/var/named/1.168.192.in-addr-arpa
+
+```bash
 [root@SaltstackServer ~]# cat /var/named/1.168.192.in-addr-arpa 
 $TTL 600
 @       IN      SOA     dns.salt.com.   admin.salt.com.(
@@ -322,13 +373,24 @@ $TTL 600
 150     IN      PTR     dns.salt.com.
 151     IN      PTR     www.salt.com.
 152     IN      PTR     mail.salt.com.
+```
+
 6. 启动服务以及测试
+
+```bash
 [root@ns1 ~]#systemctl start named
 [root@ns1 ~]#systemctl enable named
+```
 
-##配置从dns服务器
-####在主DNS服务器上修改
+
+## 配置从dns服务器
+
+
+#### 在主DNS服务器上修改
+
 1. 修改/etc/named.rfc1912.zones
+
+```ini
 [root@SaltstackServer ~]# cat /etc/named.rfc1912.zones
 //自定义正解的区域
 zone "salt.com" IN {
@@ -356,7 +418,11 @@ zone "0.in-addr.arpa" IN {
         file "named.empty";
         allow-update { none; };
 };
+```
+
 2. 主DNS正向解析文件修改
+
+```ini
 [root@SaltstackServer ~]# cat /var/named/salt.com.zone 
 $TTL 600
 @       IN      SOA     dns.salt.com.   admin.salt.com.(
@@ -375,7 +441,11 @@ www     IN      A       192.168.1.151
 mail    IN      A       192.168.1.152
 pop     IN      CNAME   mail
 salt    IN      A       192.168.1.235
+```
+
 3. 主DNS反向解析文件修改
+
+```bash
 [root@SaltstackServer ~]# cat /var/named/1.168.192.in-addr-arpa 
 $TTL 600
 @       IN      SOA     dns.salt.com.   admin.salt.com.(
@@ -392,8 +462,11 @@ $TTL 600
 151     IN      PTR     www.salt.com.
 152     IN      PTR     mail.salt.com.
 235     IN      PTR     salt.salt.com.
+```
 
-测试配置文件 
+测试配置文件
+
+```ini
 [root@SaltstackServer ~]# named-checkconf -z
 zone salt.com/IN: loaded serial 2018102305
 zone 1.168.192.in-addr.arpa/IN: loaded serial 2018102305
@@ -405,9 +478,14 @@ OK
 [root@SaltstackServer ~]# named-checkzone 1.168.192.in-addr.arpa /var/named/1.168.192.in-addr-arpa 
 zone 1.168.192.in-addr.arpa/IN: loaded serial 2018102305
 OK
+```
 
-####在从DNS服务器修改
+
+#### 在从DNS服务器修改
+
 1. #/etc/named.conf配置
+
+```ini
 [root@zabbix-proxy1 ~]# cat /etc/named.conf 
 options {
         directory        "/var/named";
@@ -435,7 +513,11 @@ zone "."IN {
 };
 include "/etc/named.rfc1912.zones";
 };
+```
+
 2. #/etc/named.rfc1912.zones 配置
+
+```ini
 [root@zabbix-proxy1 ~]# cat /etc/named.rfc1912.zones
 zone "1.0.0.127.in-addr.arpa" IN {
         type master;
@@ -458,30 +540,35 @@ zone"1.168.192.in-addr.arpa." IN {
         masters { 192.168.1.235; };
         file"slaves/1.168.192.in-addr.zone";
         allow-transfer{ none; }; 
+```
+
 3. #启动服务测试
-systemctl start named    
-    
+systemctl start named
+
 4. 配置完成后，可直接使用rndc flush;rndc reload在主DNS服务器上操作：刷新并重载配置
 
 注意：在主DNS服务器上更改域名解析记录时，记得一定要增加修改版本号，正向解析和反向解析都要修改版本号，并且在主DNS服务器上使用rndc reload命令解析即可同步生效到本地和从DNS服务器。
-</pre>
 
-
-<pre>
-#20210316
+## 20210316
 
 区域数据库文件说明；
+
+```text
 $TTL 3600    # 设置客户端缓存时间
 $ORIGIN wlm.com.    # 定义当前区域的名字，下面的@就是替代这个值
 @       IN      SOA     ns1.wlm.com.   dnsadmin.wlm.com. (
 # SOA：Start Of Authority，起始授权记录； 一个区域解析库有且只能有一个SOA记录，而且必须放在第一条；
 # ns1.wlm.com. 该域的主域名服务器
 # dnsadmin.wlm.com. 管理员邮箱,但地址中不能使用@符号，一般使用点号来替代；           
-        2014100101    # 序列号：serial
+```
+
+2014100101    # 序列号：serial
         1H            # 刷新时间间隔：refresh
         10M           # 重试时间间隔：retry, 
         3D            # 过期时长：expire
         1D )          # negative answer ttl：否定答案的缓存时长
+
+```ini
         IN      NS      ns1   # 域名服务记录；一个区域解析库可以有多个NS记录；其中一个为主的
         IN      MX   10 mx1   #邮件交换器 优先级：0-99，数字越小优先级越高
         IN      MX   20 mx2
@@ -495,11 +582,11 @@ zone  "ZONE_NAME"  IN  {
     type  {master|slave|hint|forward};
     file  "ZONE_NAME.zone"; 
 };	
-						
+```
+
 注意：反向区域的名字
 反写的网段地址.in-addr.arpa 
 示例：100.16.172.in-addr.arpa
-
 
 系统的介绍：
 主-辅DNS服务器：
@@ -541,13 +628,19 @@ MX：Mail eXchanger，邮件交换器；
 语法：	name  	[TTL] IN	RR_TYPE value
 客户端可以缓存的时间	资源记录
 SOA：
+
+```text
 name: 当前区域的名字；例如”magedu.com.”，或者“2.3.4.in-addr.arpa.”；
+```
+
 value：有多部分组成
 (1) 当前区域的区域名称（也可以使用主DNS服务器名称）；
 (2) 当前区域管理员的邮箱地址；但地址中不能使用@符号，一般使用点号来替代；
 (3) (主从服务协调属性的定义以及否定答案的TTL)
 
 例如：
+
+```text
 magedu.com. 86400 IN SOA magedu.com. admin.magedu.com.  (
     2017010801	; serial
     2H ; refresh
@@ -555,51 +648,89 @@ magedu.com. 86400 IN SOA magedu.com. admin.magedu.com.  (
     1W	; expire
     1D	; negative answer ttl 
 )
+```
 
+
+```text
 NS：
 name: 当前区域的区域名称
+```
+
 value：当前区域的某DNS服务器的名字，例如ns.magedu.com.；
-注意：一个区域可以有多个ns记录； 
+注意：一个区域可以有多个ns记录；
 
 例如：
+
+```text
 magedu.com. 86400 IN NS  	ns1.magedu.com.
 magedu.com. 86400 IN NS  	ns2.magedu.com.
+```
 
+
+```text
 MX：
 name: 当前区域的区域名称
+```
+
 value：当前区域某邮件交换器的主机名；
 注意：MX记录可以有多个；但每个记录的value之前应该有一个数字表示其优先级；
 
 例如：
+
+```text
 magedu.com. IN MX 10  	mx1.magedu.com.
 magedu.com. IN MX 20  	mx2.magedu.com.
+```
 
+
+```text
 A：
 name：某FQDN，例如www.magedu.com.
+```
+
 value：某IPv4地址；
 
 例如：
+
+```text
 www.magedu.com.	IN A	1.1.1.1
 www.magedu.com.	IN A	1.1.1.2
 bbs.magedu.com.	IN A	1.1.1.1
+```
 
+
+```text
 AAAA：
 name：FQDN
 value: IPv6
+```
 
+
+```text
 PTR：
 name：IP地址，有特定格式，IP反过来写，而且加特定后缀；例如1.2.3.4的记录应该写为4.3.2.1.in-addr.arpa.；
 value：FQND
+```
 
 例如：
-4.3.2.1.in-addr.arpa.  	IN  PTR	www.magedu.com.
 
+```text
+4.3.2.1.in-addr.arpa.  	IN  PTR	www.magedu.com.
+```
+
+
+```text
 CNAME：
 name：FQDN格式的别名；
+```
+
 value：FQDN格式的正式名字；
 
 例如：
+
+```text
 web.magedu.com.  	IN  	CNAME  www.magedu.com.
+```
 
 注意：
 (1) TTL可以从全局继承；
@@ -618,12 +749,17 @@ web.magedu.com.  	IN  	CNAME  www.magedu.com.
      （2）DNS Server请求.com顶级域解析，.com顶级域也不知道www.wlm.com主机，但是.com顶级域会返回wlm.com的地址；
      （3）DNS  Server 访问wlm.com主机，www.wlm.com属于wlm.com域内。wlm.com返回www.wlm.com的主机IP，DNS Server响应用户的请求，返回IP地址；用户计算机根据IP地址访问www.wlm.com主机。
 
-
+```text
 Test Env:
 192.168.13.164      master01.test.com
 172.168.2.223        slave01.test.com
+```
 
-#配置主域名服务器配置--192.168.13.164
+
+## 配置主域名服务器配置--192.168.13.164
+
+
+```ini
 [root@linux04 ~]# grep 'DNS' /etc/sysconfig/network-scripts/ifcfg-eth0
 DNS1="127.0.0.1"
 [root@linux04 ~]# systemctl restart network
@@ -688,14 +824,24 @@ tcp6       0      0 ::1:53                  :::*                    LISTEN      
 udp        0      0 192.168.13.164:53       0.0.0.0:*                           12640/named         
 udp        0      0 127.0.0.1:53            0.0.0.0:*                           12640/named         
 udp6       0      0 ::1:53                  :::*                                12640/named         
+```
+
 注：此时可以用本机DNS进行公网解析了。
-#配置一个正向解析区域
+
+## 配置一个正向解析区域
+
+
+```ini
 [root@linux04 ~]# vim /etc/named.rfc1912.zones
 zone "test.com" IN {
         type master;
         file "test.com.zone";
 };
+```
+
 建立区域数据文件（主要记录为A或AAAA记录）,在/var/named目录下建立区域数据文件；
+
+```ini
 [root@linux04 named]# cat /var/named/test.com.zone
 $TTL 3600
 $ORIGIN test.com.
@@ -748,8 +894,13 @@ OK
 [root@linux04 named]# named-checkconf 
 [root@linux04 named]# rndc reload --重载服务或者systemctl reload named
 server reload successful
+```
 
-#配置一个反向解析区域
+
+## 配置一个反向解析区域
+
+
+```ini
 [root@linux04 named]# vim /etc/named.rfc1912.zones 
 zone "13.168.192.in-addr.arpa" IN {
         type master;
@@ -785,21 +936,27 @@ zone 13.168.192.in-addr.arpa/IN: loaded serial 2014100801
 OK
 [root@linux04 named]# rndc reload
 server reload successful
+```
+
 注：至此，主域名服务器已经配置好了。已经可以使用了。
 
+## 配置辅域名服务器配置--172.168.2.223
 
 
-#配置辅域名服务器配置--172.168.2.223
+```ini
 [root@LocalServer /var/named/slaves]# grep DNS /etc/sysconfig/network-scripts/ifcfg-eth0
 DNS1=127.0.0.1
 [root@LocalServer ~]# yum install -y bind bind-libs bind-utils    
 [root@LocalServer /etc/yum.repos.d]# vim /etc/named.conf   --注释一行和增加一行
 //      allow-query     { localhost; };
         allow-transfer  {none;};
+```
 
 配置一个从区域：
 1）在master DNS上添加NS记录和A记录
 在Master上，确保区域数据文件中为每个从服务配置NS记录，并且在正向区域文件中需要为每个从服务器的NS记录的主机名配置一个A记录，且此A后面的地址为真正的从服务器的IP地址；
+
+```ini
 [root@linux04 ~]# cat /var/named/test.com.zone
 $TTL 3600
 $ORIGIN test.com.
@@ -829,9 +986,11 @@ OK
 server reload successful
 [root@LocalServer /etc/yum.repos.d]# systemctl start named   --slave启动服务
 [root@LocalServer /etc/yum.repos.d]# systemctl enable named
-
+```
 
 2) 在slave DNS上定义区域
+
+```ini
 [root@LocalServer /etc/yum.repos.d]# vim /etc/named.rfc1912.zones
 zone "test.com" IN {
         type slave;
@@ -847,38 +1006,56 @@ zone "13.168.192.in-addr.arpa" IN {
 [root@LocalServer /etc/yum.repos.d]# named-checkconf 
 [root@LocalServer /etc/yum.repos.d]# rndc reload
 server reload successful
+```
+
 说明：当主域名服务器里添加了新记录，只需要主域名服务器重载配置，从域名服务器自动同步。
 
-#缓存域名服务器配置
+## 缓存域名服务器配置
+
 在上面的准备工作做完了，默认就配置好了缓存域名服务器。
 但是我们这里还有在做两点，为大家更好的理解域名服务器的配置。
 定义转发：
 注意：被转发的服务器必须允许为当前服务做递归；
 1) 区域转发：仅转发对某特定区域的解析请求；
 配置格式：
+
+```ini
     	zone  "ZONE_NAME"  IN {
     	type  forward;
     	forward  {first|only};
     	forwarders  { SERVER_IP; };
     	};
-    	first：首先转发；转发器不响应时，自行去迭代查询；
+```
+
+first：首先转发；转发器不响应时，自行去迭代查询；
     	only：只转发；
 具体配置：
+
+```ini
 [root@wlm ~]# vim /etc/named.rfc1912.zones #在最后面添加
 zone "wlm.com" IN {
         type forward;
         forward first;
         forwarders { 10.10.10.3; };
         };
+```
+
 语法检查，重启bind
+
+```bash
 [root@wlm ~]# named-checkconf 
 [root@wlm ~]# systemctl restart named.service
+```
+
 2) 全局转发：针对凡本地没有通过zone定义的区域查询请求，通通转给某转发器；
+
+```ini
 [root@LocalServer /var/named/slaves]# vim /etc/named.conf    --在主和辅DNS区域增加全局转发器
         forward first;                     
         forwarders { 114.114.114.114; };    
 [root@LocalServer /var/named/slaves]# named-checkconf
 [root@LocalServer /var/named/slaves]# rndc reload
+```
 
 从同步主命令：
 rndc flush
@@ -886,15 +1063,13 @@ rndc sync
 rndc reload
 注：主改完正向或者反向解析时需要增加版本号，否则从使用上述命令不能同步成功。
 
+## 20210319  --For AliYun DNS(bind) Deploy
 
-</pre>
 
-<pre>
-#20210319  --For AliYun DNS(bind) Deploy
+```ini
 [root@nginx conf]# sed -i '/^DNS/ s/^\(.*\)$/#\1/' /etc/sysconfig/network-scripts/ifcfg-eth0
 [root@nginx conf]# yum install -y bind bind-libs bind-utils
 [root@nginx conf]#  grep -Ev '#|^$|^/' /etc/named.conf
------------------------
 options {
 	listen-on port 53 { 127.0.0.1; 10.10.10.240; };
 	listen-on-v6 port 53 { ::1; };
@@ -929,7 +1104,6 @@ zone "." IN {
 };
 include "/etc/named.rfc1912.zones";
 include "/etc/named.root.key";
------------------------
 [root@nginx conf]# named-checkconf
 [root@nginx conf]# systemctl enable named.service
 [root@nginx conf]# systemctl start named.service
@@ -990,5 +1164,4 @@ zone 10.10.10.in-addr.arpa/IN: loaded serial 2021031901
 OK
 [root@nginx named]# rndc reload
 server reload successful
-
-</pre>
+```

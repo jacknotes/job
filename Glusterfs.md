@@ -1,12 +1,15 @@
-﻿#分布式文件系统glusterFS
-<pre>
-###windows远程桌面无法复制粘添：在目标主机上杀死rdpclip进程并重新运行rdpclip.exe即可
+# 分布式文件系统glusterFS
+
+
+### windows远程桌面无法复制粘添：在目标主机上杀死rdpclip进程并重新运行rdpclip.exe即可
 
 事前准备：
 1. 准备4台虚拟机，并设定主机名和ip,主机名要想即时生效，可先设临时主机名以后再重启即可
 2. 关闭selinux和防火墙
 3. 给每台虚拟机再加一块10G硬盘，并使用  echo "- - -" > /sys/class/scsi_host/host${i}/scan 进行添加的硬盘即时生效
 ------- 添加新硬盘即时生效脚本
+
+```bash
 [root@salt-server ~]# cat disk.tmp
 #!/usr/bin/bash
 
@@ -16,15 +19,27 @@ for ((i=0;i<${scsisum};i++))
 do
     echo "- - -" > /sys/class/scsi_host/host${i}/scan
 done
-------
+```
 
 开始安装：
 1. 安装epel源：
+
+```bash
 [root@salt-server ~]# salt 'clus*' cmd.run "yum install -y epel-release"
+```
+
 2. 安装gluster源：
+
+```bash
 [root@salt-server ~]# salt 'clusterFS-node*' cmd.run "yum install -y centos-release-gluster41.noarch"
+```
+
 3. 安装glusterfs:
+
+```bash
 [root@salt-server ~]# salt 'clusterFS-node*' cmd.run "yum --enablerepo=centos-gluster*-test install glusterfs-server glusterfs-cli glusterfs-geo-replication -y"
+```
+
 4. 查看安装的gluster包：
 clusterFS-node1-salt:
     centos-release-gluster41-1.0-3.el7.centos.noarch
@@ -39,6 +54,8 @@ clusterFS-node1-salt:
     glusterfs-server-4.1.6-1.el7.x86_64
 5. 配置glusterfs:
   1. 查看glusterfs版本
+
+```bash
   [root@salt-server ~]# salt clusterFS-node* cmd.run 'glusterfs -V'
   clusterFS-node2-salt:
     glusterfs 4.1.6
@@ -49,7 +66,9 @@ clusterFS-node1-salt:
     General Public License, version 3 or any later version (LGPLv3
     or later), or the GNU General Public License, version 2 (GPLv2),
     in all cases as published by the Free Software Foundation.
-  2. 启动glusterd服务
+```
+
+2. 启动glusterd服务
     2.1 [root@salt-server ~]# salt clusterFS-node* cmd.run 'systemctl start glusterd'
 clusterFS-node3-salt:
 clusterFS-node2-salt:
@@ -68,32 +87,51 @@ clusterFS-node1-salt:
 clusterFS-node2-salt:
     True
   3. 存储主机加入信任存储池中（整合磁盘）：在任意其中一台gluster中添加其他的gluster到信任存储池中：
+
+```bash
   [root@clusterFS-node1-salt ~]# gluster peer probe clusterFS-node2-salt.jack.com
 peer probe: success.
 [root@clusterFS-node1-salt ~]# gluster peer probe clusterFS-node3-salt.jack.com
 peer probe: success.
 [root@clusterFS-node1-salt ~]# gluster peer probe clusterFS-node4-salt.jack.com
 peer probe: success.
-  4. 任意一台gluster中查看其他gluster的状态：
+```
+
+4. 任意一台gluster中查看其他gluster的状态：
+
+```bash
   [root@clusterFS-node2-salt ~]# gluster peer status
 Number of Peers: 3
+```
 
+
+```text
 Hostname: 192.168.1.32
 Uuid: be55a468-9d4f-4211-961d-2cfbd9d9aa6d
 State: Peer in Cluster (Connected)
+```
 
+
+```text
 Hostname: clusterFS-node3-salt.jack.com
 Uuid: 1ffc6e81-af6f-448d-8579-fc69761280f7
 State: Peer in Cluster (Connected)
+```
 
+
+```text
 Hostname: clusterFS-node4-salt.jack.com
 Uuid: 0b4e5407-ec4e-40e9-b41c-fbb46086bc12
 State: Peer in Cluster (Connected)
-  5. centos6安装xfs文件系统，对添加的硬盘进行xfs格式化:yum install -u xfsprogs,centos7系统自带可不用安装(因为ext4文件系统最大支持16TB，而xfs文件系统支持PB级。)
+```
+
+5. centos6安装xfs文件系统，对添加的硬盘进行xfs格式化:yum install -u xfsprogs,centos7系统自带可不用安装(因为ext4文件系统最大支持16TB，而xfs文件系统支持PB级。)
   6. 官网文档对新硬盘要进行分一个区，实际操作不进行分区也没什么问题。系统盘要做RAID,gluster数据盘不用做RAID
   7. 使用xfs格式化硬盘：[root@salt-server ~]# salt clusterFS-node* cmd.run 'mkfs.xfs /dev/sdb'
   8. [root@salt-server ~]# salt clusterFS-node* cmd.run 'mkdir -p /storage/brick1 && mount /dev/sdb /storage/brick1'
   9. 查看挂载情况：
+
+```bash
   [root@salt-server ~]# salt clusterFS-node* cmd.run 'df -h'                      clusterFS-node4-salt:
     Filesystem      Size  Used Avail Use% Mounted on
     /dev/sda2        15G  1.6G   14G  11% /
@@ -104,7 +142,9 @@ State: Peer in Cluster (Connected)
     /dev/sda1      1014M  140M  875M  14% /boot
     tmpfs           184M     0  184M   0% /run/user/0
     /dev/sdb         10G   33M   10G   1% /storage/brick1
-  10. [root@salt-server ~]# salt  clusterFS-node* cmd.run 'echo /dev/sdb /storage/brick1 xfs defaults 0 0 >> /etc/fstab'
+```
+
+10. [root@salt-server ~]# salt  clusterFS-node* cmd.run 'echo /dev/sdb /storage/brick1 xfs defaults 0 0 >> /etc/fstab'
   11. [root@salt-server ~]#  salt clusterFS-node* cmd.run 'mount -a'
   12. 分布式文件系统卷：
     1. 分布卷
@@ -113,14 +153,20 @@ State: Peer in Cluster (Connected)
     4. 分布式条带卷（服务器必须是2的倍数）
     5. 分布式复制卷（服务器必须是2的倍数）这种卷用得最多
   13. 创建分布卷：
+
+```bash
   [root@clusterFS-node1-salt ~]# gluster volume create gv1 clusterFS-node1-salt.jack.com:/storage/brick1 clusterFS-node2-salt.jack.com:/storage/brick1 force
   volume create: gv1: success: please start the volume to access data
-  14. 启动卷：[root@clusterFS-node1-salt ~]# gluster volume start gv1
+```
+
+14. 启动卷：[root@clusterFS-node1-salt ~]# gluster volume start gv1
   volume start: gv1: success
   （创建gluster1和gluster2的gv1卷，在gluster3和其他都可以查看到）
   15. [root@salt-server ~]# salt clusterFS-node3* cmd.run 'gluster volume info' #其他gluster上查看卷的信息
 clusterFS-node3-salt:
     Volume Name: gv1
+
+```text
     Type: Distribute  #分布式的卷
     Volume ID: 0c530420-b9fc-4381-8668-2a316a7c6509
     Status: Started
@@ -133,9 +179,17 @@ clusterFS-node3-salt:
     Options Reconfigured:
     transport.address-family: inet
     nfs.disable: on
-  16. 信任池中任意一台gluster都可挂载：
+```
+
+16. 信任池中任意一台gluster都可挂载：
+
+```bash
 [root@clusterFS-node3-salt ~]# mount -t glusterfs 127.0.0.1:/gv1 /mnt
-  17. 查看挂载情况：
+```
+
+17. 查看挂载情况：
+
+```bash
 [root@clusterFS-node3-salt ~]# df -h
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/sda2        15G  1.6G   14G  11% /
@@ -147,13 +201,25 @@ tmpfs           920M     0  920M   0% /sys/fs/cgroup
 /dev/sdb         10G   33M   10G   1% /storage/brick1
 tmpfs           184M     0  184M   0% /run/user/0
 127.0.0.1:/gv1   20G  270M   20G   2% /mnt
-  18. [root@clusterFS-node1-salt ~]# mount -t glusterfs 127.0.0.1:/gv1 /mnt
+```
+
+18. [root@clusterFS-node1-salt ~]# mount -t glusterfs 127.0.0.1:/gv1 /mnt
   19. 任意一台gluster服务器挂载卷后都可能进行文件拷坝，而且每台gluster服务器都会进行同步数据
+
+```text
   20. 用nfs方式挂载gluster卷：mount -t nfs -o mountproto=tcp 192.168.1.37:/gv1 /mnt
-  21. 创建复制卷：
+```
+
+21. 创建复制卷：
+
+```bash
 [root@clusterFS-node1-salt ~]# gluster volume create gv2 replica 2 clusterFS-node3-salt.jack.com:/storage/brick1 clusterFS-node4-salt.jack.com:/storage/brick1 force #replica为复制卷，后面的2为复制两个，如果复制3个则后面为3
 volume create: gv2: success: please start the volume to access data
-  22. 查看所有卷：
+```
+
+22. 查看所有卷：
+
+```bash
   [root@clusterFS-node1-salt ~]# gluster volume info
 Volume Name: gv1
 Type: Distribute
@@ -168,7 +234,10 @@ Brick2: clusterFS-node2-salt.jack.com:/storage/brick1
 Options Reconfigured:
 transport.address-family: inet
 nfs.disable: on
+```
 
+
+```text
 Volume Name: gv2
 Type: Replicate
 Volume ID: 34f461e7-91ec-496f-a6d4-e48ba5fc08ac
@@ -183,12 +252,24 @@ Options Reconfigured:
 transport.address-family: inet
 nfs.disable: on
 performance.client-io-threads: off
-  23. 启动复制卷gv2:
+```
+
+23. 启动复制卷gv2:
+
+```bash
   [root@clusterFS-node1-salt ~]# gluster volume start gv2
 volume start: gv2: success
-  24. 挂载：
+```
+
+24. 挂载：
+
+```bash
   [root@clusterFS-node1-salt ~]# mount -t glusterfs 127.0.0.1:/gv2 /opt
-  25. 查看挂载情况：
+```
+
+25. 查看挂载情况：
+
+```bash
   [root@clusterFS-node1-salt ~]# df -h
 Filesystem      Size  Used Avail Use% Mounted on
 /dev/sda2        15G  1.6G   14G  11% /
@@ -201,8 +282,14 @@ tmpfs           184M     0  184M   0% /run/user/0
 /dev/sdb         10G   33M   10G   1% /storage/brick1
 127.0.0.1:/gv1   20G  270M   20G   2% /mnt
 127.0.0.1:/gv2   10G  135M  9.9G   2% /opt
-！！注意：当挂载卷时目录挂载错了，需要更换目录时，最好是把之前的硬盘重新格式化重新建卷重新挂载，因为挂卷后有gluster的配置隐藏文件，再重新挂载会影响以后的gluster使用。 
+```
+
+！！注意：当挂载卷时目录挂载错了，需要更换目录时，最好是把之前的硬盘重新格式化重新建卷重新挂载，因为挂卷后有gluster的配置隐藏文件，再重新挂载会影响以后的gluster使用。
+
+```text
 {
+```
+
 危险操作：
 删除卷并重新格式化硬盘：
 1. [root@clusterFS-node1-salt ~]# gluster volume stop gv1 #停止卷的工作
@@ -218,15 +305,24 @@ clusterFS-node1-salt:
 clusterFS-node3-salt:
 clusterFS-node4-salt:
 clusterFS-node2-salt:
-}
 
-##分布式条带卷
-#条带卷：
+```text
+}
+```
+
+
+## 分布式条带卷
+
+
+## 条带卷：
+
 1. [root@clusterFS-node1-salt ~]# gluster volume create gv1 stripe 2 clusterFS-node1-salt.jack.com:/storage/brick1 clusterFS-node2-salt.jack.com:/storage/brick1 force #新建条带卷
 volume create: gv1: success: please start the volume to access data
 2. [root@clusterFS-node1-salt ~]# gluster volume start gv1 #启动卷
 volume start: gv1: success
 查看条带卷：
+
+```bash
 [root@clusterFS-node1-salt ~]# gluster volume info
 Volume Name: gv1
 Type: Stripe
@@ -241,8 +337,11 @@ Brick2: clusterFS-node2-salt.jack.com:/storage/brick1
 Options Reconfigured:
 transport.address-family: inet
 nfs.disable: on
+```
 
 3. 挂载卷：
+
+```bash
 [root@salt-server ~]# salt clusterFS-node* cmd.run "mkdir /gv1 && mount -t glusterfs 127.0.0.1:gv1 /gv1  "
 clusterFS-node2-salt:
 clusterFS-node1-salt:
@@ -252,10 +351,14 @@ clusterFS-node3-salt:
 10000+0 records in
 10000+0 records out
 10240000 bytes (10 MB) copied, 1.26171 s, 8.1 MB/s
+```
+
 5. [root@clusterFS-node1-salt gv1]# ll -h
 total 9.8M
 -rw-r--r-- 1 root root 9.8M Jan 13 19:16 10M
 6. 查看
+
+```bash
 [root@clusterFS-node1-salt gv1]# ll -h /storage/brick1/
 total 4.9M
 -rw-r--r-- 2 root root 4.9M Jan 13 19:16 10M
@@ -269,14 +372,21 @@ clusterFS-node3-salt:
 [root@salt-server ~]# salt clusterFS-node4* cmd.run "ls -lh /storage/brick1 "
 clusterFS-node4-salt:
     total 0
+```
 
-#分布式条带卷：
+
+## 分布式条带卷：
+
+
+```bash
 [root@clusterFS-node1-salt gv1]# gluster volume stop gv1
 [root@clusterFS-node1-salt gv1]# gluster volume add-brick gv1 stripe 2 clusterFS-node3-salt.jack.com:/storage/brick1 clusterFS-node4-salt.jack.com:/storage/brick1 force #增加两个卷到gv1这个条带卷中使之成为分布式条带卷
  gluster volume remove-brick gv1 stripe 2 clusterFS-node3-salt.jack.com:/storage/brick1 clusterFS-node4-salt.jack.com:/storage/brick1 force
-
+```
 
 3. 查看分布式条带卷信息：
+
+```bash
 [root@clusterFS-node1-salt gv1]# gluster volume info
 Volume Name: gv1
 Type: Distributed-Stripe
@@ -321,15 +431,24 @@ clusterFS-node2-salt:
     -rw-r--r-- 2 root root 4.9M Jan 13 20:18 10M
     -rw-r--r-- 2 root root 4.9M Jan 13 20:29 10M-10
     -rw-r--r-- 2 root root    0 Jan 13 20:09 tripe.txt
+```
+
 ！！注意从上面看出新增加的数据还是没有添加到新添加的卷中，需要做磁盘平衡后才能添加到新添加的卷中。
 
-#磁盘平衡：
+## 磁盘平衡：
+
 当你添加了卷到条带卷或者复制卷中组成了分布式的卷，都需要做磁盘平衡，否则新增加的或者以前的数据都不会同步到新增加的卷中。
 磁盘平衡：
+
+```bash
 [root@clusterFS-node1-salt gv1]# gluster volume rebalance gv1 start
 volume rebalance: gv1: success: Rebalance on gv1 has been started successfully. Use rebalance status command to check status of the rebalance process.
 ID: 4635c875-75f3-4f04-9c9e-d6d7eaaa2ca3
+```
+
 查看硬盘平衡的工作状态：
+
+```bash
 [root@clusterFS-node1-salt gv1]# gluster volume rebalance gv1 status
                                     Node Rebalanced-files          size       scanned      failures       skipped               status  run time in h:m:s
                                ---------      -----------   -----------   -----------   -----------   -----------         ------------     --------------
@@ -338,8 +457,11 @@ ID: 4635c875-75f3-4f04-9c9e-d6d7eaaa2ca3
            clusterFS-node3-salt.jack.com                0        0Bytes             1             0             0            completed        0:00:00
            clusterFS-node4-salt.jack.com                0        0Bytes             0             0             0            completed        0:00:00
 volume rebalance: gv1: success
+```
 
 做完磁盘平衡后把原先的条带卷数据平均到另外的一个条带卷中：
+
+```bash
 [root@salt-server ~]# salt clusterFS-node* cmd.run "ls -lh /storage/brick1"
 clusterFS-node4-salt:
     total 4.9M
@@ -355,8 +477,11 @@ clusterFS-node3-salt:
     total 4.9M
     -rw-r--r-- 2 root root 4.9M Jan 13 20:18 10M
     -rw-r--r-- 2 root root    5 Jan 13 20:09 tripe.txt
+```
 
-##分布式复制卷：
+
+## 分布式复制卷：
+
 创建复制卷：
 1. [root@clusterFS-node1-salt ~]# gluster volume create gv2 replica 2 clusterFS-node3-salt.jack.com:/storage/brick1 clusterFS-node4-salt.jack.com:/storage/brick1 force #replica为复制卷，后面的2为复制两个，如果复制3个则后面为3
 启动复制卷gv2:
@@ -375,7 +500,11 @@ volume start: gv2: success
 ！！注意：移除卷只能移除复制卷，不能移除条带卷
 
 删除卷：
+
+```bash
 [root@clusterFS-node1-salt /]# gluster volume delete gv1
+```
+
 ！！注意：gv1是分布式复制卷，第一次新建gluster1,gluster2为复制卷，然后加入了gluster3,gluster4复制卷进去，所以以后要想恢复数据必需要先新建gluster1,gluster2为复制卷，然后加入了gluster3,gluster4复制卷进去，顺序不能变，否则会失败。注意在每个/storage/brick1目录下都有gluster的配置文件，不要删除和更改，应该变个是关系到你能是否恢复数据的关键，对于分布式条带卷来说更至关重要。
 
 添加卷并恢复数据：
@@ -393,8 +522,8 @@ total 36M
 
 ！！注意：当添加分布式复制卷成功时，新添加的复制卷默认会同步之前卷的文件夹，之前卷的其他文件不会同步，当你再平衡时文件才会重新平均到其他复制卷中
 
+## 构建企业级分布式存储
 
-#构建企业级分布式存储
 1.硬件选型
 一般2U的机型，SATA磁盘4T，I/O要求高可选SSD，为了充分保证系统稳定性和性能，要求所有gluster服务器配置尽量一致，尤其是硬盘数量和大小。机器的RAID卡需要带电池，缓存越大，性能越好，一般情况下做RAID10，出于空间考虑RAID5也可以，但是热备盘要1-2块。
 2.系统要求及分区划分
@@ -407,18 +536,21 @@ total 36M
 一般企业中，采用分布式复制卷，因为有数据备份，数据相对安全。分布式条带卷目前对gluster来说没有完全成熟，存在一定的风险。
 6.开启防火墙端口
 一般在企业中linux防火墙是打开的，24007:24011和49152:49162（不做raid的10块硬盘数据通道数）这些端口要放行，这样才能开通gluster服务器之间的访问。/etc/glusterfs/glusterd.vol文件能改变端口49152的端口值，因为当与kvm一起时，kvm也有这个端口，此时需要改变这个端口值。
- 
-###glusterfs文件系统优化
-参数			说明			缺省值			合法值
-Auth.allow	ip访问权	 	*(allow all)	ip地址
-Cluster.min-free-disk	剩余磁盘空间阈值	10%		百分比
-Cluster.stripe-block-size	条带大小		128KB		字节
-Network.frame-timeout		请求等待时间		1800s		0-1800
-Network.ping-timeout		客户端等待时间		42s		0-42
-Nfs.disabled	关闭NFS服务	off		off|on
-Performance.io-thread-count		IO线程数		16		0-65
-Performance.cache-refresh-timeout	缓存检验周期		1s	0-61
-Performance.cache-size	读缓存大小	32MB	字节
+
+### glusterfs文件系统优化
+
+
+| 参数 | 说明 | 缺省值 | 合法值 |
+| --- | --- | --- | --- |
+| Auth.allow | ip访问权 | *(allow all) | ip地址 |
+| Cluster.min-free-disk | 剩余磁盘空间阈值 | 10% | 百分比 |
+| Cluster.stripe-block-size | 条带大小 | 128KB | 字节 |
+| Network.frame-timeout | 请求等待时间 | 1800s | 0-1800 |
+| Network.ping-timeout | 客户端等待时间 | 42s | 0-42 |
+| Nfs.disabled | 关闭NFS服务 | off | off\|on |
+| Performance.io-thread-count | IO线程数 | 16 | 0-65 |
+| Performance.cache-refresh-timeout | 缓存检验周期 | 1s | 0-61 |
+| Performance.cache-size | 读缓存大小 | 32MB | 字节 |
 
 Performance.quick-read:优化读取小文件的性能。
 Performance.read-ahead:用预读的方式提高读取的性能，有利于应用频繁持续性的访问文件，当应用完成当前数据块读取的时候，下一个数据块就已经准备好了。
@@ -428,7 +560,8 @@ Performance.io-cache:缓存已经被读过的。
 例如：
 gluster volume set gv1 Performance.io-thread-count 20
 
-##监控及日常维护
+## 监控及日常维护
+
 使用zabbix自带模板即可。监控CPU，内存，主机存活，磁盘空间，主机运行时间，系统load等。日常情况要查看服务器的监控值，遇到报警要及时处理。（例如：df -h命令截取到挂载的gluster目录，使用脚本对这个目录进行写，如果不能写zabbix则触发动作）
 查看主机状态：gluster peer status
 在分布式复制卷下执行的：
@@ -446,7 +579,8 @@ gluster volume set gv1 Performance.io-thread-count 20
 删除/data目录的限制：gluster volume quota gv2 remove /data
 注意：quota是对卷下的目录进行限制，不是对整个卷进行限制
 
-##硬盘故障
+## 硬盘故障
+
 两张情况：
 第一种：底层做了RAID的机器一块硬盘损坏，如何恢复？
 直接用RAID的特性对硬盘进行跟换即可。
@@ -463,7 +597,8 @@ gluster volume set gv1 Performance.io-thread-count 20
 9. 手动添加brick:glustervolume add-brick gv1  replica 2 clusterFS-node3-salt.jack.com:/storage/brick1 force
 10. 这样新更换上的硬盘就会有坏掉那块硬盘上的数据了。
 
-##一台主机故障
+## 一台主机故障
+
 系统挂了，需要重新安装系统和gluster的软件，建议保存gluster的安装软件，以包以后可以同版本安装
 a) 物理故障
 b) 磁盘阵列多块硬盘丢失，使数据丢失
@@ -487,14 +622,13 @@ c) 系统坏了
 
 总结：GlusterFS支持三种客户端类型。Gluster Native Client、NFS和CIFS。Gluster Native Client是在用户空间中运行的基于FUSE的客户端，官方推荐使用Native Client，可以使用GlusterFS的全部功能。
 1. 安装Gluster Native Client软件包：
+
+```text
 #yum install glusterfs glusterfs-fuse attr -y
 
 #查看I/O信息
+```
+
 --Profile Command 提供接口查看一个卷中的每一个brick的IO信息
 gluster volume profile test-volume start
 gluster volume profile test-volume info
-
-
- </pre>
-
-

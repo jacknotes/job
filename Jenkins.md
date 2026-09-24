@@ -1,383 +1,382 @@
-# jenkins
+# Jenkins 运维学习笔记
 
+## 环境规划
 
-
-环境规划：
-
-1. 开发环境：开发者本地有自己的环境，运维需要设置的开发环境：大家共用的服务，例如：开发数据库mysql,其它：redis、memcached.
+1. 开发环境：开发者本地有自己的环境，运维需要设置的开发环境：大家共用的服务，例如：开发数据库 mysql，其它：redis、memcached。
 2. 测试环境：功能测试和性能测试
 3. 预生产环境：生产环境集群中的某一个节点担任
 4. 生产环境：直接对用户提供服务的环境
 
-预生产环境产生的原因：
-数据库不一致：测试环境和生产环境数据库肯定是不一样的
-使用生产环境的联调接口。例如：支付接口
+### 预生产环境产生的原因
 
+- 数据库不一致：测试环境和生产环境数据库肯定是不一样的
+- 使用生产环境的联调接口。例如：支付接口
 
+## 部署
 
-部署
+例如：1 个集群有 10 个节点。
 
-例如：1个集群有10个节点
-
-1. 实现一键部署这10个节点
+1. 实现一键部署这 10 个节点
 2. 一键回滚到任意版本
 3. 一键回滚到上一个版本
 
-部署的问题：
+### 部署的问题
+
 1. 代码在哪里：git、gitlab、svn。
 2. 获取什么版本代码？
-	git+svn直接拉取某个分支
-	git:指定标签（tag）
-	svn:指定版本号
+   - git+svn 直接拉取某个分支
+   - git：指定标签（tag）
+   - svn：指定版本号
 3. 差异解决：
-	1. 配置文件未必一样：代码层面的计划任务crontab.xml导致节点配置不一样、预生产节点
-	2. 代码仓库和实际的差异：配置文件是否放在代码仓库中？配置文件只在部署上有。单独的项目而言
-4. 如何更新：java程序更新肯定要重启系统，例如java跑在tomcat下就需要重启
+   1. 配置文件未必一样：代码层面的计划任务 crontab.xml 导致节点配置不一样、预生产节点
+   2. 代码仓库和实际的差异：配置文件是否放在代码仓库中？配置文件只在部署上有。单独的项目而言
+4. 如何更新：java 程序更新肯定要重启系统，例如 java 跑在 tomcat 下就需要重启
 5. 测试：测试环境、预生产环境都测过了，还要进行测试（别的公司就遇到过预生产环境没问题一到生产环境就有问题情况），再检查一遍系统的主要功能，以防万一
 6. 串行还是并行：分组部署
-7. 如何执行：1. shell ./ 执行。	2. web界面执行
+7. 如何执行：1. shell `./` 执行。 2. web 界面执行
 
-部署的流程：
+### 部署的流程
+
 1. 获取代码（直接拉取）
 2. 编译（可选）
 3. 配置文件放进去
 4. 打包
-5. scp到目标服务器
+5. scp 到目标服务器
 6. 将目标服务器移出集群
 7. 解压
-8. 放到webroot
-9. scp差异文件
-10. 重启（可选）[php解释型语言，可以不重启，但是如果php开启缓存就得重启]
+8. 放到 webroot
+9. scp 差异文件
+10. 重启（可选）[php 解释型语言，可以不重启，但是如果 php 开启缓存就得重启]
 11. 测试
 12. 重新加入集群
 
-
-
 ## 自动化部署实战
 
-用户：所有的web服务都应该使用普通用户。所有的web服务器都不应该开启80端口，除了负载均衡。（用命令给普通用户设一个suid并且可以启动80端口）
+> 用户：所有的 web 服务都应该使用普通用户。所有的 web 服务器都不应该开启 80 端口，除了负载均衡。（用命令给普通用户设一个 suid 并且可以启动 80 端口）
 
-1. 每台机器建立用户：useradd www (给每一个用户设定一个指定的uid)
-
-2. 选中一台为控制机器，用ssh-keygen -t rsa 生成秘钥，并且在所有目标机器包括本身机器的www用户下~/.ssh目录下建立文件authorized_keys文件，写入控制机器的公钥且权限设成600
-
+1. 每台机器建立用户：`useradd www`（给每一个用户设定一个指定的 uid）
+2. 选中一台为控制机器，用 `ssh-keygen -t rsa` 生成秘钥，并且在所有目标机器包括本身机器的 www 用户下 `~/.ssh` 目录下建立文件 `authorized_keys` 文件，写入控制机器的公钥且权限设成 600
 3. 写部署脚本框架：
-
-  ```bash
-  [root@clusterFS-node4-salt deploy]# cat /home/www/deploy.sh
-  #/bin/bash
-  
-  #Date/Time Env
-  LOG_DATE='date +%Y-%m-%d'  //后获取日期
-  LOG_TIME='date +%H-%M-%S'
-  
-  CDATE=$(date +%Y-%m-%d)  //先获取日期
-  CTIME=$(date +%H-%M-%S)
-  
-  #Shell Env
-  SHELL_NAME="deploy.sh"
-  SHELL_DIR="/home/www"
-  SHELL_LOG="${SHELL_DIR}/${SHELL_NAME}.log"
-  
-  #Code Env
-  CODE_DIR="/deploy/code/web-demo"
-  CODE_CONFIG="/deploy/config"
-  CODE_TMP="/deploy/tmp"
-  CODE_TAR="/deploy/tar"
-  LOCK_FILE="/tmp/deploy.lock"
-  
-  #Fun
-  usage(){
-          echo $"Usage: $0 [ deploy | rollback ]"
-  }
-  
-  writelog(){  //日志函数
-          LOGINFO=$1
-          echo "`${LOG_DATE}` `${LOG_TIME}` : ${SHELL_NAME} : ${LOGINFO}" >> ${SHELL_LOG}
-  
-  }
-  
-  shell_lock(){
-          touch ${LOCK_FILE}
-  }
-  
-  shell_unlock(){
-          rm -f ${LOCK_FILE}
-  }
-  
-  code_get(){
-          writelog "code_get";  //调用日志函数并传当前函数做为参数传入
-          cd $CODE_DIR && git pull
-  }
-  
-  
-  code_build(){
-          echo code_build
-  }
-  
-  code_config(){
-          echo code_config
-  
-  }
-  
-  code_tar(){
-          echo code_tar
-  }
-  
-  code_scp(){
-          echo code_scp
-  
-  }
-  
-  cluster_node_remove(){
-          echo cluster_node_remove
-  }
-  
-  code_deploy(){
-          echo code_deploy
-  }
-  
-  config_diff(){
-          echo config_diff
-  }
-  
-  code_test(){
-          echo code_test
-  }
-  
-  cluster_node_in(){
-          echo cluster_node_in
-  }
-  
-  rollback(){
-          echo rollback
-  }
-  
-  main(){
-          if [ -f ${LOCK_FILE} ];then
-                  echo "Deploy is running" && exit;
-          fi
-          DEPLOY_METHOD=$1
-          case $DEPLOY_METHOD in
-                  deploy)
-                          shell_lock;
-                          code_get;
-                          code_build;
-                          code_config;
-                          code_tar;
-                          code_scp;
-                          cluster_node_remove;
-                          code_deploy;
-                          config_diff;
-                          code_test;
-                          cluster_node_in;
-                          shell_unlock;
-                          ;;
-                  rollback)
-                          shell_lock;
-                          rollback;
-                          shell_unlock;
-                          ;;
-                  *)
-                          usage;
-                          ;;
-          esac
-  }
-  main $1
-  ```
-
-  linux锁文件目录：/var/run/lock下
-  shell脚本中测试锁文件是否有效可用sleep 60 睡眠来测试
-
 4. 自动化部署流程：
-  ```bash
-  4. ————————————————————————————————————————
-  [www@clusterFS-node4-salt ~]$ cat deploy.sh
-  #/bin/bash
-  
-  #Dir List
-  #mkdir -p /deploy/code/web-demo
-  #mkdir -p /deploy/config/web-demo/base
-  #mkdir -p /deploy/config/web-demo/other
-  #mkdir -p /deploy/tar
-  #mkdir -p /deploy/tmp
-  #mkdir /webroot
-  #chown R www:www /deploy
-  #chown R www:www /opt/webroot
-  #chown R www:www /webroot
-  
-  #Node List Env
-  PRE_LIST="192.168.1.31"
-  GROUP1_LIST="192.168.1.37"
-  
-  #Date/Time Env
-  LOG_DATE='date +%Y-%m-%d'
-  LOG_TIME='date +%H-%M-%S'
-  
-  CDATE=$(date +%Y-%m-%d)
-  CTIME=$(date +%H-%M-%S)
-  
-  #Shell Env
-  SHELL_NAME="deploy.sh"
-  SHELL_DIR="/home/www"
-  SHELL_LOG="${SHELL_DIR}/${SHELL_NAME}.log"
-  
-  #Code Env
-  PRO_NAME="web-demo"
-  CODE_DIR="/deploy/code/web-demo"
-  CONFIG_DIR="/deploy/config/web-demo"
-  TMP_DIR="/deploy/tmp"
-  TAR_DIR="/deploy/tar"
-  LOCK_FILE="/tmp/deploy.lock"
-  
-  #Fun
-  usage(){
-          echo $"Usage: $0 [ deploy | rollback ]"
-  }
-  
-  writelog(){
-          LOGINFO=$1
-          echo "`${LOG_DATE}` `${LOG_TIME}` : ${SHELL_NAME} : ${LOGINFO}"  >> ${SHELL_LOG}
-  }
-  
-  shell_lock(){
-          touch ${LOCK_FILE}
-  }
-  
-  shell_unlock(){
-          rm -f ${LOCK_FILE}
-  }
-  
-  code_get(){
-          writelog "code_get";
-          cd $CODE_DIR && git pull
-          /bin/cp -r ${CODE_DIR} ${TMP_DIR}/
-          API_VER="123"
-  }
-  
-  
-  code_build(){
-          echo code_build
-  }
-  
-  code_config(){
-          writelog "code_config"
-          /bin/cp -r ${CONFIG_DIR}/base/* ${TMP_DIR}/"${PRO_NAME}"
-          PKG_NAME="${PRO_NAME}"_"${API_VER}"_"${CDATE}-${CTIME}"
-          cd ${TMP_DIR} && mv ${PRO_NAME} ${PKG_NAME}
-  }
-  
-  code_tar(){
-          writelog "code_tar"
-          cd ${TMP_DIR} && tar -czf ${PKG_NAME}.tar.gz ${PKG_NAME}
-          writelog "${PKG_NAME}.tar.gz"
-  }
-  
-  code_scp(){
-          writelog "code_scp"
-          for node in $PRE_LIST;do
-                  scp ${TMP_DIR}/${PKG_NAME}.tar.gz ${node}:/opt/webroot
-          done
-  
-          for node in $GROUP1_LIST;do
-                  scp ${TMP_DIR}/${PKG_NAME}.tar.gz ${node}:/opt/webroot
-          done
-  
-  }
-  
-  url_test(){
-          URL=$1
-          curl -s --head $URL  | grep '200 OK'
-          if [ $? -ne 0 ];then
-                  shell_unlock;
-                  writelog "test ERROR" && exit 0
-          fi
-  }
-  
-  pre_deploy(){
-          writelog  "remove from cluster"
-                  ssh ${PRE_LIST} "cd /opt/webroot && tar -xzf ${PKG_NAME}.tar.gz"
-                  ssh ${PRE_LIST} "rm -f /webroot/web-demo && ln -s /opt/webroot/${PKG_NAME} /webroot/web-demo"
-          scp ${CONFIG_DIR}/other/192.168.1.31.crontab.xml 192.168.1.31:/webroot/web-demo/crontab.xml
-  }
-  pre_test(){
-          url_test "http://${PRE_LIST}/index.html"
-          writelog  "add to cluster"
-  }
-  
-  group1_deploy(){
-          writelog  "remove from cluster"
-          for node in $GROUP1_LIST;do
-                  ssh ${node} "cd /opt/webroot && tar -xzf ${PKG_NAME}.tar.gz"
-                  ssh ${node} "rm -f /webroot/web-demo && ln -s /opt/webroot/${PKG_NAME} /webroot/web-demo"
-          done
-  }
-  group1_test(){
-          url_test "http://192.168.1.37/index.html"
-          writelog "add to cluster"
-  }
-  
-  rollback(){
-          writelog "rollback"
-  }
-  
-  main(){
-          if [ -f ${LOCK_FILE} ];then
-                  echo "Deploy is running" && exit;
-          fi
-          DEPLOY_METHOD=$1
-          case $DEPLOY_METHOD in
-                  deploy)
-                          shell_lock;
-                          code_get;
-                          code_build;
-                          code_config;
-                          code_tar;
-                          code_scp;
-                          pre_deploy;
-                          pre_test;
-                          group1_deploy;
-                          group1_test;
-                          shell_unlock;
-                          ;;
-                  rollback)
-                          shell_lock;
-                          rollback;
-                          shell_unlock;
-                          ;;
-                  *)
-                          usage;
-                          ;;
-          esac
-  }
-  main $1
-  ```
-
-  ```bash
-  [root@clusterFS-node4-salt web-demo]# curl --head http://192.168.1.31/index.html -s | grep '200 OK'
-  HTTP/1.1 200 OK
-  [root@clusterFS-node4-salt web-demo]# echo $?  #过虑得到返回值为0
-  0
-  [root@clusterFS-node4-salt web-demo]# curl --head http://192.168.1.31/index.html -s | grep '200OK'
-  [root@clusterFS-node4-salt web-demo]# echo $?	#过虑不到返回值为1
-  1
-  ```
-
 5. 回滚流程：
-一、普通回滚：
-1.列出回滚版本
-2.目标服务移除集群
-3.执行回滚
-4.重启和测试
-5.加入集群
+6. 安装 gitlab（git 私有仓库）
 
-​		二、紧急回滚：
-​		1.列出回滚版本
-​		2.执行回滚（重启）
+### 写部署脚本框架
 
-​		三、超紧急回滚：直接回滚上个版本（重启）
+```bash
+[root@clusterFS-node4-salt deploy]# cat /home/www/deploy.sh
+#/bin/bash
 
-​		注意：秒级回滚的精髓在于软链接
+#Date/Time Env
+LOG_DATE='date +%Y-%m-%d'  //后获取日期
+LOG_TIME='date +%H-%M-%S'
+
+CDATE=$(date +%Y-%m-%d)  //先获取日期
+CTIME=$(date +%H-%M-%S)
+
+#Shell Env
+SHELL_NAME="deploy.sh"
+SHELL_DIR="/home/www"
+SHELL_LOG="${SHELL_DIR}/${SHELL_NAME}.log"
+
+#Code Env
+CODE_DIR="/deploy/code/web-demo"
+CODE_CONFIG="/deploy/config"
+CODE_TMP="/deploy/tmp"
+CODE_TAR="/deploy/tar"
+LOCK_FILE="/tmp/deploy.lock"
+
+#Fun
+usage(){
+        echo $"Usage: $0 [ deploy | rollback ]"
+}
+
+writelog(){  //日志函数
+        LOGINFO=$1
+        echo "`${LOG_DATE}` `${LOG_TIME}` : ${SHELL_NAME} : ${LOGINFO}" >> ${SHELL_LOG}
+
+}
+
+shell_lock(){
+        touch ${LOCK_FILE}
+}
+
+shell_unlock(){
+        rm -f ${LOCK_FILE}
+}
+
+code_get(){
+        writelog "code_get";  //调用日志函数并传当前函数做为参数传入
+        cd $CODE_DIR && git pull
+}
+
+
+code_build(){
+        echo code_build
+}
+
+code_config(){
+        echo code_config
+
+}
+
+code_tar(){
+        echo code_tar
+}
+
+code_scp(){
+        echo code_scp
+
+}
+
+cluster_node_remove(){
+        echo cluster_node_remove
+}
+
+code_deploy(){
+        echo code_deploy
+}
+
+config_diff(){
+        echo config_diff
+}
+
+code_test(){
+        echo code_test
+}
+
+cluster_node_in(){
+        echo cluster_node_in
+}
+
+rollback(){
+        echo rollback
+}
+
+main(){
+        if [ -f ${LOCK_FILE} ];then
+                echo "Deploy is running" && exit;
+        fi
+        DEPLOY_METHOD=$1
+        case $DEPLOY_METHOD in
+                deploy)
+                        shell_lock;
+                        code_get;
+                        code_build;
+                        code_config;
+                        code_tar;
+                        code_scp;
+                        cluster_node_remove;
+                        code_deploy;
+                        config_diff;
+                        code_test;
+                        cluster_node_in;
+                        shell_unlock;
+                        ;;
+                rollback)
+                        shell_lock;
+                        rollback;
+                        shell_unlock;
+                        ;;
+                *)
+                        usage;
+                        ;;
+        esac
+}
+main $1
+```
+
+linux 锁文件目录：`/var/run/lock` 下。
+shell 脚本中测试锁文件是否有效可用 `sleep 60` 睡眠来测试。
+
+### 自动化部署流程
+
+```bash
+[root@clusterFS-node4-salt ~]# cat deploy.sh
+#/bin/bash
+
+#Dir List
+#mkdir -p /deploy/code/web-demo
+#mkdir -p /deploy/config/web-demo/base
+#mkdir -p /deploy/config/web-demo/other
+#mkdir -p /deploy/tar
+#mkdir -p /deploy/tmp
+#mkdir /webroot
+#chown R www:www /deploy
+#chown R www:www /opt/webroot
+#chown R www:www /webroot
+
+#Node List Env
+PRE_LIST="192.168.1.31"
+GROUP1_LIST="192.168.1.37"
+
+#Date/Time Env
+LOG_DATE='date +%Y-%m-%d'
+LOG_TIME='date +%H-%M-%S'
+
+CDATE=$(date +%Y-%m-%d)
+CTIME=$(date +%H-%M-%S)
+
+#Shell Env
+SHELL_NAME="deploy.sh"
+SHELL_DIR="/home/www"
+SHELL_LOG="${SHELL_DIR}/${SHELL_NAME}.log"
+
+#Code Env
+PRO_NAME="web-demo"
+CODE_DIR="/deploy/code/web-demo"
+CONFIG_DIR="/deploy/config/web-demo"
+TMP_DIR="/deploy/tmp"
+TAR_DIR="/deploy/tar"
+LOCK_FILE="/tmp/deploy.lock"
+
+#Fun
+usage(){
+        echo $"Usage: $0 [ deploy | rollback ]"
+}
+
+writelog(){
+        LOGINFO=$1
+        echo "`${LOG_DATE}` `${LOG_TIME}` : ${SHELL_NAME} : ${LOGINFO}"  >> ${SHELL_LOG}
+}
+
+shell_lock(){
+        touch ${LOCK_FILE}
+}
+
+shell_unlock(){
+        rm -f ${LOCK_FILE}
+}
+
+code_get(){
+        writelog "code_get";
+        cd $CODE_DIR && git pull
+        /bin/cp -r ${CODE_DIR} ${TMP_DIR}/
+        API_VER="123"
+}
+
+
+code_build(){
+        echo code_build
+}
+
+code_config(){
+        writelog "code_config"
+        /bin/cp -r ${CONFIG_DIR}/base/* ${TMP_DIR}/"${PRO_NAME}"
+        PKG_NAME="${PRO_NAME}"_"${API_VER}"_"${CDATE}-${CTIME}"
+        cd ${TMP_DIR} && mv ${PRO_NAME} ${PKG_NAME}
+}
+
+code_tar(){
+        writelog "code_tar"
+        cd ${TMP_DIR} && tar -czf ${PKG_NAME}.tar.gz ${PKG_NAME}
+        writelog "${PKG_NAME}.tar.gz"
+}
+
+code_scp(){
+        writelog "code_scp"
+        for node in $PRE_LIST;do
+                scp ${TMP_DIR}/${PKG_NAME}.tar.gz ${node}:/opt/webroot
+        done
+
+        for node in $GROUP1_LIST;do
+                scp ${TMP_DIR}/${PKG_NAME}.tar.gz ${node}:/opt/webroot
+        done
+
+}
+
+url_test(){
+        URL=$1
+        curl -s --head $URL  | grep '200 OK'
+        if [ $? -ne 0 ];then
+                shell_unlock;
+                writelog "test ERROR" && exit 0
+        fi
+}
+
+pre_deploy(){
+        writelog  "remove from cluster"
+                ssh ${PRE_LIST} "cd /opt/webroot && tar -xzf ${PKG_NAME}.tar.gz"
+                ssh ${PRE_LIST} "rm -f /webroot/web-demo && ln -s /opt/webroot/${PKG_NAME} /webroot/web-demo"
+        scp ${CONFIG_DIR}/other/192.168.1.31.crontab.xml 192.168.1.31:/webroot/web-demo/crontab.xml
+}
+pre_test(){
+        url_test "http://${PRE_LIST}/index.html"
+        writelog  "add to cluster"
+}
+
+group1_deploy(){
+        writelog  "remove from cluster"
+        for node in $GROUP1_LIST;do
+                ssh ${node} "cd /opt/webroot && tar -xzf ${PKG_NAME}.tar.gz"
+                ssh ${node} "rm -f /webroot/web-demo && ln -s /opt/webroot/${PKG_NAME} /webroot/web-demo"
+        done
+}
+group1_test(){
+        url_test "http://192.168.1.37/index.html"
+        writelog "add to cluster"
+}
+
+rollback(){
+        writelog "rollback"
+}
+
+main(){
+        if [ -f ${LOCK_FILE} ];then
+                echo "Deploy is running" && exit;
+        fi
+        DEPLOY_METHOD=$1
+        case $DEPLOY_METHOD in
+                deploy)
+                        shell_lock;
+                        code_get;
+                        code_build;
+                        code_config;
+                        code_tar;
+                        code_scp;
+                        pre_deploy;
+                        pre_test;
+                        group1_deploy;
+                        group1_test;
+                        shell_unlock;
+                        ;;
+                rollback)
+                        shell_lock;
+                        rollback;
+                        shell_unlock;
+                        ;;
+                *)
+                        usage;
+                        ;;
+        esac
+}
+main $1
+```
+
+```bash
+[root@clusterFS-node4-salt web-demo]# curl --head http://192.168.1.31/index.html -s | grep '200 OK'
+HTTP/1.1 200 OK
+[root@clusterFS-node4-salt web-demo]# echo $?  #过虑得到返回值为0
+0
+[root@clusterFS-node4-salt web-demo]# curl --head http://192.168.1.31/index.html -s | grep '200OK'
+[root@clusterFS-node4-salt web-demo]# echo $?  #过虑不到返回值为1
+1
+```
+
+### 回滚流程
+
+- 一、普通回滚：
+  1. 列出回滚版本
+  2. 目标服务移除集群
+  3. 执行回滚
+  4. 重启和测试
+  5. 加入集群
+- 二、紧急回滚：
+  1. 列出回滚版本
+  2. 执行回滚（重启）
+- 三、超紧急回滚：直接回滚上个版本（重启）
+
+> 注意：秒级回滚的精髓在于软链接
 
 ```bash
 ROLLBACK_LIST="192.168.1.31 192.168.1.37"
@@ -389,7 +388,7 @@ rollback_fun(){
 }
 
 rollback(){
-	    writelog "rollback"
+	writelog "rollback"
         if [ -z $1 ];then
                 shell_unlock
                 echo "please input rollback version" && exit
@@ -436,15 +435,17 @@ main(){
 main $1 $2
 ```
 
-6. 安装gitlab（git私有仓库）
-	硬件最低配置：双核4G内存
-	1. yum install -y policycoreutils-python
-	2. 添加gitlab镜像:wget https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-10.0.0-ce.0.el7.x86_64.rpm
-	3. 安装gitlab:rpm -i gitlab-ce-10.5.7-ce.0.el7.x86_64.rpm
-	4. 修改gitlab配置文件指定服务器ip和自定义端口:vim  /opt/gitlab/etc/gitlab.rb  #external_url '192.168.1.235'
-	5. 重置并启动GitLab:1 gitlab-ctl   reconfigure  2 gitlab-ctl   restart
-	6. 克隆gitlab：git glone git@192.168.1.31:/web/web-demo.git
-	7. 像git一样push、pull操作
+### 安装 gitlab（git 私有仓库）
+
+硬件最低配置：双核 4G 内存
+
+1. `yum install -y policycoreutils-python`
+2. 添加 gitlab 镜像：`wget https://mirrors.tuna.tsinghua.edu.cn/gitlab-ce/yum/el7/gitlab-ce-10.0.0-ce.0.el7.x86_64.rpm`
+3. 安装 gitlab：`rpm -i gitlab-ce-10.5.7-ce.0.el7.x86_64.rpm`
+4. 修改 gitlab 配置文件指定服务器 ip 和自定义端口：`vim /opt/gitlab/etc/gitlab.rb`（`external_url '192.168.1.235'`）
+5. 重置并启动 GitLab：1 `gitlab-ctl reconfigure`  2 `gitlab-ctl restart`
+6. 克隆 gitlab：`git clone git@192.168.1.31:/web/web-demo.git`
+7. 像 git 一样 push、pull 操作
 
 ```bash
 [www@clusterFS-node4-salt ~]$ cat deploy.sh
@@ -630,108 +631,137 @@ main(){
 main $1 $2
 ```
 
+### 脚本解释
 
-脚本解释：
 按照自动化部署流程来编写脚本，总体相像，在部署时先拿一台预热节点来部署，当预热节点部署成功且测试通过时，即可继续部署剩余所有节点，当预热节点部署失败就退出脚本执行，此时剩余节点不会继续部署，只会导致预热节点失败，可保证不会大面积瘫焕。
-回滚操作按照紧急回滚流程来操作，先列出回滚版本号，后回滚指定版本号
-
-
+回滚操作按照紧急回滚流程来操作，先列出回滚版本号，后回滚指定版本号。
 
 ## 持续集成部分
+
 持续集成：
 
-1. git pull origin master 拉取最新的代码 	更新非常频繁，没有特别严格的项目管理。
-2. git tag 获取指定的标签版本 更新没那么频繁，有一定的项目管理的团队。
-3. 获取指定的commit id
-	master分支	发布的版本
-	dev分支	test的代码版本
-	自己的分支
-	DevOps:是一种文化，是开发、运维、测试之间沟通的一种文化	过程、方法、系统的统称。
-	目标是一样的。为了让我们的软件、构建、测试、发布更加的敏捷、频繁、可靠。跟持续集成很像
-	运维：需要掌控大局	或者掌控DevOps，运维没有能力是不行的	测试工具、方法、监控
+1. `git pull origin master` 拉取最新的代码 —— 更新非常频繁，没有特别严格的项目管理。
+2. `git tag` 获取指定的标签版本 —— 更新没那么频繁，有一定的项目管理的团队。
+3. 获取指定的 commit id：
+   - master 分支 —— 发布的版本
+   - dev 分支 —— test 的代码版本
+   - 自己的分支
 
-持续集成：指在软件开发过程中，频繁地将代码集成到主干上，然后进行自动化测试。
-持续交付：批在持续集成的基础上，将集成后的代码部署到更贴近真实运行环境的类生产环境。如果代码没有问题，可以继续手动部署到生产环境中。（手动部署到生产环境中是大部分公司用的）
-持续部署：在持续交付的基础上，把部署到生产环境的过程自动化。
-#OWASP(Open Web Application Security Project):运维必须会，因为这个涉及应用安全
+DevOps：是一种文化，是开发、运维、测试之间沟通的一种文化、过程、方法、系统的统称。目标是一样的。为了让我们的软件、构建、测试、发布更加的敏捷、频繁、可靠。跟持续集成很像。
+运维：需要掌控大局或者掌控 DevOps，运维没有能力是不行的——测试工具、方法、监控。
 
-持续集成之Jenkins安装部署实战：
-1. 安装JDK：Jenkins是Java编写的，所以需要先安装JDK，这里采用yum安装，如果对版本有需求，可以直接在Oracle官网下载JDK。
-[root@clusterFS-node3-salt ~]# yum install -y java-1.8.0
-2. 安装jenkins:
-[root@clusterFS-node3-salt ~]# wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
-[root@clusterFS-node3-salt ~]# rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key
-[root@clusterFS-node3-salt ~]# yum install jenkins -y
-[root@clusterFS-node3-salt ~]# systemctl start jenkins
-[root@clusterFS-node3-salt ~]# netstat -tunlp | grep 8080  #jenkins默认启动8080端口
-3. 在插件管理中搜索gitlab,安装gitlab plugin和gitlab hook plugin(用于gitlab和jenkins进行令牌认证时用)两个插件，因为要用jenkins和gitlab来集成。
-4. jenkins最主要的是插件，添加插件可以在web上添加安装也可以在/var/lib/jenkins/plugins/目录下添加
-5. 添加凭据：用于访问gitlab的仓库（把jenkins服务机器的公钥放置到gitlab deploy key（部署key，只读的，不同于用户key）上，把私钥放置到jenkins上这样可以使用jenkins来访问gitlab仓库）
-6. 新建demo-sonar项目-设置源码从git获取-输入仓库地址、刚才添加的凭据、专门的分支-源码浏览器的URL、版本-然后保存
-7. 立即构建并选写构建任务从控制台输出可查看任务执行情况
+- 持续集成：指在软件开发过程中，频繁地将代码集成到主干上，然后进行自动化测试。
+- 持续交付：在持续集成的基础上，将集成后的代码部署到更贴近真实运行环境的类生产环境。如果代码没有问题，可以继续手动部署到生产环境中。（手动部署到生产环境中是大部分公司用的）
+- 持续部署：在持续交付的基础上，把部署到生产环境的过程自动化。
 
+> OWASP（Open Web Application Security Project）：运维必须会，因为这个涉及应用安全。
 
+### 持续集成之 Jenilllins 安装部署实战
 
-## 持续代码质量管理-Sonar部署
+1. 安装 JDK：Jenkins 是 Java 编写的，所以需要先安装 JDK，这里采用 yum 安装，如果对版本有需求，可以直接在 Oracle 官网下载 JDK。
+   `[root@clusterFS-node3-salt ~]# yum install -y java-1.8.0`
+2. 安装 jenkins：
+   `[root@clusterFS-node3-salt ~]# wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo`
+   `[root@clusterFS-node3-salt ~]# rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key`
+   `[root@clusterFS-node3-salt ~]# yum install jenkins -y`
+   `[root@clusterFS-node3-salt ~]# systemctl start jenkins`
+   `[root@clusterFS-node3-salt ~]# netstat -tunlp | grep 8080`  #jenkins 默认启动 8080 端口
+3. 在插件管理中搜索 gitlab，安装 gitlab plugin 和 gitlab hook plugin（用于 gitlab 和 jenkins 进行令牌认证时用）两个插件，因为要用 jenkins 和 gitlab 来集成。
+4. jenkins 最主要的是插件，添加插件可以在 web 上添加安装也可以在 `/var/lib/jenkins/plugins/` 目录下添加。
+5. 添加凭据：用于访问 gitlab 的仓库（把 jenkins 服务机器的公钥放置到 gitlab deploy key（部署 key，只读的，不同于用户 key）上，把私钥放置到 jenkins 上这样可以使用 jenkins 来访问 gitlab 仓库）。
+6. 新建 demo-sonar 项目——设置源码从 git 获取——输入仓库地址、刚才添加的凭据、专门的分支——源码浏览器的 URL、版本——然后保存。
+7. 立即构建并选写构建任务从控制台输出可查看任务执行情况。
+
+## 持续代码质量管理 - Sonar 部署
 
 Sonar 是一个用于代码质量管理的开放平台。通过插件机制，Sonar 可以集成不同的测试工具，代码分析工具，以及持续集成工具。与持续集成工具（例如 Hudson/Jenkins 等）不同，Sonar 并不是简单地把不同的代码检查工具结果（例如 FindBugs，PMD 等）直接显示在 Web 页面上，而是通过不同的插件对这些结果进行再加工处理，通过量化的方式度量代码质量的变化，从而可以方便地对不同规模和种类的工程进行代码质量管理。
 
 在对其他工具的支持方面，Sonar 不仅提供了对 IDE 的支持，可以在 Eclipse 和 IntelliJ IDEA 这些工具里联机查看结果；同时 Sonar 还对大量的持续集成工具提供了接口支持，可以很方便地在持续集成中使用 Sonar。
 此外，Sonar 的插件还可以对 Java 以外的其他编程语言提供支持，对国际化以及报告文档化也有良好的支持。
 
-Sonar部署（跟jenkins部署在同一台服务器）
-需要mysql5.6，java1.8以上
-Sonar的相关下载和文档可以在下面的链接中找到：http://www.sonarqube.org/downloads/。需要注意最新版的Sonar需要至少JDK 1.8及以上版本。
+Sonar 部署（跟 jenkins 部署在同一台服务器）。需要 mysql5.6，java1.8 以上。Sonar 的相关下载和文档可以在下面的链接中找到：<http://www.sonarqube.org/downloads/>。需要注意最新版的 Sonar 需要至少 JDK 1.8 及以上版本。
+
+```bash
 1. [root@clusterFS-node2-salt auto-deploy]# cd /usr/local/src
 2. [root@clusterFS-node2-salt src]# wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-6.5.zip
 3. [root@clusterFS-node2-salt src]# unzip sonarqube-6.5.zip
 4. [root@clusterFS-node2-salt src]# mv sonarqube-6.5 /usr/local/
 5. [root@clusterFS-node2-salt src]# ln -s sonarqube-6.5/ sonarqube
-安装mysql数据库：
+```
+
+安装 mysql 数据库：
+
+```bash
 rpm -Uvh https://dev.mysql.com/get/mysql80-community-release-el7-2.noarch.rpm
-禁用mysql80和mysql57:
+```
+
+禁用 mysql80 和 mysql57，启用 mysql56：
+
+```bash
 sudo yum-config-manager --disable mysql80-community
 sudo yum-config-manager --disable mysql57-community
-启用mysql56:
 sudo yum-config-manager --enable mysql56-community #sonar只能mysql5.6版本，其他版本报错
-6. 准备Sonar数据库:
+```
+
+6. 准备 Sonar 数据库：
+
+```bash
 mysql> CREATE DATABASE sonar CHARACTER SET utf8 COLLATE utf8_general_ci;
 mysql> GRANT ALL ON sonar.* TO 'sonar'@'localhost' IDENTIFIED BY 'sonar@pw';
 mysql> GRANT ALL ON sonar.* TO 'sonar'@'%' IDENTIFIED BY 'sonar@pw';
 mysql> FLUSH PRIVILEGES;
-7. 配置sonar:
+```
+
+7. 配置 sonar：
+
+```bash
 [root@clusterFS-node2-salt local]# cd /usr/local/sonarqube/conf/
 [root@clusterFS-node2-salt conf]# ls
 sonar.properties  wrapper.conf
-8. 编写配置文件，修改数据库配置:
+```
+
+8. 编写配置文件，修改数据库配置：
+
+```bash
 [root@clusterFS-node2-salt conf]# vim sonar.properties
 sonar.jdbc.username=sonar
 sonar.jdbc.password=salt
 sonar.jdbc.url=jdbc:mysql://localhost:3306/sonar?useUnicode=true&characterEncoding=utf8&rewriteBatchedStatements=true&useConfigs=maxPerformance
-配置Java访问数据库驱动(可选)
-默认情况Sonar有自带的嵌入的数据库，那么你如果使用类是Oracle数据库，必须手动复制驱动类到${SONAR_HOME}/extensions/jdbc-driver/oracle/目录下，其它支持的数据库默认提供了驱动。其它数据库的配置可以参考官方文档：
-http://docs.sonarqube.org/display/HOME/SonarQube+Platform
-9. 启动Sonar:你可以在Sonar的配置文件来配置Sonar Web监听的IP地址和端口，默认是9000端口。
+```
+
+配置 Java 访问数据库驱动（可选）：默认情况 Sonar 有自带的嵌入的数据库，那么你如果使用类是 Oracle 数据库，必须手动复制驱动类到 `${SONAR_HOME}/extensions/jdbc-driver/oracle/` 目录下，其它支持的数据库默认提供了驱动。其它数据库的配置可以参考官方文档：<http://docs.sonarqube.org/display/HOME/SonarQube+Platform>
+
+9. 启动 Sonar：你可以在 Sonar 的配置文件来配置 Sonar Web 监听的 IP 地址和端口，默认是 9000 端口。
+
+```bash
 sonar.web.host=0.0.0.0
 sonar.web.port=9000
 sonar.web.context=/sonarqube  #sonarqube为web的首页
-10. [root@clusterFS-node3-salt conf]# /usr/local/sonarqube/bin/linux-x86-64/sonar.sh start #当sonar服务启动不来时看下与数据库连接是否正常，是个坑
-11. http://192.168.1.37访问sonarqube ,默认帐户密码皆为admin
-12. 手动下载插件可到github Sonaraube社区下载：https://github.com/SonarQubeCommunity，然后可放到/usr/local/sonarqube/extensions/plugins目录下，重启sonar服务即可 (sonar web中下载需要到update center中去安装)
-13. 需要下载你要测试的语言包插件，例如python,java,php,css等，插件只是语言规则
-14. 通过SonarQube Scanner来测试代码，需要安装SonarQube Scanner
-15. 下载sonarQube Scanner:[root@clusterFS-node2-salt src]# wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.3.0.1492-linux.zip
-16. 安装sonarQube Scanner:unzip sonar-scanner-cli-3.3.0.1492-linux.zip; mv sonar-scanner-cli-3.3.0.1492-linux /usr/local; ln -s sonar-scanner-cli-3.3.0.1492-linux sonar-scanner
-17. 因为sonarQube Scanner跟sonarQube有关联,所以要修改配置文件:[root@clusterFS-node2-salt conf]# vim /usr/local/sonar-scanner/conf/sonar-scanner.properties如下： 
+```
+
+10. `[root@clusterFS-node3-salt conf]# /usr/local/sonarqube/bin/linux-x86-64/sonar.sh start`（当 sonar 服务启动不来时看下与数据库连接是否正常，是个坑）
+11. 访问 `http://192.168.1.37` 访问 sonarqube，默认帐户密码皆为 admin
+12. 手动下载插件可到 github Sonarqube 社区下载：<https://github.com/SonarQubeCommunity>，然后可放到 `/usr/local/sonarqube/extensions/plugins` 目录下，重启 sonar 服务即可（sonar web 中下载需要到 update center 中去安装）
+13. 需要下载你要测试的语言包插件，例如 python，java，php，css 等，插件只是语言规则
+14. 通过 SonarQube Scanner 来测试代码，需要安装 SonarQube Scanner
+15. 下载 sonarQube Scanner：`[root@clusterFS-node2-salt src]# wget https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-3.3.0.1492-linux.zip`
+16. 安装 sonarQube Scanner：`unzip sonar-scanner-cli-3.3.0.1492-linux.zip; mv sonar-scanner-cli-3.3.0.1492-linux /usr/local; ln -s sonar-scanner-cli-3.3.0.1492-linux sonar-scanner`
+17. 因为 sonarQube Scanner 跟 sonarQube 有关联，所以要修改配置文件：`[root@clusterFS-node2-salt conf]# vim /usr/local/sonar-scanner/conf/sonar-scanner.properties` 如下：
+
+```ini
 sonar.host.url=http://192.168.1.37:9000
 sonar.sourceEncoding=UTF-8
 sonar.jdbc.username=sonar
 sonar.jdbc.password=salt
 sonar.jdbc.url=jdbc:mysql://192.168.1.37:3306/sonar?useUnicode=true&characterEncoding=utf8
 sonar.login=admin   #sonar.login和sonar.password在jenkins上使用sonar scanner进行扫描时需要用到
-sonar.password=admin  
-18. sonar官方提供代码测试地址：https://github.com/sonarSource/sonar-scanning-examples，下载下来
-19. 在/usr/local/src/sonar-scanning-examples-master/sonarqube-scanner-build-wrapper-linux路径下（刚刚下载的文件），有sonar-project.properties配置文件，里面填写了有关编程语言的信息，使测试信息到sonarqube上,编辑配置文件如下：
+sonar.password=admin
+```
+
+18. sonar 官方提供代码测试地址：<https://github.com/sonarSource/sonar-scanning-examples>，下载下来
+19. 在 `/usr/local/src/sonar-scanning-examples-master/sonarqube-scanner-build-wrapper-linux` 路径下（刚刚下载的文件），有 sonar-project.properties 配置文件，里面填写了有关编程语言的信息，使测试信息到 sonarqube 上，编辑配置文件如下：
+
+```bash
 [root@clusterFS-node3-salt sonarqube-scanner-build-wrapper-linux]# cat sonar-project.properties
 sonar.projectKey=phpkey
 sonar.projectName=php
@@ -739,67 +769,73 @@ sonar.projectVersion=1.0
 sonar.sources=src
 sonar.language=php
 sonar.sourceEncoding=UTF-8
-注：php测试有反应，java测试无反应。1. sonar-project.properties这个配置文件要么让开发写在代码里面，2. 要么手输在sonarqube-scanner里面。
+```
 
-20. 由于sonarqube-scanner需要跟jenkins相结合，所以要在jenkins上装sonarQube Plugin（或者sonarQube Scanner）插件，这样才能使用sonarqube-scanner
-21. 在jenkins中添加sonarquber server:系统管理-系统设置-找到SonarQube servers，然后输入name和server URL,版本进行添加-保存
-22. 然后在jenkins上设定sonarqube scanner的软件家目录：全局工具配置-找到SonarQube Scanner-新增SonarQube Scanner-输入Name和sonar运行的家目录-保存
-23. 在jenkins上配置demo-sonar项目-在构建子菜单上设置sonar scanner为构建器，只填写Analysis properties的参数（填写sonar-project.properties文件的配置信息）-保存
-24. 之前新建的项目demo-sonar现在可以从gitlab上获取代码并且可以用sonarqube scanner进行质量检测。下一步是提交质量检测通过的代码到机器上，可以在建立一个项目（为什么不和之前的项目一起？因为有时需要只检测代码质量）
-25. 新建一个项目demo-deploy,让这个项目执行命令：sudo ssh www@192.168.1.31 "./deploy.sh deploy" ，这个脚本就是之前写的自动化部署脚本   #为什么用sudo?因为执行命令的用户是jenkins，而不是root。而jenkins又不在/etc/sudoers里面，需要在/etc/sudoers下加入jenkins的权限【jenkins ALL=(ALL) NOPASSWORD: /usr/bin/ssh】,这下jenkins可以用sudo获取root的权限了，但是root不能直接登录www用户，需要密码，所以需要把root的公钥放置到www的authorized_keys文件下即可。如果jenkins中报tty的错误，需要在/etc/sudoers文件中注释掉#Defaults requiretty即可
-注：jenkins ALL=(ALL) NOPASSWORD: /usr/bin/ssh #意为jenkins用户能在所有主机上使用所有用户身份执行，不需要输入密码，只能执行ssh
-26. 安装trigger parameterized plugin（参数触发插件用于项目之间的紧密联动）-进入第一个代码质量检测项目demo-sonar配置-在构建后操作子菜单中选择trigger parameterized build on other projects（意为在其他项目上触发参数化构建）-选择要构建的项目demo-deploy并保存-最后构建demo-sonar项目，成功后会自动执行demo-deploy项目 || 进入第一个代码质量检测项目demo-sonar-选择构建后操作-选择要构建的项目demo-deploy并保存-最后构建demo-sonar项目，成功后会自动执行demo-deploy项目
-27. 视图：流水线插件安装：build pipeline plugin并重启jenkins服务 
-28. 新建视图demo-pipeline并选择Build Pipeline View确定-设置名称demo-pipeline-选择初始的项目demo-sonar-设置显示构建的数量为5并保存-点runs运行即可。
-29. jenkins跟gitlab的集成（在jenkins上操作）：
-	需求：当我commit代码到gitlab仓库上，jenkins自动为我进行代码质量检测并自动部署。
-	1. 安装gitlab hook plugin插件
-	2. 触发远程构建需要令牌，所以需要安装Build Authorization Token Root插件，没有这个插件jenkins令牌与gitlab令牌无法完成认证
-	3. 用linux系统openssl工具生成一个复杂的字符串用作token			
-	[root@clusterFS-node3-salt plugins]# openssl rand -hex 10
-	5be115c01d65ad008de6  #生成随机的十六进制10位数字，16进制每两个字节为1位数字
-	4. 选择demo-sonar项目配置-构建触发器-勾选触发远程构建（粘添刚才生成的字符串）-勾选将更改推送到gitlab时构建（复制gitlab webhook url地址http://192.168.1.37:8080后面用）-保存
-	5. 到gitlab上，进入admin area-system hooks（项目下的webhooks子菜单）-填写jenkins url:http://192.168.1.37:8080/buildByToken/build?job=demo-sonar&token=5be115c01d65ad008de6和token:5be115c01d65ad008de6-勾上push events选项（当push时会产生相应动作）-保存
-	注：百度搜索build authorization token root plugin选择wiki结果可查看gitlab hook的使用方法【build?job=RevolutionTest&token=TacoTuesday】，这里是：http://192.168.1.37:8080/buildByToken/build?job=demo-sonar&token=5be115c01d65ad008de6
-	6. gitlab上测试push event事件，如果成功则自动化部署成功了
-	7. 在每个项目上配置构建后操作-当部署错误的时候发邮件通知信息
+注：php 测试有反应，java 测试无反应。1. sonar-project.properties 这个配置文件要么让开发写在代码里面，2. 要么手输在 sonarqube-scanner 里面。
 
+20. 由于 sonarqube-scanner 需要跟 jenkins 相结合，所以要在 jenkins 上装 sonarQube Plugin（或者 sonarQube Scanner）插件，这样才能使用 sonarqube-scanner
+21. 在 jenkins 中添加 sonarqube server：系统管理 - 系统设置 - 找到 SonarQube servers，然后输入 name 和 server URL，版本进行添加 - 保存
+22. 然后在 jenkins 上设定 sonarqube scanner 的软件家目录：全局工具配置 - 找到 SonarQube Scanner - 新增 SonarQube Scanner - 输入 Name 和 sonar 运行的家目录 - 保存
+23. 在 jenkins 上配置 demo-sonar 项目 - 在构建子菜单上设置 sonar scanner 为构建器，只填写 Analysis properties 的参数（填写 sonar-project.properties 文件的配置信息）- 保存
+24. 之前新建的项目 demo-sonar 现在可以从 gitlab 上获取代码并且可以用 sonarqube scanner 进行质量检测。下一步是提交质量检测通过的代码到机器上，可以在建立一个项目（为什么不和之前的项目一起？因为有时需要只检测代码质量）
+25. 新建一个项目 demo-deploy，让这个项目执行命令：`sudo ssh www@192.168.1.31 "./deploy.sh deploy"`，这个脚本就是之前写的自动化部署脚本。为什么用 sudo？因为执行命令的用户是 jenkins，而不是 root。而 jenkins 又不在 `/etc/sudoers` 里面，需要在 `/etc/sudoers` 下加入 jenkins 的权限【jenkins ALL=(ALL) NOPASSWORD: /usr/bin/ssh】，这下 jenkins 可以用 sudo 获取 root 的权限了，但是 root 不能直接登录 www 用户，需要密码，所以需要把 root 的公钥放置到 www 的 authorized_keys 文件下即可。如果 jenkins 中报 tty 的错误，需要在 `/etc/sudoers` 文件中注释掉 `#Defaults requiretty` 即可。
+    注：jenkins ALL=(ALL) NOPASSWORD: /usr/bin/ssh 意为 jenkins 用户能在所有主机上使用所有用户身份执行，不需要输入密码，只能执行 ssh。
+26. 安装 trigger parameterized plugin（参数触发插件用于项目之间的紧密联动）——进入第一个代码质量检测项目 demo-sonar 配置——在构建后操作子菜单中选择 trigger parameterized build on other projects（意为在其他项目上触发参数化构建）——选择要构建的项目 demo-deploy 并保存——最后构建 demo-sonar 项目，成功后会自动执行 demo-deploy 项目
+27. 视图：流水线插件安装：build pipeline plugin 并重启 jenkins 服务
+28. 新建视图 demo-pipeline 并选择 Build Pipeline View 确定——设置名称 demo-pipeline——选择初始的项目 demo-sonar——设置显示构建的数量为 5 并保存——点 runs 运行即可。
+29. jenkins 跟 gitlab 的集成（在 jenkins 上操作）：
 
+    需求：当我 commit 代码到 gitlab 仓库上，jenkins 自动为我进行代码质量检测并自动部署。
 
-自动化脚本目录树
+    1. 安装 gitlab hook plugin 插件
+    2. 触发远程构建需要令牌，所以需要安装 Build Authorization Token Root 插件，没有这个插件 jenkins 令牌与 gitlab 令牌无法完成认证
+    3. 用 linux 系统 openssl 工具生成一个复杂的字符串用作 token
 
-```bash
+       ```bash
+       [root@clusterFS-node3-salt plugins]# openssl rand -hex 10
+       5be115c01d65ad008de6  #生成随机的十六进制10位数字，16进制每两个字节为1位数字
+       ```
+
+    4. 选择 demo-sonar 项目配置——构建触发器——勾选触发远程构建（粘添刚才生成的字符串）——勾选将更改推送到 gitlab 时构建（复制 gitlab webhook url 地址 http://192.168.1.37:8080 后面用）——保存
+    5. 到 gitlab 上，进入 admin area——system hooks（项目下的 webhooks 子菜单）——填写 jenkins url：`http://192.168.1.37:8080/buildByToken/build?job=demo-sonar&token=5be115c01d65ad008de6` 和 token：`5be115c01d65ad008de6`——勾上 push events 选项（当 push 时会产生相应动作）——保存
+
+       注：百度搜索 build authorization token root plugin 选择 wiki 结果可查看 gitlab hook 的使用方法【build?job=RevolutionTest&token=TacoTuesday】，这里是：`http://192.168.1.37:8080/buildByToken/build?job=demo-sonar&token=5be115c01d65ad008de6`
+
+    6. gitlab 上测试 push event 事件，如果成功则自动化部署成功了
+    7. 在每个项目上配置构建后操作——当部署错误的时候发邮件通知信息
+
+### 自动化脚本目录树
+
+```text
 [root@saltsrv deploy]# tree /deploy/
 /deploy/
 ├── code
-│?? └── web-demo
-│??     └── index.html
+│   └── web-demo
+│       └── index.html
 ├── config
-│?? └── web-demo
-│??     ├── base
-│??     │?? └── base.conf.txt
-│??     └── other
-│??         └── 192.168.1.231.crontab.xml.txt
+│   └── web-demo
+│       ├── base
+│       │   └── base.conf.txt
+│       └── other
+│           └── 192.168.1.231.crontab.xml.txt
 ├── tar
 └── tmp
     ├── web-demo_724728_2019-09-08-17-18-17
-    │?? ├── base.conf
-    │?? └── index.html
+    │   ├── base.conf
+    │   └── index.html
     ├── web-demo_724728_2019-09-08-17-18-17.tar.gz
     ├── web-demo_c49dbe_2019-09-08-17-37-31
-    │?? ├── base.conf.txt
-    │?? └── index.html
+    │   ├── base.conf.txt
+    │   └── index.html
     ├── web-demo_c49dbe_2019-09-08-17-37-31.tar.gz
     ├── web-demo_e731ea_2019-09-08-17-19-40
-    │?? ├── base.conf
-    │?? └── index.html
+    │   ├── base.conf
+    │   └── index.html
     └── web-demo_e731ea_2019-09-08-17-19-40.tar.gz
 ```
 
+## 二次修改后脚本
 
-
-二次修改后脚本
--------------------------
 ```bash
 [www@saltsrv ~]$ cat deploy.sh
 #/bin/bash
@@ -966,7 +1002,7 @@ rollback(){
         fi
         case $1 in
                 list)
-                        ls -l ${TMP_DIR}/*.tar.gz 
+                        ls -l ${TMP_DIR}/*.tar.gz
                         #ls -l /opt/webroot/*.tar.gz
                         ;;
                 *)
@@ -1008,9 +1044,7 @@ main(){
 main $1 $2
 ```
 
-
-
-## 使用jenkins来自动构建docker镜像
+## 使用 jenkins 来自动构建 docker 镜像
 
 ```bash
 1.安装java-openJDK和jenkins服务并启动
@@ -1032,8 +1066,9 @@ main $1 $2
 --Default Subject：$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!
 
 --Default Content：
--------------------------------------------------
+```
 
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -1054,13 +1089,13 @@ main $1 $2
         <tr>
             <td>
                 <ul>
-                    <li>项目名称 ： ${PROJECT_NAME}</li>
-                    <li>构建编号 ： 第${BUILD_NUMBER}次构建</li>
-                    <li>触发原因： ${CAUSE}</li>
-                    <li>构建日志： <a href="${BUILD_URL}console">${BUILD_URL}console</a></li>
-                    <li>构建  Url ： <a href="${BUILD_URL}">${BUILD_URL}</a></li>
-                    <li>工作目录 ： <a href="${PROJECT_URL}ws">${PROJECT_URL}ws</a></li>
-                    <li>项目  Url ： <a href="${PROJECT_URL}">${PROJECT_URL}</a></li>
+                    <li>项目名称  :  ${PROJECT_NAME}</li>
+                    <li>构建编号  :  第${BUILD_NUMBER}次构建</li>
+                    <li>触发原因： ${CAUSE}</li>
+                    <li>构建日志： <a href="${BUILD_URL}console">${BUILD_URL}console</a></li>
+                    <li>构建  Url  ： <a href="${BUILD_URL}">${BUILD_URL}</a></li>
+                    <li>工作目录  ： <a href="${PROJECT_URL}ws">${PROJECT_URL}ws</a></li>
+                    <li>项目  Url  ： <a href="${PROJECT_URL}">${PROJECT_URL}</a></li>
                 </ul>
             </td>
         </tr>
@@ -1068,7 +1103,7 @@ main $1 $2
             <td><b><font color="#0B610B">变更集</font></b>
             <hr size="2" width="100%" align="center" /></td>
         </tr>
-        
+
 
         <tr>
             <td>${JELLY_SCRIPT,template="html"}<br/>
@@ -1076,15 +1111,16 @@ main $1 $2
         </tr>
 
 
-​       
 
     </table>
 
 </body>
 
 </html>
+```
 
-4.新建项目：systemlog.hs.com,风格：free stype
+```bash
+4.新建项目：systemlog.hs.com，风格：free stype
 --源码管理：git
 ----Repository URL:git@gitlab.hs.com:Homsom/SystemLog.git
 ----Credentials:没有就在这里添加一个，domain为全局凭据，类型为SSH Username with private key,范围为全局，username设一个辩识名字(这里是jenkins)，PrivateKey设置先前在linux下的root用户生成的私钥(把私钥复制保存到这里来)，最后保存。
@@ -1101,7 +1137,7 @@ main $1 $2
 ----命令：/Jenkins_WorkSpace/BuildDocker.sh  #脚本中需要让jenkins使用root的权限来运行dokcer,所以要编辑/etc/sudoers文件，并指定NOPASSWD:/usr/bin/docker来让jenkins使用。还有root的ssh私钥要复制到gitlab某个帐户下面。把私钥放到jenkins的凭据中，这样才能使jenkins git clone代码下来。gitlab中的用户必须对所有项目或者大部分项目有pull权限。
 ```
 
-
+构建脚本 `BuildDocker.sh`：
 
 ```bash
 #!/bin/sh
@@ -1144,25 +1180,25 @@ clear_docker(){
 	Exited_Containers=$(sudo docker ps -a | grep -v CONTAINER | grep 'Exited' |  awk '{print $1}')
 	for i in ${Exited_Containers};do
 		echo "Delete Exited Container $i ........."
-		sudo docker rm $i 
+		sudo docker rm $i
 		if [ $? == 0 ];then
-			echo "INFO: Exited Status Container ${i} Delete Succeed" 
+			echo "INFO: Exited Status Container ${i} Delete Succeed"
 		else
-			echo "ERROR: Exited Status Container ${i} Delete Failure" 
+			echo "ERROR: Exited Status Container ${i} Delete Failure"
 		fi
 	done
-	
+
 
 	#delete local name is <none> image
 	echo "delete local name is <none> image---------------------------"
-	NoNameImage=$(sudo docker image ls | grep '<none>' | awk '{print $3}') #if not delete name is <none> image,annotation can be. 
+	NoNameImage=$(sudo docker image ls | grep '<none>' | awk '{print $3}') #if not delete name is <none> image,annotation can be.
 	for i in ${NoNameImage};do
 		echo "delete local not name image $i ........."
-		sudo docker image rm $i 
+		sudo docker image rm $i
 		if [ $? == 0 ];then
-			echo "INFO: Local not name Image ${i} Delete Succeed" 
+			echo "INFO: Local not name Image ${i} Delete Succeed"
 		else
-			echo "ERROR: Local not name Image ${i} Delete Failure" 
+			echo "ERROR: Local not name Image ${i} Delete Failure"
 		fi
 	done
 
@@ -1199,11 +1235,11 @@ fi
 #build docker image
 echo "build docker image---------------------------------"
 echo "build image ${ProjectName}/${MirrorName}:${TagName}........"
-sudo docker build -t ${ProjectName}/${MirrorName}:${TagName} . 
+sudo docker build -t ${ProjectName}/${MirrorName}:${TagName} .
 if [ $? == 0 ];then
-	echo "INFO: Docker Build Image Succeed" 
+	echo "INFO: Docker Build Image Succeed"
 else
-	echo "ERROR: Docker Build Image Failure" 
+	echo "ERROR: Docker Build Image Failure"
 	clear_docker
 	exit 6
 fi
@@ -1211,7 +1247,7 @@ fi
 #login private repository
 echo "login private repository-----------------------------"
 echo "login ${Repository}........."
-sudo docker login -u ${Username} -p ${Password} ${Repository} 
+sudo docker login -u ${Username} -p ${Password} ${Repository}
 if [ $? == 0 ];then
 	echo "INFO: Login Succeed"
 else
@@ -1219,35 +1255,35 @@ else
 	exit 6
 fi
 
-#tag image 
+#tag image
 echo "tag image---------------------------------"
 echo "tag image ${ProjectName}/${MirrorName}:${TagName} to ${Repository}/${ProjectName}/${MirrorName}:${TagName}........"
-sudo docker tag ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} 
+sudo docker tag ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName}
 if [ $? == 0 ];then
-	echo "INFO: Tag Image Succeed" 
+	echo "INFO: Tag Image Succeed"
 else
-	echo "ERROR: Tag Image Failure" 
+	echo "ERROR: Tag Image Failure"
 	exit 6
 fi
 
 #push local image to remote repository
 echo "push local image to remote repository----------------------------"
 echo "push local image ${Repository}/${ProjectName}/${MirrorName}:${TagName} to remote repository ${Repository}......."
-sudo docker push ${Repository}/${ProjectName}/${MirrorName}:${TagName} 
+sudo docker push ${Repository}/${ProjectName}/${MirrorName}:${TagName}
 if [ $? == 0 ];then
-	echo "INFO: Push ${Repository}/${ProjectName}/${MirrorName}:${TagName} Image To Remote Repository Succeed" 
+	echo "INFO: Push ${Repository}/${ProjectName}/${MirrorName}:${TagName} Image To Remote Repository Succeed"
 else
-	echo "ERROR: Push ${Repository}/${ProjectName}/${MirrorName}:${TagName} Image To Romote Repository Failure" 
+	echo "ERROR: Push ${Repository}/${ProjectName}/${MirrorName}:${TagName} Image To Romote Repository Failure"
 	exit 6
 fi
 
 #logout private repository
 echo "logout ${Repository}-------------------------------"
-sudo docker logout ${Repository} 
+sudo docker logout ${Repository}
 if [ $? == 0 ];then
-	echo "INFO: Logout Succeed" 
+	echo "INFO: Logout Succeed"
 else
-	echo "ERROR: Logout Failure" 
+	echo "ERROR: Logout Failure"
 	exit 6
 fi
 
@@ -1255,15 +1291,15 @@ fi
 #delete local build and push image
 echo "delete local build and push image------------------------------"
 echo "delete local image ${ProjectName}/${MirrorName}:${TagName} and ${Repository}/${ProjectName}/${MirrorName}:${TagName}........"
-sudo docker image rm ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} 
+sudo docker image rm ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName}
 if [ $? == 0 ];then
-	echo "INFO: Local Image ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} Delete Succeed" 
+	echo "INFO: Local Image ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} Delete Succeed"
 else
-	echo "ERROR: Local Image ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} Delete Failure" 
+	echo "ERROR: Local Image ${ProjectName}/${MirrorName}:${TagName} ${Repository}/${ProjectName}/${MirrorName}:${TagName} Delete Failure"
 	exit 6
 fi
 
-#call clear_docker function	
+#call clear_docker function
 if [[ ${CurrentDate} != ${Date} ]];then
 	clear_docker
 	#insert new date
@@ -1272,48 +1308,43 @@ if [[ ${CurrentDate} != ${Date} ]];then
 fi
 ```
 
---构建后操作：
-----Editable Email Notification:
-------Project Recipient List：test@test.com,test2@test.com  #这里填入收件人邮箱名单
-------Project Reply-To List:发件人邮箱
-------Content Type:HTML(text/html)
-------Default Subject:$DEFAULT_SUBJECT
-------Default Content:$DEFAULT_CONTENT
-------Attach Build Log:do not attach build log
-------点击advanced setting打开高级设置：
---------Pre-send Script：$DEFAULT_PRESEND_SCRIPT
---------Post-send Script：$DEFAULT_POSTSEND_SCRIPT
---------Triggers:选择Always类型，Sent To Recipient List(这个表示发送给前面设置的Project Recipient List收件人名单)
+构建后操作：
+
+- Editable Email Notification：
+  - Project Recipient List：test@test.com，test2@test.com  #这里填入收件人邮箱名单
+  - Project Reply-To List：发件人邮箱
+  - Content Type：HTML(text/html)
+  - Default Subject：$DEFAULT_SUBJECT
+  - Default Content：$DEFAULT_CONTENT
+  - Attach Build Log：do not attach build log
+  - 点击 advanced setting 打开高级设置：
+    - Pre-send Script：$DEFAULT_PRESEND_SCRIPT
+    - Post-send Script：$DEFAULT_POSTSEND_SCRIPT
+    - Triggers：选择 Always 类型，Sent To Recipient List（这个表示发送给前面设置的 Project Recipient List 收件人名单）
+
 注：前面有好多是默认选项，只需要设置特定的信息即可。
 
+## jenkins 使用 LDAP 登录
 
+例如：AD 域（域登录和 jenkins 只能选其一，不能同时并存）
 
-## jenkins使用LDAP登录
+1. 安装 LDAP 插件
+2. 然后在全局安全设置中设置 LDAP 认证：
+   1. server：ldap://192.168.10.250:389
+   2. root DN：DC=hs,DC=com  #DN 表示一个对象，从大到小，精确到单元。这里是 root 的 DN，所以只填写 DC(域) 的 DN
+   3. User search base：OU=技术部  #表示从 root DN 下的哪个组织单位查找用户
+   4. User search filter：sAMAccountName={0}  #搜索用户过滤条件
+   5. Group search base：OU=技术部  #表示从 root DN 下的哪个组织单位查找组
+   6. Group membership：选择 Search for LDAP groups containing user（Group membership filter 不用填）
+   7. Manager DN：CN=admin,OU=技术部,DC=hs,DC=com  #设置可以管理域用记的管理帐户，不能在 Users 默认组织单元下。CN 表示域中用户名称的名称，不是用户的登录名，千万不要弄错，否则不会成功。
+   8. Manager Password：填写 admin 的域密码。
+   9. 其他未提到的为默认。全部填写完后可以测试在 User search base 中的用户是否成功登录。
 
-例如:AD域（域登录和jenkins只能选其一，不能同时并存）
+      注：测试成功后就可以使用域帐户进行认证了。
 
-1. 安装LDAP插件
-2. 然后在全局安全设置中设置LDAP认证。
-	1. server: ldap://192.168.10.250:389
-	2. root DN: DC=hs,DC=com  #DN表示一个对象，从大到小，精确到单元。这里是root的DN，所以只填写DC(域)的DN
-	3. User search base: OU=技术部   #表示从root DN下的哪个组织单位查找用户
-	4. User search filter: sAMAccountName={0}  #搜索用户过滤条件
-	5. Group search base: OU=技术部   #表示从root DN下的哪个组织单位查找组
-	6. Group membership：选择Search for LDAP groups containing user(Group membership filter不用填)
-	7. Manager DN: CN=admin,OU=技术部,DC=hs,DC=com  #设置可以管理域用记的管理帐户，不能在Users默认组织单元下。CN表示域中用户名称的名称，不是用户的登录名，千万不要弄错，否则不会成功。
-	8. Manager Password: 填写admin的域密码。
-	9. 其他未提到的为默认。全部填写完后可以测试在User search base中的用户是否成功登录。
-	    注：测试成功后就可以使用域帐户进行认证了。
+## jenkins shell 删除构建历史
 
-
-
-
-
-
-
-
-## jenkins shell删除构建历史 
-```bash
+```groovy
 def jobName = "MobileService" //删除的项目名称
 def maxNumber = 5000 // 保留的最小编号，意味着小于该编号的构建都将被删除
 
@@ -1324,24 +1355,15 @@ it.delete()
 }
 ```
 
+## jenkins 安装
 
+### war 包方式
 
+#### 1. 下载 jenkins.war 包
 
-
-## jenkins安装
-
-
-
-### war包方式
-
-
-
-#### 1. 下载jenkins.war包
 [jenkins.war](https://get.jenkins.io/war-stable/2.222.3/jenkins.war)
 
-
-
-#### 2. 安装jdk_1.8
+#### 2. 安装 jdk_1.8
 
 [jdk-8u201](https://repo.huaweicloud.com/java/jdk/8u201-b09/jdk-8u201-linux-x64.tar.gz)
 
@@ -1356,9 +1378,7 @@ Java(TM) SE Runtime Environment (build 1.8.0_201-b09)
 Java HotSpot(TM) 64-Bit Server VM (build 25.201-b09, mixed mode)
 ```
 
-
-
-#### 3. 运行war包
+#### 3. 运行 war 包
 
 ```bash
 root@jenkins:/usr/local# cat /etc/security/limits.conf
@@ -1394,8 +1414,6 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-
-
 root@jenkins:/usr/local/jenkins# systemctl daemon-reload
 root@jenkins:/usr/local/jenkins# ps -ef | grep jenkins
 root       2150    671  0 13:21 pts/0    00:00:00 systemctl restart jenkins
@@ -1403,18 +1421,17 @@ jenkins    2152      1 36 13:21 ?        00:00:23 /usr/local/jdk/bin/java -DJENK
 root       2195   2042  0 13:22 pts/1    00:00:00 grep --color=auto jenkins
 ```
 
+#### 4. 访问 jenkins 并输入初始密码
 
-
-#### 4. 访问jenkins并输入初始密码
+```bash
 GET http://172.168.2.13:8080/login?from=%2F
 root@jenkins:~# cat /var/lib/jenkins/secrets/initialAdminPassword
 4e9ca59a8bc8414ead6ae9955779f1b2
+```
 
+### docker 方式
 
-
-### docker方式
-
-使用docker部署jenkins，后续并使用docker-in-docker构建镜像
+使用 docker 部署 jenkins，后续并使用 docker-in-docker 构建镜像。
 
 ```bash
 # 配置宿主机目录权限，使容器用户jenkins(id:1000)具有读写权限
@@ -1433,10 +1450,7 @@ drwxr-xr-x 2 1000 1000 6 Nov 22 14:33 datadir
 ba38061cadd14a00bddf949754b00119
 ```
 
-
-
-#### 解决jenkins用户无法使用docker权限问题
-
+#### 解决 jenkins 用户无法使用 docker 权限问题
 
 ```bash
 # 以root用户运行配置jenkins用户隶属于docker组
@@ -1456,31 +1470,23 @@ CONTAINER ID   IMAGE                                           COMMAND          
 eb2fec61ac29   harborrepo.hs.com/ops/jenkins:2.222.3-centos7   "/sbin/tini -- /usr/…"   2 minutes ago   Up 2 minutes   0.0.0.0:8080->8080/tcp, 0.0.0.0:50000->50000/tcp   jenkins
 ```
 
+## jenkins 备份和恢复
 
-
-
-
-
-
-## jenkins备份和恢复
-
-`建议恢复环境和备份环境强一制，系统必须一样`
-
-
+> 建议恢复环境和备份环境强一制，系统必须一样
 
 ### 手动方式
 
-#### 1. 备份老jenkins
+#### 1. 备份老 jenkins
 
-`users: 用户数据`
-`plugins: 插件目录，跟*pluggin*.xml对应，必须拷坝`
-`secrets: jenkins使用git操作所需要的凭据，非常重要`
-`*.xml: 全局配置和其它插件配置`
-`userContent：用户相关内容信息`
+- `users`: 用户数据
+- `plugins`: 插件目录，跟 *pluggin*.xml 对应，必须拷坝
+- `secrets`: jenkins 使用 git 操作所需要的凭据，非常重要
+- `*.xml`: 全局配置和其它插件配置
+- `userContent`：用户相关内容信息
 
 ```bash
-[root@BuildImage /shell]# cat jenkins_backup.sh 
-#!/bin/bash  
+[root@BuildImage /shell]# cat jenkins_backup.sh
+#!/bin/bash
 
 BACKUP_DIR='/winbackup/192.168.13.214'
 COMPILE_ENV="${BACKUP_DIR}/compile.env"
@@ -1490,10 +1496,10 @@ COMPILE_TOOLS="${BACKUP_DIR}/tools"
 mkdir -p ${COMPILE_TOOLS}
 
 
-#  Jenkins Configuraitons Directory  
+#  Jenkins Configuraitons Directory
 cd /var/lib/jenkins
-  
-#  Add general configurations, job configurations, and user content  
+
+#  Add general configurations, job configurations, and user content
 rsync -avPz *.xml users plugins secrets userContent /etc/sudoers /shell ${BACKUP_DIR}
 #\cp -a *.xml users plugins secrets userContent /etc/sudoers /shell ${BACKUP_DIR}
 
@@ -1504,14 +1510,12 @@ for i in `ls jobs/*/*.xml`;do
 done
 
 # compile env output
-ls -l /usr/local/ | grep -E 'maven|node ' > ${COMPILE_ENV}  
+ls -l /usr/local/ | grep -E 'maven|node ' > ${COMPILE_ENV}
 \cp -a /usr/local/maven/conf/settings.xml ${COMPILE_TOOLS}/maven-settings.xml
 \cp -a /root/.npmrc ${COMPILE_TOOLS}/node-.npmrc
 ```
 
-
-
-#### 2. 恢复到新的jenkins
+#### 2. 恢复到新的 jenkins
 
 ```bash
 root@jenkins:~# systemctl stop jenkins
@@ -1525,9 +1529,7 @@ root@jenkins:/var/lib/jenkins# chown -R root.jenkins /var/lib/jenkins/ && chmod 
 root@jenkins:~# systemctl start jenkins
 ```
 
-
-
-#### 3. 还原jenkins流水线执行脚本
+#### 3. 还原 jenkins 流水线执行脚本
 
 ```bash
 root@jenkins:/var/lib/jenkins# \cp -ap /winbackup/192.168.13.214/shell/ /
@@ -1547,9 +1549,7 @@ lrwxrwxrwx 1 root root       9 Nov 21 15:54 /bin/sh -> /bin/bash
 lrwxrwxrwx 1 root root       7 Mar  7  2019 /bin/static-sh -> busybox
 ```
 
-
-
-#### 4. 安装跟老jenkins上一样的编译环境
+#### 4. 安装跟老 jenkins 上一样的编译环境
 
 ```bash
 # git安装
@@ -1592,35 +1592,34 @@ root@jenkins:/usr/local/maven# cat conf/settings.xml
       <id>mirrorHomsom</id>
       <repositories>
         <repository>
-                <id>mirrorHomsom</id>
-                <name>mirrorHomsom</name>
-                <url>http://nexus.hs.com/repository/maven-public/</url>
-                <releases>
-                        <enabled>true</enabled>
-                </releases>
-                <snapshots>
-                        <enabled>true</enabled>
-                </snapshots>
-                <layout>default</layout>
-                <snapshotPolicy>always</snapshotPolicy>
+          <id>mirrorHomsom</id>
+          <name>mirrorHomsom</name>
+          <url>http://nexus.hs.com/repository/maven-public/</url>
+          <releases>
+            <enabled>true</enabled>
+          </releases>
+          <snapshots>
+            <enabled>true</enabled>
+          </snapshots>
+          <layout>default</layout>
+          <snapshotPolicy>always</snapshotPolicy>
         </repository>
       </repositories>
 
         <pluginRepositories>
-                <pluginRepository>
-                <id>mirrorHomsom</id>
-                <name>mirrorHomsom</name>
-                <url>http://nexus.hs.com/repository/maven-public/</url>
-                <releases>
-                        <enabled>true</enabled>
-                </releases>
-                <snapshots>
-                        <enabled>true</enabled>
-                </snapshots>
-                </pluginRepository>
+            <pluginRepository>
+            <id>mirrorHomsom</id>
+            <name>mirrorHomsom</name>
+            <url>http://nexus.hs.com/repository/maven-public/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+            </pluginRepository>
         </pluginRepositories>
     </profile>
----
 root@jenkins:/usr/local/maven# mkdir -p /data/mavenrepo
 ## 下载缓存包，可忽略
 root@jenkins:/usr/local/maven# mvn help:system
@@ -1655,7 +1654,9 @@ deb-src http://repo.hs.com/repository/ubuntu-bionic/ bionic-proposed main restri
 
 deb http://repo.hs.com/repository/ubuntu-bionic/ bionic-backports main restricted universe multiverse
 deb-src http://repo.hs.com/repository/ubuntu-bionic/ bionic-backports main restricted universe multiverse
----
+```
+
+```bash
 ## 安装依赖包和添加docker软件源
 root@jenkins:~# apt update -y
 root@jenkins:~# apt-get -y install apt-transport-https ca-certificates curl software-properties-common gpg-agent
@@ -1680,7 +1681,9 @@ deb-src http://repo.hs.com/repository/ubuntu-bionic/ bionic-backports main restr
 
 deb [arch=amd64] http://repo.hs.com/repository/ubuntu-bionic-docker/ bionic stable
 # deb-src [arch=amd64] http://repo.hs.com/repository/ubuntu-bionic-docker/ bionic stable
----
+```
+
+```bash
 ## 安装docker-ce-19.03.15
 root@jenkins:/etc/apt# apt-get -y update && apt-get -y install docker-ce=5:19.03.15~3-0~ubuntu-bionic
 root@jenkins:/etc/apt# mkdir -pv /etc/docker
@@ -1694,9 +1697,7 @@ root@jenkins:/etc/apt# cat /etc/docker/daemon.json
 root@jenkins:/etc/apt# systemctl daemon-reload && systemctl enable docker && systemctl restart docker
 ```
 
-
-
-#### 5. 配置git免密认证
+#### 5. 配置 git 免密认证
 
 ```bash
 ## 因为使用gitops，所以需要配置jenkins服务器使用git免密认证克隆仓库
@@ -1706,15 +1707,12 @@ root@jenkins:/git# ssh-keygen -t rsa -f /home/jenkins/.ssh/id_rsa
 root@jenkins:/git# cat /home/jenkins/.ssh/id_rsa.pub	# 配置到gitlab上，使本用户具有git修改权限
 ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDae3FJMehi+H881gENb58F+7FAQUorIThdujeXvvqK75gKMM2qQU0ieukNf73qwVYdHISIQWruXBHRgdNuz9VKJOTQesSVTYuWvP/uDwoyv27yJsHhA+BLeEhBSFhIA3BUPaXON8ROoQNfwcslixnVOAmUFb5QLCt5hfg1McvskMH/2mPhyGzzRPvlZJYgzbCdv89ucfbpiEy8Ey3TEycqB5LCFcvAayBXucQQVLbPi/G3yRMrTedui1BJervRtmjvkfgKzTHZJGCgs8lnsi+ojOog0iiDlD3g1mUk/ozIx5AGEX4xhKNODdyZSWRxab3WC+VX/NebxiYtsc6lcCsJ root@jenkins
 root@jenkins:/git# chown -R root.jenkins /git/ && chmod -R 2775 /git/ # 此目录gitops需要存储克隆仓库
-
 ```
 
+#### 6. 批量更改 jenkins 参数化过程参数
 
-
-#### 6. 批量更改jenkins参数化过程参数
-
-`原因：经过测试，迁移过来的所有job流水线在构建时无法读取Jenkins的变量'Language'，系统最初为CentOS7，目前为Ubuntu18.04`
-`解决：经过测试将其改为变量'tech'可以读取，于是以下为批量更改参数`
+原因：经过测试，迁移过来的所有 job 流水线在构建时无法读取 Jenkins 的变量 `Language`，系统最初为 CentOS7，目前为 Ubuntu18.04。
+解决：经过测试将其改为变量 `tech` 可以读取，于是以下为批量更改参数。
 
 ```bash
 # 将变量名Language替换为变量名tech
@@ -1731,8 +1729,6 @@ root@jenkins:/var/lib/jenkins# systemctl restart jenkins.service
 cd /var/lib/jenkins && for i in `ls jobs`;do sed -i 's/Language/tech/g' jobs/$i/config.xml;done
 root@jenkins:/var/lib/jenkins# systemctl restart jenkins.service
 ```
-
-
 
 ## 插件方式备份和恢复
 
@@ -1755,7 +1751,6 @@ root@jenkins:/var/lib/jenkins# systemctl restart jenkins.service
 还原目标服务器： 点击Restore进行还原，此操作会等待一会，可观察jenkins家目录，例如：/var/lib/jenkins/下的文件是否有变化，可用命令：
 [root@LocalServer /var/lib/jenkins]# watch -n 1 'tree | wc -l'
 注：以上命令可查看jenkins家目录下文件是否有变化 ，等待无变化时可到jenkinsUI界面查看是否已经完成备份，完成备份后可重启jenkins服务，方式有两种：
-
 1. 在插件管理中重启服务
 2. 在服务器上重启服务：systemctl restart jenkins
 
@@ -1770,10 +1765,9 @@ root@jenkins:/var/lib/jenkins# systemctl restart jenkins.service
    curl -OL http://unzip.top:8088/software/jenkins.war
    cp jenkins.war /usr/lib/jenkins
 4. 重启jenkins服务即可
-   systemctl restart jenkins 
+   systemctl restart jenkins
 
 #jenkins升级遗留问题
-
 1. 有些插件未成功安装，提示需要升级到enkins-2.222-4及以上版本
 2. 因为插件原因而不能正常发布的问题等
    #解决升级遗留问题
@@ -1785,29 +1779,27 @@ root@jenkins:/var/lib/jenkins# systemctl restart jenkins.service
 #注：备份还原，其实只要目标服务器版本比源服务器版本新就可以了
 ```
 
-
-
-## jenkins插件下载更改代理
+## jenkins 插件下载更改代理
 
 **更改位置一：/data/jenkins/datadir/updates/default.json**
-source：
 
+source：
 1. https://updates.jenkins.io/download
 2. https://www.google.com/
 
-destination:
-
+destination：
 1. https://mirrors.tuna.tsinghua.edu.cn/jenkins
 2. https://www.baidu.com/
 
-
-
 **更改位置二：/data/jenkins/datadir/hudson.model.UpdateCenter.xml**
-source: https://updates.jenkins.io/download/updates/update-center.json
+source：https://updates.jenkins.io/download/updates/update-center.json
 destination：https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center.json
 
 ```bash
 [root@jenkins /data/jenkins/datadir]# cat hudson.model.UpdateCenter.xml
+```
+
+```xml
 <?xml version='1.1' encoding='UTF-8'?>
 <sites>
   <site>
@@ -1817,86 +1809,74 @@ destination：https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/update-center
 </sites>
 ```
 
-**以上多个位置更改后，需要重启Jenkins服务生效**
+**以上多个位置更改后，需要重启 Jenkins 服务生效**
 
-**在安装最新jenkins时生效，经过几年后再使用此方法时不生效**
+**在安装最新 jenkins 时生效，经过几年后再使用此方法时不生效**
 
+## Jenkins for pipeline
 
+实现基于 Jenkins 的 K8s 发布功能。
 
+### 安装
 
+- 安装 jenkins，并安装以下插件
 
-# Jenkins for pipeline
+  ```text
+  Git
+  Git Parameter
+  Git Pipeline for Blue Ocean
+  GitLab
+  Credentials
+  Credentials Binding
+  Blue Ocean
+  Blue Ocean Pipeline Editor
+  Blue Ocean Core JS
+  Pipeline SCM API for Blue Ocean
+  Dashboard for Blue Ocean
+  Build With Parameters
+  Dynamic Extended Choice Parameter Plug-In
+  Dynamic Parameter Plug-in
+  Extended Choice Parameter
+  List Git Branches Parameter
+  Pipeline
+  Pipeline: Declarative
+  Kubernetes
+  Kubernetes CLI
+  Kubernetes Credentials
+  Image Tag Parameter
+  Active Choices
+  Generic Webhook Trigger
+  ```
 
-`实现基于Jenkins的K8s发布功能`
+- 安装 gitlab
+- 安装 harbor
+- 部署 Kubernetes
+- [Pipeline 常用变量](http://Jenkins_URL/pipeline-syntax/globals)
 
+### 配置 Jenkins
 
+**配置 gitlab 访问凭证**
 
-## 安装
+1. 在 jenkins 服务器生成 ssh-key 密钥对，将公钥放到 gitlab 中有权限用户的 SSH 密钥中，免密访问 gitlab
+2. 将 ssh-key 密钥对的私钥复制到 jenkins 全局凭证中，名称为 gitlab，类型为 `SSH Username with private key`
 
+**配置 harbor 访问凭证**
+1. 在 harbor 中创建对应仓库用户和密码
+2. 将用户和密码放到 jenkins 全局凭证中，ID 为 harbor，类型为 `Username with password`
 
-* 安装jenkins，并安装以下插件
-```
-Git
-Git Parameter
-Git Pipeline for Blue Ocean
-GitLab
-Credentials
-Credentials Binding
-Blue Ocean
-Blue Ocean Pipeline Editor
-Blue Ocean Core JS
-Pipeline SCM API for Blue Ocean
-Dashboard for Blue Ocean
-Build With Parameters
-Dynamic Extended Choice Parameter Plug-In
-Dynamic Parameter Plug-in
-Extended Choice Parameter
-List Git Branches Parameter
-Pipeline
-Pipeline: Declarative
-Kubernetes
-Kubernetes CLI
-Kubernetes Credentials
-Image Tag Parameter
-Active Choices
-Generic Webhook Trigger
-```
-* 安装gitlab
-* 安装harbor
-* 部署Kubernetes
-* [Pipeline常用变量](http://Jenkins_URL/pipeline-syntax/globals)
+**配置 k8s 访问凭证**
 
+1. 制作有权限部署到 k8s 的 kubeconfig
+2. 复制 kubeconfig 内容到新文件中，将将新文件上传到 jenkins 全局凭证中，ID 为 kubernetes，类型为 `Secret file`
 
-
-## 配置Jenkins
-
-
-**配置gitlab访问凭证**
-
-1. 在jenkins服务器生成ssh-key密钥对，将公钥放到gitlab中有权限用户的SSH密钥中，免密访问gitlab
-2. 将ssh-key密钥对的私钥复制到jenkins全局凭证中，名称为gitlab，类型为`SSH Username with private key`
-
-**配置harbor访问凭证**
-1. 在harbor中创建对应仓库用户和密码
-2. 将用户和密码放到jenkins全局凭证中，ID为harbor，类型为`Username with password`
-
-**配置k8s访问凭证**
-
-1. 制作有权限部署到k8s的kubeconfig
-2. 复制kubeconfig内容到新文件中，将将新文件上传到jenkins全局凭证中，ID为kubernetes，类型为`Secret file`
-
-
-
-## 创建项目hotelbusiness.service
+### 创建项目 hotelbusiness.service
 
 ![](./images/jenkins/jenkins-job01.png)
 ![](./images/jenkins/jenkins-job02.png)
 
+### 编写 Jenkinsfile
 
-
-## 编写Jenkinsfile
-
-```bash
+```groovy
 pipeline {
   agent {
     kubernetes {
@@ -1997,13 +1977,13 @@ spec:
     //timeout(time: 1, unit: 'HOURS')
     timestamps()
   }
-  
+
   triggers {
     cron('H */12 * * 6-7 ')
     //pollSCM('H */12 * * 6-7 ')
     //upstream(upstreamProjects: 'job1,job2', threshold: hudson.model.Result.SUCCESS)
   }
-  
+
   //stages {
   //  stage('Example') {
   //    input {
@@ -2016,14 +1996,14 @@ spec:
   //    }
   //  }
   //}
-  
+
   stages {
     stage('Pulling Code') {
       parallel {
         stage('Pulling Code by Jenkins') {
           when {
-            expression { 
-              env.gitlabBranch == null 
+            expression {
+              env.gitlabBranch == null
             }
           }
           steps {
@@ -2039,9 +2019,9 @@ spec:
 
         stage('Pulling Code by trigger') {
           when {
-            expression { 
-              env.gitlabBranch != null 
-            }	
+            expression {
+              env.gitlabBranch != null
+            }
           }
           steps {
             git(url: 'git@172.168.2.14:k8s/hotelbusiness.service.git', branch: env.gitlabBranch, changelog: true, poll: true, credentialsId: 'gitlab')
@@ -2056,23 +2036,23 @@ spec:
       }
     }
 
-    stage('Building') { 
+    stage('Building') {
       steps {
-        container(name: 'build') { 
+        container(name: 'build') {
           sh """
-            mvn clean package -U -Dmaven.test.skip=true 
+            mvn clean package -U -Dmaven.test.skip=true
             ls target/*
           """
         }
       }
     }
 
-    stage('Docker build for creating image') { 
+    stage('Docker build for creating image') {
       environment {
         HARBOR_USER = credentials('harbor')
-      }	 
+      }
       steps {
-        container(name: 'docker') { 
+        container(name: 'docker') {
           sh """
             echo ${HARBOR_USER_USR} ${HARBOR_USER_PSW} ${TAG}
             docker build -t ${HARBOR_ADDRESS}/${REGISTRY_DIR}/${IMAGE_NAME}:${TAG} .
@@ -2083,12 +2063,12 @@ spec:
       }
     }
 
-    stage('Deploying to K8s') { 
+    stage('Deploying to K8s') {
       environment {
         MY_KUBECONFIG = credentials('kubernetes')
       }
       steps {
-        container(name: 'kubectl') { 
+        container(name: 'kubectl') {
           sh"""
             /usr/local/bin/kubectl --kubeconfig $MY_KUBECONFIG set image deploy -l app=${IMAGE_NAME}-selector ${CONTAINER_NAME}=${HARBOR_ADDRESS}/${REGISTRY_DIR}/${IMAGE_NAME}:${TAG} -n $NAMESPACE
           """
@@ -2096,7 +2076,7 @@ spec:
       }
     }
   }
-  
+
   environment {
     COMMIT_ID = ""
     HARBOR_ADDRESS = "harborrepo.hs.com"
@@ -2109,7 +2089,7 @@ spec:
   parameters {
     gitParameter(branch: '', branchFilter: 'origin/(.*)', defaultValue: '', description: 'Branch for build and deploy', name: 'BRANCH', quickFilterEnabled: false, selectedValue: 'NONE', sortMode: 'NONE', tagFilter: '*', type: 'PT_BRANCH')
   }
-  
+
   post {
     always {
       echo "Hello World!"
@@ -2119,9 +2099,7 @@ spec:
 }
 ```
 
-
-
-## Dockerfile
+### Dockerfile
 
 ```bash
 # 项目结构
@@ -2137,21 +2115,23 @@ drwxr-xr-x 4 root root   28 Jan 17 15:03 src
 ```
 
 ```bash
-[root@BuildImage /tmp/hotelbusiness.service]# cat Dockerfile 
+[root@BuildImage /tmp/hotelbusiness.service]# cat Dockerfile
 FROM harborrepo.hs.com/base/java/ops_java:8
 EXPOSE 80
 
-ENV TZ=Asia/Shanghai 
+ENV TZ=Asia/Shanghai
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-WORKDIR / 
+WORKDIR /
 ADD target/*.jar app.jar
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
+[root@BuildImage /tmp/hotelbusiness.service]# cat entrypoint.sh
+```
 
-[root@BuildImage /tmp/hotelbusiness.service]# cat entrypoint.sh 
+```bash
 #!/bin/bash
 
 JAVA_ARGS='java -Xmx200m -Xss256k -XX:+UseParallelGC -XX:+UseParallelOldGC'
@@ -2168,15 +2148,14 @@ else
 fi
 ```
 
-
-
-
-
-## 初始化K8s项目
+### 初始化 K8s 项目
 
 ```bash
 # yaml文件
-[root@BuildImage /tmp/hotelbusiness.service]# cat hotelbusiness-service.yaml 
+[root@BuildImage /tmp/hotelbusiness.service]# cat hotelbusiness-service.yaml
+```
+
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -2260,41 +2239,29 @@ spec:
             memory: 50Mi
 ```
 
+### 构建项目
 
-
-## 构建项目
-
-
-
-### 手动构建项目
+#### 手动构建项目
 
 **注：创建完项目后，手动构建项目第一次会失败，第二次及以后将正常**
 
 ![手动构建项目](./images/jenkins/pipeline-manual.png)
 
-
-
-### trigger构建项目
+#### trigger 构建项目
 
 ![配置触发器构建项目](./images/jenkins/pipeline-trigger-config01.png)
 ![配置触发器构建项目](./images/jenkins/pipeline-trigger-config02.png)
 
-
-
-```bash
+```text
 http://172.168.2.30:8080/project/hotelbusiness.service
 a5ba9825e249291f768458c0e5429dfc
 ```
 
 ![触发器构建项目](./images/jenkins/gitlab-webhook.png)
 
-
-
 ![触发器构建项目](./images/jenkins/pipeline-trigger01.png)
 ![触发器构建项目](./images/jenkins/pipeline-trigger02.png)
 
-
-
-### 查看k8s部署效果
+#### 查看 k8s 部署效果
 
 ![k8s部署项目](./images/jenkins/k8s-deploy01.png)

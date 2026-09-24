@@ -5,8 +5,6 @@ ELKStack简介:
 对于日志来说，最常见的需求就是收集、存储、查询、展示，开源社区正好有相对应的开源项目：logstash（收集）、elasticsearch（存储+搜索）、kibana（展示），我们将这三个组合起来的技术称之为ELKStack，所以说ELKStack指的是Elasticsearch、Logstash、Kibana技术栈的结合
 Elasticsearch天生是分布式的，有两种方式进行通信：1.组播（加到组中，在组中的主机互相通信） 2.单播(指定主机)
 
-
-
 ## 1.部署ELK
 
 ### 1.1 安装JDK
@@ -152,8 +150,6 @@ discovery.zen.ping.unicast.hosts: ["192.168.1.31", "192.168.1.37"]    #ip地址�
 65530
 21.上elasticsearch第一件事情就是改openfile:sysctl -w vm.max_map_count=262144
 ```
-
-
 
 ### 1.3 logstash部署
 ```bash
@@ -441,13 +437,8 @@ output{
 3.前端Nginx做负载均衡（kibana性能到20多个人时就极限）、ip_hash、身份验证（限制访问）、ACL。
 ```
 
-
-
 ### 1.5 Rsyslog日志(Redhat7之前叫syslog)
 syslog插件：logstash开启514端口，其他节点就可以把所有系统日志传到这台主机的514端口了。
-
-
-
 
 #### 1.5.1 syslog插件
 logstash自带所有插件，免安装
@@ -518,8 +509,6 @@ echo "hehe" | nc 192.168.1.31 6666
 nc 192.168.1.31 6666 < /etc/resolv.conf
 echo "hello" > /dev/tcp/192.168.1.31/6666
 ```
-
-
 
 ### 1.6 filter模块
 
@@ -812,8 +801,6 @@ output{
 20.在kibana中设置时间显示的时候点开设置时间时左边有个自动刷新功能，一般设成1分钟。
 ```
 
-
-
 ## 2. ELKStack实战
 ```
 需求分析：
@@ -834,8 +821,6 @@ output{
 流程图：
 源日志==>logstash收集==>写入redis存储<==logstash读取redis写到es==>kibana展示
 ```
-
-
 
 ### 2.1 实战
 ```bash
@@ -888,7 +873,6 @@ LS_GROUP=root
 *.* @@192.168.1.37:514  #配置最后面设置
 5. [root@clusterFS-node4-salt conf.d]# systemctl restart rsyslog.service 
 
-
 # 192.168.1.37
 1. [root@clusterFS-node3-salt conf.d]# cat indexer.conf 
 input {
@@ -922,7 +906,6 @@ filter {
         }
 }
 
-
 output{
         if [type] == "apache-accesslog"{
                 elasticsearch {
@@ -947,7 +930,6 @@ output{
 LS_USER=root   #将logstash改成root(如果不启端口用root，启用端口用logstash用户)
 LS_GROUP=root
 3. [root@clusterFS-node3-salt logstash]# systemctl restart logstash.service 
-
 
 结论：如果redis list 作为ELKStack消息队列，那么请对所有list key的长度进行监控
 llen key_name
@@ -1225,9 +1207,6 @@ node2: elasticsearch、kibana
 被收集机器：logstash,收集日志文件发送到elasticsearch
 #注：它们之间全靠elasticsearch存储，各elasticsearch节点之间同步数据达到集群的作用
 ```
-
-
-
 
 ### 2.3 docker部署ELK-方式一
 ```bash
@@ -1574,8 +1553,6 @@ curl -XGET -s -u user:pass http://localhost:9200/_cat/shards | grep UNASSIGNED |
 }
 ' | jq . > /tmp/test.log
 
-
-
 ----预设置索引，设置分片和副本（用来提前设置索引并设置分片，以防未来会使用,已经存在的索引不能更改）
 PUT /testindex
 {
@@ -1623,7 +1600,6 @@ get /_cat/health
 1606550453 08:00:53 dlog green 3 3 84 39 0 0 0 0 - 100.0%
 /_cat/indices
 green open .kibana_1                6w8WSB8VQwyz8SPCPf7r9Q 1 1     38    5 137.4kb  49.5kb
-
 
 #5.用logstash测试端口 6666进行写入elasticsear测试:
 [root@node2 elk]# echo 'hello_world' | ncat 192.168.43.201 6666 #发送消息到logstash端口，从而写入数据到elasticsearch
@@ -1696,8 +1672,7 @@ output.elasticsearch:
         tags: "httpd"
   username: "user"
   password: "123456"
--------------------------------------------------
-
+---
 
 #7.访问kibana,http://192.168.43.201:5601 || http://192.168.43.202:5601
 在设置中建立索引模式 system-test* 。就可以在首页查看测试日志了
@@ -1733,7 +1708,7 @@ Elasticsearch 做备份有两种方式:
 ### 3.1 第一种方式备份
 ```
 # 6.4版本docker-compose.yml
--------------
+---
 version: '3'
 services:
   elasticsearch:                    # 服务名称
@@ -1767,7 +1742,7 @@ services:
 volumes:
   esdata2:
     driver: local  
--------------------
+---
 blog:
 #通过指定索引，指定匹配模式，指定时间来查看数据，match_all可以换成match来匹配特定字符
 GET /homsom_log/_search
@@ -1920,12 +1895,10 @@ POST /backup-clog/_delete_by_query?scroll_size=5000
   }
 }
 
-
 # 多条件查询数据删除
 must: and
 must_not: not
 should: or
-
 
 ## 脚本
 ---
@@ -1964,16 +1937,12 @@ curl -s -H'Content-Type:application/json' -d'{
 }
 ' -XPOST "${ES_ADDRESS}/_delete_by_query?scroll_size=3000"
 
-
 echo "`eval ${DATETIME}`: clear http://127.0.0.1:9210/clog data finished... " >> ${LOG_FILE}
 echo '' >> ${LOG_FILE}
 ---
 
-
 # 批量手动配置所有索引为读写
 for i in `curl -s -XGET "http://localhost:9200/_settings" | jq 'keys' | jq .[] | tr -d '"'`;do echo $i;curl -H 'Content-Type: application/json' -X PUT http://localhost:9200/$i/_settings -d '{"index.blocks.read_only_allow_delete": null}';done
-
-
 
 删除hlog小于20200101的旧日志-----20200508操作，一个月一个月来
 --查看指定时间日志大小
@@ -2319,10 +2288,7 @@ Enter host password for user 'ops0799':
       "auto_create_index" : "+.*,+*_ali,-*"
 ```
 
-
 ## 4. 镜像部署elk
-
-
 
 ### 4.1 docker部署ES 7.6.1
 ```bash
@@ -2330,10 +2296,10 @@ Enter host password for user 'ops0799':
 node1: 192.168.13.160
 node2: 192.168.13.161
 node3: 192.168.13.162
-------------------------
--------
+---
+---
 node1: 192.168.13.160
--------
+---
 [root@localhost elasticsearch]# cat /home/dockerdata/elasticsearch/elasticsearch.yml
 ############cluster#########
 node.name: dlog-01 
@@ -2353,12 +2319,12 @@ discovery.zen.fd.ping_retries: 5
 http.cors.enabled: true    
 http.cors.allow-origin: "*" 
 ############################
--------
+---
 [root@localhost elasticsearch]# cat /home/dockerdata/elasticsearch/kibana.yml 
 server.name: train_kbn01
 server.host: "0.0.0.0"
 i18n.locale: "zh-CN"
--------
+---
 docker run -d --restart=always --name=dlog01 \
 -p 9200:9200 \
 -p 9300:9300 \
@@ -2375,9 +2341,9 @@ docker run -d --restart=always --name=dlog01 \
 -v /home/dockerdata/elasticsearch/es_data:/var/lib/elasticsearch \
 sebp/elk:761 
 
--------
+---
 node2: 192.168.13.161
--------
+---
 [root@redis-slave1 /home/dockerdata/elasticsearch]# cat /home/dockerdata/elasticsearch/elasticsearch.yml
 ##########cluster#########
 node.name: dlog-02 
@@ -2397,12 +2363,12 @@ discovery.zen.fd.ping_retries: 5
 http.cors.enabled: true    
 http.cors.allow-origin: "*" 
 ##########################
--------
+---
 [root@redis-slave1 /home/dockerdata/elasticsearch]# cat /home/dockerdata/elasticsearch/kibana.yml 
 server.name: train_kbn01
 server.host: "0.0.0.0"
 i18n.locale: "zh-CN"
--------
+---
 docker run -d --restart=always --name=dlog02 \
 -p 9200:9200 \
 -p 9300:9300 \
@@ -2419,9 +2385,9 @@ docker run -d --restart=always --name=dlog02 \
 -v /home/dockerdata/elasticsearch/es_data:/var/lib/elasticsearch \
 sebp/elk:761 
 
--------
+---
 node3: 192.168.13.162
--------
+---
 [root@redis1_s2 elasticsearch]# cat /home/dockerdata/elasticsearch/elasticsearch.yml
 ###########cluster#########
 node.name: dlog-03 
@@ -2441,12 +2407,12 @@ discovery.zen.fd.ping_retries: 5
 http.cors.enabled: true    
 http.cors.allow-origin: "*" 
 ###########################
--------
+---
 [root@redis1_s2 elasticsearch]# cat /home/dockerdata/elasticsearch/kibana.yml 
 server.name: train_kbn02
 server.host: "0.0.0.0"
 i18n.locale: "zh-CN"
--------
+---
 docker run -d --restart=always --name=dlog03 \
 -p 9200:9200 \
 -p 9300:9300 \
@@ -2462,20 +2428,20 @@ docker run -d --restart=always --name=dlog03 \
 -v /home/dockerdata/elasticsearch/kibana.yml:/opt/kibana/config/kibana.yml \
 -v /home/dockerdata/elasticsearch/es_data:/var/lib/elasticsearch \
 sebp/elk:761 
-----------------
+---
 #注：elasticsearch.yml配置文件中
 cluster.initial_master_nodes：表示节点启动时选择一个节点为master,当集群中的master转移为另一个节点时，则未启动的elasticsearch节点配置文件应将此配置项改为新的master节点地址，否则不会加入已经存在的集群，只会此节点成为一个孤立集群节点。
 discovery.seed_hosts: 表示初始集群的各个候选节点地址，后面新加节点也可加入进来
 discovery.zen.minimum_master_nodes: 表示最小两个候选节点投票才能选举出一个master，小于两个节点投票则不能选举master(elasticsearch集群将不能正常服务)，公式为(取整)：master数/2+1
-----------------
+---
 [root@redis1_s2 elasticsearch]# curl -XGET http://192.168.13.161:9200/_cat/nodes?v
 ip             heap.percent ram.percent cpu load_1m load_5m load_15m node.role master name
 192.168.13.161           39          59   1    0.05    0.20     0.43 dilm      *      dlog-02
 192.168.13.160           27          85   1    0.07    0.32     0.42 dilm      -      dlog-01
 192.168.13.162           30          95   2    0.05    0.15     0.31 dilm      -      dlog-03
-----------------
+---
 #注：上面master节点为dlog-02,表示后面初始master节点dlog-01转移为dlog-02了，后面的新加入节点cluster.initial_master_nodes应配置为dlog-02
-----------------
+---
 -----single-----
 ---
 [root@test /data/elk/elasticsearch]# cat elasticsearch.yml 
@@ -2489,7 +2455,7 @@ cluster.initial_master_nodes: ["elk"]
 server.name: syslog_kibana
 server.host: "0.0.0.0"
 i18n.locale: "zh-CN"
------
+---
 docker run -d --restart=always --name=rsyslog  \
 -p 9401:9200 \
 -p 9402:5601 \
@@ -2626,7 +2592,7 @@ iptables -I FORWARD 2 -o docker0 -p tcp --dport 5601 -j DROP
 ---
 #其它主机配置/etc/rsyslog.conf,增加所有日志并且级别为info的发送到syslog服务器
 *.info 	@192.168.13.50
---------------------------------
+---
 ```
 
 
@@ -2644,7 +2610,7 @@ transport.tcp.port: 9300
 discovery.zen.ping.unicast.hosts: ["192.168.13.214:9321","192.168.13.214:9322","192.168.13.214:9323"]
 node.master: true
 node.data: true
-----
+---
 cluster.name: blog
 node.name: blog02
 path.repo: /var/backups
@@ -2655,7 +2621,7 @@ transport.tcp.port: 9300
 discovery.zen.ping.unicast.hosts: ["192.168.13.214:9321","192.168.13.214:9322","192.168.13.214:9323"]
 node.master: true
 node.data: true
-----
+---
 cluster.name: blog
 node.name: blog03
 path.repo: /var/backups
@@ -2666,7 +2632,7 @@ transport.tcp.port: 9300
 discovery.zen.ping.unicast.hosts: ["192.168.13.214:9321","192.168.13.214:9322","192.168.13.214:9323"]
 node.master: true
 node.data: true
-----
+---
 [root@BuildImage /data/elk640]# cat docker01.sh docker02.sh docker03.sh 
 docker run -d --restart=always --name=blog-test01  \
 -p 9221:9200 \
@@ -2682,7 +2648,7 @@ docker run -d --restart=always --name=blog-test01  \
 -v /data/elk640/es01/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
 -v /data/elk640/es01/es_data:/var/lib/elasticsearch \
 harborrepo.hs.com/ops/elk:640
-----
+---
 docker run -d --restart=always --name=blog-test02  \
 -p 9222:9200 \
 -p 9322:9300 \
@@ -2697,7 +2663,7 @@ docker run -d --restart=always --name=blog-test02  \
 -v /data/elk640/es02/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
 -v /data/elk640/es02/es_data:/var/lib/elasticsearch \
 harborrepo.hs.com/ops/elk:640
-----
+---
 docker run -d --restart=always --name=blog-test03  \
 -p 9223:9200 \
 -p 9323:9300 \
@@ -2712,7 +2678,7 @@ docker run -d --restart=always --name=blog-test03  \
 -v /data/elk640/es03/elasticsearch.yml:/etc/elasticsearch/elasticsearch.yml \
 -v /data/elk640/es03/es_data:/var/lib/elasticsearch \
 harborrepo.hs.com/ops/elk:640
-----
+---
 ```
 
 
@@ -2778,15 +2744,8 @@ docker run -d --restart=always --name=hlog  \
 harborrepo.hs.com/ops/elk:651
 ```
 
-
-
-
-
-
 ## 5. k8s日志收集
 filebeat -> kafka -> logstash -> elasticsearch -> kibana
-
-
 
 ### 5.1 安装zookeeper
 ```
@@ -2810,8 +2769,6 @@ Mode: standalone
 [root@kafka zookeeper]# ss -tnl | grep 2181
 LISTEN     0      50        [::]:2181                  [
 ```
-
-
 
 ### 5.2安装kafka
 ```
@@ -2918,8 +2875,6 @@ output {
 }
 ----
 ```
-
-
 
 ### 5.4 filebeat安装
 ```
@@ -3356,8 +3311,6 @@ metadata:
 kubectl -n ns-elk apply -f filebeat.yaml
 ```
 
-
-
 ### 5.5 logstash二进制安装
 
 [logstash download](https://artifacts.elastic.co/downloads/logstash/logstash-7.9.3.tar.gz)
@@ -3487,12 +3440,6 @@ node_systemd_version{version="219"} 219
 > * 在systemd服务配置文件中`不加引号`，否则不生效。
 > * 在命令行中使用时需要`加引号`，否则会报错。
 
-
-
-
-
-
-
 ## 6. 手动部署ES 7.6.2，带x-pack认证
 
 ```bash
@@ -3511,7 +3458,7 @@ root@ansible:~# ansible '~172.168.2.1[789]' -m copy -a 'src=/download/kibana-7.6
 [root@node01 elasticsearch]# ls
 bin  config  jdk  lib  LICENSE.txt  logs  modules  NOTICE.txt  plugins  README.asciidoc
 [root@node01 elasticsearch]# vim config/elasticsearch.yml
-------------------
+---
 cluster.name: blog-search
 node.name: blog-search-node01
 path.data: /data/elasticsearch7/data
@@ -3523,7 +3470,7 @@ transport.tcp.port: 9300
 xpack.security.enabled: true # 这条配置表示开启xpack认证机制
 xpack.security.transport.ssl.enabled: true  #这条如果不配，es将起不来
 cluster.initial_master_nodes: ["172.168.2.17"]
-------------------
+---
 [root@node01 config]# mkdir -p /data/elasticsearch7/data /data/elasticsearch7/log /data/elasticsearch7/backups
 [root@node01 elasticsearch]# groupadd -r elasticsearch && useradd -r -M -s /sbin/nologin -g elasticsearch elasticsearch
 [root@node01 elasticsearch]# chown -R elasticsearch.elasticsearch /usr/local/elasticsearch-7.6.2/
@@ -3574,13 +3521,11 @@ LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
-----------
+---
 [root@node01 elasticsearch]# systemctl start elasticsearch.service
 [root@node01 elasticsearch]# chown elasticsearch:elasticsearch  config/elasticsearch.keystore
 [root@node01 elasticsearch]# systemctl restart elasticsearch.service
 [root@node01 elasticsearch]# systemctl status elasticsearch.service
-
-
 
 2. 为内置账号添加密码
 ES中内置了几个管理其他集成组件的账号即：apm_system, beats_system, elastic, kibana, logstash_system, remote_monitoring_user，使用之前，首先需要添加一下密码
@@ -3700,7 +3645,6 @@ xpack.security.encryptionKey: "yZr7lNijpHFb310qaEY5cp7MjVoyXw0C"        #如果�
 [root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.18:/usr/lib/systemd/system/
 [root@node01 config]# scp /usr/lib/systemd/system/elasticsearch.service /usr/lib/systemd/system/kibana.service root@172.168.2.19:/usr/lib/systemd/system/
 
-
 1. 证书
 ----在其中一个node节点执行即可，生成完证书传到集群其他节点即可，两条命令均一路回车即可，不需要给秘钥再添加密码。
 [root@node01 elasticsearch]# sudo -u elasticsearch /usr/local/elasticsearch/bin/elasticsearch-certutil ca
@@ -3797,7 +3741,6 @@ http.cors.allow-headers: Authorization,X-Requested-With,Content-Type,Content-Len
 ElasticsearchException[failed to initialize SSL TrustManager - access to read truststore file [/usr/local/elasticsearch/elastic-certificates.p12] is blocked; SSL resources should be placed in the [/usr/local/elasticsearch/config] directory]; nested: AccessControlException[access denied ("java.io.FilePermission" "/usr/local/elasticsearch/elastic-certificates.p12" "read")];
 [root@node03 elasticsearch]# mv elastic-certificates.p12 elastic-stack-ca.p12 /usr/local/elasticsearch/config/
 
-
 3. 为内置账号添加密码
 [root@node03 config]# /usr/local/elasticsearch/bin/elasticsearch-setup-passwords interactive
 Initiating the setup of passwords for reserved users elastic,apm_system,kibana,logstash_system,beats_system,remote_monitoring_user.
@@ -3844,7 +3787,6 @@ Changed password for user [elastic]
 ###通过elasticsearch-head查看es
 http://192.168.13.50:9900/?auth_user=elastic&auth_password=homsom	#head地址
 http://172.168.2.17:9200/		#es地址
-
 
 4. 配置kibana连接所有es节点
 [root@node01 kibana]# cat config/kibana.yml
@@ -4070,8 +4012,6 @@ curl -XPUT '192.168.13.56:9200/_cluster/settings' -d'
 }
 ```
 
-
-
 ### 7.4 向现有集群删除节点
 ```
 --执行删除前
@@ -4180,8 +4120,6 @@ GET http://192.168.13.51:9200/_nodes/testelk-02/stats/indices?pretty
 --------
 注：当节点成功添加和移除，记得要更新配置文件，为现有的节点，另外要仔细检查配置文件，防止最后配置更改错误导致集群起不来。
 ```
-
-
 
 ### 7.5 一次UNASSIGNED_FAILED事件原因解决
 ```
@@ -4393,9 +4331,6 @@ POST /_cluster/reroute?retry_failed=true
 所以导致分布不均。当我安装完analysis-ik分词器后集群自动平均分配分片。
 ```
 
-
-
-
 ### 7.6 20210713随手记
 ```bash
 [root@TestHotelES /data/elk/es_snapshot]# chmod -R 777 /data/elk/es_snapshot/
@@ -4427,7 +4362,6 @@ get _snapshot/my_repo/testhoteles_20210713104400/_status
 --删除快照
 DELETE _snapshot/my_backup/snapshot_3
 
-
 恢复
 --从快照恢复所有
 POST _snapshot/my_backup/snapshot_1/_restore
@@ -4456,7 +4390,7 @@ GET /_recovery/
 ----取消快照恢复
 --通过DELETE命令删除正在恢复的索引，取消恢复操作。如果restored_index_3正在恢复中，以上删除命令会停止恢复，同时删除所有已经恢复到集群中的数据。
 DELETE /restored_index_3
---------------------
+---
 ```
 
 
@@ -4548,7 +4482,7 @@ done
 echo '-------------------' >> ${LogFile}
 
 echo '' >> ${LogFile}
-------------------------------------------------------
+---
 
 #创建索引
 PUT /test01
@@ -4746,7 +4680,6 @@ FAILED	快照执行结束，但部分索引中的数据存储不成功。
 PARTIAL	部分数据存储成功，但至少有1个shard中的数据没有存储成功。
 INCOMPATIBLE	快照与阿里云Elasticsearch实例的版本不兼容。
 
-
 手动备份与恢复
 --创建elasticsearch 访问的access_key_id和secret_access_key，开通OSS服务
 --创建仓库
@@ -4779,7 +4712,6 @@ GET _snapshot/my_backup/snapshot_3/_status
 --删除指定的快照。如果该快照正在进行，执行以下命令，系统会中断快照进程并删除仓库中创建到一半的快照。
 DELETE _snapshot/my_backup/snapshot_3
 
-
 --从快照恢复
 --将指定快照中备份的所有索引恢复到Elasticsearch集群中。
 POST _snapshot/my_backup/snapshot_1/_restore?wait_for_completion=true
@@ -4802,7 +4734,6 @@ GET /_recovery/
 # 查看恢复状态
 GET /_cat/recovery
 GET /interdaolvv2_hotelstatic_db_ali_pro/_recovery
-
 
 --取消快照恢复
 DELETE /restored_index_3
@@ -4837,7 +4768,6 @@ sh -c /bin/echo -e "HDRZ3WYIX4BFUWZNHF45" | sh /opt/elasticsearch/bin/elasticsea
 sh -c /bin/echo -e "SERuAXJdPRkXBXA4eQEC8wbIoULoR05fihVUvems" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.secret_key && 
 sh -c /bin/echo -e "https://s3-sh-prod.fin-shine.com/" | sh /opt/elasticsearch/bin/elasticsearch-keystore add s3.client.default.endpoint 
 
-
 cd /opt/elasticsearch 
 bin/elasticsearch-plugin install repository-s3
 bin/elasticsearch-keystore add s3.client.default.access_key
@@ -4860,7 +4790,7 @@ PUT _snapshot/backup/
 PUT _snapshot/backup/snapshot_202208161027?wait_for_completion=true
 
 output:
---------
+---
 {
   "snapshots" : [
     {
@@ -5024,8 +4954,6 @@ else
 fi
 ```
 
-
-
 ### 7.12 常用命令
 ```
 # 查看繁忙的线程
@@ -5041,8 +4969,6 @@ GET /_cluster/health?pretty
 # 查看索引健康状态 
 GET /_cluster/health?level=indices 
 ```
-
-
 
 ### 7.13 索引生命周期策略
 ```
@@ -5092,15 +5018,11 @@ get /_template/logstash
 get /_cluster/settings
 ```
 
-
-
-
-
 ### 7.14 elasticsearch查询
 
 在 Elasticsearch 7 中进行**复杂查询**，主要依赖 **布尔查询（`bool query`）** 来组合多个条件。以下是精简列出的常用条件类型及其作用，便于你快速构建复杂查询：
 
-------
+---
 
 ✅ **布尔查询（`bool`）子句**
 
@@ -5113,8 +5035,6 @@ get /_cluster/settings
 
 > ⚠️ 注意：若 `bool` 中**没有 `must` 或 `filter`**，则 `should` 至少要匹配一条才返回结果（可通过 `minimum_should_match` 控制）。
 
-
-
 🔧 **常用查询类型（可嵌入上述子句）**
 
 | 查询类型              | 适用场景                     | 示例                                                 |
@@ -5125,8 +5045,6 @@ get /_cluster/settings
 | `range`               | 范围查询                     | `"range": { "price": { "gte": 1000, "lte": 3000 } }` |
 | `exists`              | 字段存在性检查               | `"exists": { "field": "email" }`                     |
 | `wildcard` / `regexp` | 通配符或正则（慎用，性能差） | `"wildcard": { "name": "prod*" }`                    |
-
-
 
 📌 **复杂查询结构模板（JSON DSL）**
 
@@ -5172,9 +5090,7 @@ get /_cluster/settings
 7}
 ```
 
-------
-
-
+---
 
 **自己查询示例**
 
@@ -5279,10 +5195,6 @@ $ curl -s -XGET "http://blog.hs.com:9200/homsom_log/_search?size=10000" -H 'Cont
 }' | jq -r '.hits.hits[] | select((.["_source"].Content | contains("PNR由【】") | not)) | .["_source"].OrderId ' > /tmp/blog.hs.com.txt
 ```
 
-
-
-
-
 ### 7.15 elasticsearch6集群优雅维护节点
 
 **不执行以下操作也可以，集群也不会丢数据，也不会坏。** 但执行它是为了**避免不必要的性能开销和恢复时间**。
@@ -5294,7 +5206,6 @@ $ curl -s -XGET "http://blog.hs.com:9200/homsom_log/_search?size=10000" -H 'Cont
 active master：正在履行职责的主节点
 standby master：所有配置了node.master: true的节点
 
-
 # 1. 关闭分片自动分配
 # 该 master 是纯 master 节点（node.data: false）可以不执行关闭分片分配，因为没有分片需要搬迁。直接优雅停机即可。
 # 该 master 同时承担 data 角色（node.master: true, node.data: true）,强烈建议执行。三节点集群通常每个节点都存数据，停一个就意味着 1/3 的分片副本丢失，不关闭分配的话集群会立刻开始大规模搬迁，而你只是想换个 master 而已。
@@ -5303,7 +5214,6 @@ curl -X PUT "http://<任一节点IP>:9200/_cluster/settings" -H 'Content-Type: a
     "cluster.routing.allocation.enable": "none"
   }
 }'
-
 
 # 2. Synced flush
 # 在普通 flush 基础上，额外写入一个 sync_id 标记到所有副本，如果 sync_id 一致，跳过 translog 回放，直接复用本地文件，快很多（秒级完成），synced flush 是尽力而为（best-effort） 的操作。失败的索引/分片只是退化为普通恢复方式（translog 回放），不影响数据安全和正确性。你不需要重试或处理这些失败。
@@ -5323,7 +5233,6 @@ curl -s -X POST "$ES_HOST/_flush/synced"
 
 # 3. 停掉一个节点服务
 systemctl stop elasticsearch
-
 
 # 4. 恢复分片自动分配
 curl -X PUT "http://<存活节点IP>:9200/_cluster/settings" -H 'Content-Type: application/json' -d '{
@@ -5369,7 +5278,6 @@ PUT _template/custom_index_refresh_interval_template
   }
 }
 
-
 # 设置索引刷新间隔时间
 PUT student/_settings
 {
@@ -5378,7 +5286,6 @@ PUT student/_settings
     }
 }
 
-
 # 清除索引刷新间隔设置
 PUT student/_settings
 {
@@ -5386,7 +5293,6 @@ PUT student/_settings
         "refresh_interval" : null
     }
 }
-
 
 # index.refresh_interval，默认是10s
 
@@ -5409,13 +5315,11 @@ PUT /_all/_settings
   }
 }
 
-
 # 全局生效，需要重启ES服务，仅针对新创建索引生效
 index.refresh_interval: 15s
 
 #index.memory.index_buffer_size，主要提高写入效率的问题，
 默认是ES堆内存的10%，这里面ES堆内存为16G，计算结果为1.6G，从 Elasticsearch 5.x 到 Elasticsearch 7.x，该设置已经被弃用并不再使用。替代方案见转录日志（translog）
-
 
 # 查看全部索引配置
 GET /_all/_settings?pretty
@@ -5438,8 +5342,6 @@ PUT /_all/_settings
 
 # 全局生效，需要重启ES服务，仅针对新创建索引生效
 index.memory.index_buffer_size: 15%
-
-
 
 # index.memory.index_buffer_size替代方案，主要提高写入效率的问题
 索引缓冲区的大小与刷新间隔（refresh_interval）以及转录日志（translog）设置有更直接的关联。
@@ -5590,9 +5492,6 @@ curl -X GET http://192.168.13.99:9200/_cluster/pending_tasks?pretty=true
 原因：有个索引ibelog副本分片无法建立
 解决：我将该分片副本改为1后，pending任务就没有了
 
-
-
-
 ### 问题5-breakers tripped大于0
 问题：Elasticsearch breakers tripped大于0，断路器触发了
 curl -X GET http://192.168.13.234:9200/_nodes/stats/breaker?pretty
@@ -5655,10 +5554,6 @@ thread_pool.search.max_queue_size: 3000
 # 重启节点服务，使配置生效
 ```
 
-
-
-
-
 ### 问题7：kibana搜索时报`Discover: Bad Gateway`
 
 因为访问kibana是通过nginx反向代理的，所以访问大量请求访问时会报`Discover: Bad Gateway`
@@ -5700,8 +5595,6 @@ GET /_tasks?detailed=true&actions=*search*,*bulk*,*index*
 - 如果有大量慢查询，会在这里看到。
 
 > 注意：Elasticsearch 6 的 `_tasks` API 支持有限，但基本的搜索/写入任务是可以看到的。
-
-
 
 **二、查看热点索引和分片的读取情况**
 
@@ -5771,8 +5664,6 @@ GET /_nodes/stats?filter_path=**.refresh
 
 关注 `refresh.total` 和 `refresh.total_time_in_millis` 是否突增。
 
-
-
 **五、使用系统级工具辅助分析（需登录服务器）**
 
 如果你能访问 ES 所在服务器，可以使用以下命令：
@@ -5814,19 +5705,9 @@ index.search.slowlog.threshold.query.info: 2s
 
 > 注意：此方法是**事后追溯**，对实时排查帮助有限，但对长期优化很有用。
 
+## 运维日志收集
 
-
-
-
-
-
-
-
-
-# 运维日志收集
-
-
-## 1. elasticsearch-7.17.23
+### 1. elasticsearch-7.17.23
 
 ```bash
 [root@opsaudit /usr/local]# cat elasticsearch/config/elasticsearch.yml 
@@ -5863,7 +5744,7 @@ WantedBy=multi-user.target
 
 
 
-## 2. kibana-7.17.23
+### 2. kibana-7.17.23
 
 ```bash
 [root@opsaudit /usr/local]# cat kibana/config/kibana.yml 
@@ -5912,10 +5793,7 @@ PUT /_template/indx_default_template
 }
 ```
 
-
-
-
-## 3. rsyslog部署
+### 3. rsyslog部署
 
 ```bash
 [root@opsaudit /var/log]# grep -Ev '#|^$' /etc/rsyslog-remote.conf
@@ -5928,10 +5806,8 @@ $template RemoteIp,"/var/log/rsyslog-remote/%FROMHOST-IP%.log"
 $WorkDirectory /var/lib/rsyslog-remote
 $ActionFileDefaultTemplate RSYSLOG_TraditionalFileFormat
 
-
 [root@opsaudit /var/log]# mkdir -p /var/lib/rsyslog-remote /var/log/rsyslog-remote
 [root@opsaudit /var/log]# chmod 700 /var/lib/rsyslog-remote
-
 
 [root@opsaudit /var/log]# cat /usr/lib/systemd/system/rsyslog-remote.service
 [Unit]
@@ -5961,7 +5837,6 @@ WantedBy=multi-user.target
 udp        0      0 0.0.0.0:514             0.0.0.0:*                           2640/rsyslogd       
 udp6       0      0 :::514                  :::*                                2640/rsyslogd    
 
-
 # 配置日志轮替，需要配置postrotate使rsyslog-remote服务重新读取新文件
 [root@opsaudit /var/log/rsyslog-remote]# cat /etc/logrotate.d/homsom_audit.conf
 /var/log/rsyslog-remote/*.log{
@@ -5981,7 +5856,6 @@ udp6       0      0 :::514                  :::*                                
     endscript
 }
 
-
 # 立即执行轮替
 [root@opsaudit /var/log/rsyslog-remote]# logrotate -vf /etc/logrotate.d/homsom_audit.conf
 [root@opsaudit /var/log/rsyslog-remote]# ls backup_logs/
@@ -5996,7 +5870,7 @@ udp6       0      0 :::514                  :::*                                
 
 
 
-## 4. filebeat收集rsyslog日志
+### 4. filebeat收集rsyslog日志
 
 **centos6 /etc/init/filebeat**
 
@@ -6082,8 +5956,6 @@ esac
 
 exit 0
 ```
-
-
 
 **filebeat收集rsyslog的网络设备日志**
 
@@ -6214,8 +6086,6 @@ output.elasticsearch:
         host.tags: "linux"
 logging.level: error
 
-
-
 [root@opsaudit /usr/local/filebeat]# chown -R root.filebeat /usr/local/filebeat-7.17.23-linux-x86_64/
 [root@opsaudit /usr/local/filebeat]# chmod -R 754 /usr/local/filebeat-7.17.23-linux-x86_64/
 [root@opsaudit /usr/local/filebeat]# cat /usr/lib/systemd/system/filebeat.service
@@ -6240,7 +6110,7 @@ WantedBy=multi-user.target
 
 
 
-## 5. filebeat收集nginx日志
+### 5. filebeat收集nginx日志
 
 ```
 filebeat.inputs:
@@ -6321,7 +6191,7 @@ logging.level: error
 
 
 
-## 6. filebeat收集centos7主机日志
+### 6. filebeat收集centos7主机日志
 
 ```bash
 # 配置索引模板
@@ -6359,9 +6229,7 @@ output.elasticsearch:
 logging.level: error
 ```
 
-
-
-## 7. filebeat收集ubuntu18主机日志
+### 7. filebeat收集ubuntu18主机日志
 
 ```bash
 filebeat.config.modules.path: ${path.config}/modules.d/*.yml
@@ -6392,7 +6260,7 @@ logging.level: error
 
 
 
-## 8. filebeat收集lvs日志
+### 8. filebeat收集lvs日志
 
 ```bash
 [root@lvs02 ~]# cat /usr/local/filebeat/filebeat.yml
@@ -6451,9 +6319,7 @@ logging.level: error
 >
 > **match: after**: 表示匹配模式后面的行将被追加到前一行。也就是说，所有以时间戳开头的行将被视为新的日志事件的开始，并将它们后面的行与之合并。
 
-
-
-## 9. filebeat收集mysql日志
+### 9. filebeat收集mysql日志
 
 ```bash
 filebeat.inputs:
@@ -6534,10 +6400,7 @@ output.elasticsearch:
 [root@devmysql /data]# logrotate -vf /etc/logrotate.d/mysql 
 ```
 
-
-
-
-## 10. 交换机配置日志收集命令
+### 10. 交换机配置日志收集命令
 
 ```
 # 华为日志配置
@@ -6645,9 +6508,7 @@ logging source-interface Vlan10
 logging 192.168.13.198
 ```
 
-
-
-## 11. filebeat for windows安装
+### 11. filebeat for windows安装
 [filebeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/filebeat/filebeat-7.17.23-windows-x86_64.zip)
 
 ```powershell
@@ -6655,9 +6516,7 @@ logging 192.168.13.198
 # 将安装包解压放到以下目录，并使用管理员权限打开powershell
 PS C:\Program Files\filebeat> dir
 
-
     目录: C:\Program Files\filebeat
-
 
 Mode                LastWriteTime     Length Name
 ----                -------------     ------ ----
@@ -6674,7 +6533,6 @@ d----        2024/10/31     17:20            modules.d
 -a---         2024/7/25     21:41    2262097 NOTICE.txt
 -a---         2024/7/25     21:46        816 README.md
 -a---         2024/7/25     21:46        250 uninstall-service-filebeat.ps1
-
 
 # 执行命令安装
 PS C:\Program Files\filebeat> .\install-service-filebeat.ps1
@@ -6791,7 +6649,6 @@ output.elasticsearch:
     pattern: "*"
 logging.level: error
 
-
 PS C:\Program Files\filebeat> start-service filebeat
 PS C:\Program Files\filebeat> get-service filebeat
 PS C:\Program Files\filebeat> stop-service filebeat
@@ -6799,7 +6656,7 @@ PS C:\Program Files\filebeat> stop-service filebeat
 
 
 
-## 12. winlogbeat安装
+### 12. winlogbeat安装
 
 [winlogbeat-7.17.23-windows-x86_64.zip](https://artifacts.elastic.co/downloads/beats/winlogbeat/winlogbeat-7.17.23-windows-x86_64.zip)
 
@@ -6934,11 +6791,7 @@ PS C:\Program Files\winlogbeat> Get-Process *winlogbeat* | Stop-Process -Force
 
 ```
 
-
-
-
-
-## 13. k8s日志收集
+### 13. k8s日志收集
 
 **v1**
 
@@ -7074,11 +6927,7 @@ setup.ilm.enabled: false
 logging.level: error
 ```
 
-
-
-
-
-## 14. 索引模板优化
+### 14. 索引模板优化
 
 **查看节点性能日志**
 
@@ -7087,8 +6936,6 @@ http://172.168.2.199:9200/_tasks?detailed=true&human
 http://172.168.2.199:9200/_nodes/hot_threads
 http://172.168.2.199:9200/_nodes/stats
 ```
-
-
 
 **索引模板**
 
@@ -7161,7 +7008,7 @@ PUT _template/ops_template
 
 
 
-## 15. 冻结索引
+### 15. 冻结索引
 
 **当索引 GREEN 时 freeze 一次，下次重启还需要重新 freeze 吗？**
 不需要！freeze 是持久化状态。这个状态会被写入集群元数据并持久化到磁盘。下次 Elasticsearch 重启时，冻结的索引不会被加载到内存，启动速度极快，状态自动保持为 frozen（只读）。
@@ -7350,17 +7197,11 @@ curl -s -X POST -u "elastic:pass" "http://172.168.2.199:9200/k8s_2026.02.27.10/_
 
 ![](./images/elk/02.png)
 
+## 生产blog集群升级为三节点
 
+### 一、模拟构建blog双节点集群环境
 
-
-
-
-
-# 生产blog集群升级为三节点
-
-## 一、模拟构建blog双节点集群环境
-
-### 1. 运行单机模式
+#### 1. 运行单机模式
 ```bash
 # 运行172.168.2.46
 root@k8s04-master:~# docker run -d -p 9200:9200 -p 9300:9300 -p 5601:5601 --name elk01 harborrepo.hs.com/ops/elk:640
@@ -7376,7 +7217,7 @@ root@k8s04-node01:~# docker ps -a | grep elk
 
 
 
-### 2. 更改各节点配置并构建集群
+#### 2. 更改各节点配置并构建集群
 
 ```bash
 # 配置172.168.2.46
@@ -7441,12 +7282,9 @@ root@k8s04-node01:~# curl -s http://172.168.2.46:9200/_cat/health
 ```
 > 此时节点172.168.2.46和172.168.2.47组成了双节点的es6集群，但是存在脑裂风险
 
+### 二、修复集群脑裂风险
 
-
-
-## 二、修复集群脑裂风险
-
-### 1. 模拟客户端一直写入索引数据
+#### 1. 模拟客户端一直写入索引数据
 ```bash
 jack@HS-UA-TSJ-0132:~/opencode/shell/opencode/elasticsearch/client$ ./es-write-test.sh
 开始模拟写入，按 Ctrl+C 停止
@@ -7455,7 +7293,7 @@ jack@HS-UA-TSJ-0132:~/opencode/shell/opencode/elasticsearch/client$ ./es-write-t
 写入间隔: 1秒
 最大重试: 3次
 重试间隔: 2秒
------------------------------------
+---
 [2026-07-22 16:50:36] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
 统计: 成功=1 失败=0
 [2026-07-22 16:50:37] ✓ 写入成功 -> http://172.168.2.64:9200 (第1次尝试)
@@ -7484,9 +7322,8 @@ jack@HS-UA-TSJ-0132:~/opencode/shell/opencode/elasticsearch/client$ ./es-write-t
 
 
 
-### 2. 添加172.168.2.64节点
+#### 2. 添加172.168.2.64节点
 
-```bash
 ```bash
 # 新节点加入集群后会自动继承这个设置"minimum_master_nodes": "2"，现在不需要在 yml 里重复配置。
 root@Ubuntu-24:~/elasticsearch-blog# cat elasticsearch.yml
@@ -7510,9 +7347,7 @@ root@Ubuntu-24:~/elasticsearch-blog# curl http://172.168.2.46:9200/_cat/health
 1784706784 07:53:04 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
 ```
 
-
-
-### 3. 配置集群最小投票节点数
+#### 3. 配置集群最小投票节点数
 ```bash
 # 通过 API 热修改已经运行的节点，立即生效，无需重启
 root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_cluster/settings' \
@@ -7549,7 +7384,6 @@ root@k8s04-master:~# curl -s http://172.168.2.47:9200/_cluster/settings?pretty
   "transient" : { }
 }
 
-
 # 通过nodes/0/_state/global-1.st配置文件，得知新节点已经自动继承，无需再配置elasticsearch.yml
 root@Ubuntu-24:~/elasticsearch-blog# docker cp elk03:/var/lib/elasticsearch/nodes/0/_state/global-1.st /tmp/
 Successfully copied 21.5kB to /tmp/
@@ -7569,13 +7403,13 @@ curl -s http://172.168.2.46:9200/_nodes/_local/settings?pretty
 
 
 
-## 三、数据备份和恢复
+### 三、数据备份和恢复
 可以使用NFS/Windows共享目录、S3进行备份，长期使用建议NFS和S3，NFS比Windows共享目录更稳定
 > Windows共享目录需要在挂载指定用户ID，NFS可以在服务器进行chown命令指定用户ID
 
 
 
-### 1. 使用Windows共享目录
+#### 1. 使用Windows共享目录
 
 ```bash
 root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'mkdir -p /root/es-data'
@@ -7598,9 +7432,7 @@ Shared connection to 172.168.2.64 closed.
 root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'mkdir -p /root/es-data/elasticsearch-data'
 ```
 
-
-
-### 2. 节点重建前准备工作
+#### 2. 节点重建前准备工作
 ```bash
 # 2.1 查看挂载/var/lib/elasticsearch的宿主机目录
 root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'docker ps -q | xargs docker inspect | grep -A100 Mounts | grep -E "Source|Destination"'
@@ -7620,7 +7452,6 @@ Shared connection to 172.168.2.64 closed.
                 "Source": "/var/lib/docker/volumes/62df13cb43ca34dcc38fa484620e00b997a16c6f3013c49d2e97170bda9f338b/_data",
                 "Destination": "/var/lib/elasticsearch",
 Shared connection to 172.168.2.47 closed.
-
 
 # 2.2 备份elasticsearch的配置文件
 root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a 'docker ps -q | xargs -I {} docker exec {} grep -Ev "#|^$" /etc/elasticsearch/elasticsearch.yml > /root/es-elasticsearch.yml'
@@ -7654,8 +7485,6 @@ network.publish_host: 172.168.2.64
 http.port: 9200
 discovery.zen.ping.unicast.hosts: ["172.168.2.64", "172.168.2.46", "172.168.2.47"]
 Shared connection to 172.168.2.64 closed.
-
-
 
 # 2.3 备份docker运行命令的命令
 root@ansible:~# ansible '~172.168.2.4[67],172.168.2.64' -m raw -a "CID=\$(docker ps -a | grep elk | awk '{print \$1}'); echo \"CID=\$CID\"; docker run --rm -v /var/run/docker.sock:/var/run/docker.sock harborrepo.hs.com/ops/assaflavie/runlike:1.5.4 -p \$CID | tee ~/es-docker.sh"
@@ -7718,14 +7547,14 @@ Shared connection to 172.168.2.46 closed.
 
 
 
-### 3. 滚动重建节点
+#### 3. 滚动重建节点
 > 因为是重建运行，所以需要将之前节点中的配置(/nodes/0/_state/*.st) 写到elasticsearch.yml中，否则可以不用填写，这里需要在/root/es-elasticsearch.yml文件中显示添加
 > discovery.zen.minimum_master_nodes: 2
 
 
 
 
-#### 3.1 重建172.168.2.46
+##### 3.1 重建172.168.2.46
 ```bash
 # 删除elaticsearch容器
 root@k8s04-master:~# docker stop elk01 && docker rm elk01
@@ -7753,9 +7582,7 @@ root@k8s04-master:~# curl -s http://172.168.2.46:9200/_cat/health
 1784710803 09:00:03 test-cluster green 3 3 10 5 0 0 0 0 - 100.0%
 ```
 
-
-
-#### 3.2 重建172.168.2.47
+##### 3.2 重建172.168.2.47
 
 ```bash
 # 删除elaticsearch容器
@@ -7786,7 +7613,7 @@ root@k8s04-node01:~# curl -s http://172.168.2.47:9200/_cat/health
 
 
 
-#### 3.3 重建172.168.2.64
+##### 3.3 重建172.168.2.64
 ```bash
 # 删除elaticsearch容器
 root@Ubuntu-24:~/elasticsearch-blog# docker stop elk03 && docker rm elk03
@@ -7854,7 +7681,7 @@ root@Ubuntu-24:~/elasticsearch-blog# curl -s http://172.168.2.64:9200/_cat/healt
 
 
 
-#### 3.4 执行快照备份和恢复
+##### 3.4 执行快照备份和恢复
 ```bash
 # 创建快照仓库
 root@k8s04-master:~# curl -XPUT 'http://172.168.2.46:9200/_snapshot/my_backup' -H 'Content-Type: application/json' -d '{
@@ -7982,19 +7809,13 @@ root@k8s04-master:~# curl -X PUT http://172.168.2.46:9200/restore_testindex/_set
 
 ![](./images/elk/03.png)
 
+### 其它问题
 
-
-
-
-
-
-## 其它问题
-
-### 1. windows共享问题
+#### 1. windows共享问题
 
 在windows服务器手动把共享//172.168.2.122/Software取消了，然后又开启共享了，此时三个节点如何恢复elasticsearch备份目录
 
-#### 1.1 断开重新挂载
+##### 1.1 断开重新挂载
 
 ```bash
 ## 节点172.168.2.46 
@@ -8095,7 +7916,7 @@ root@Ubuntu-24:~/elasticsearch-blog# df -TH | grep es-data
 
 
 
-#### 1.2 滚动重启elasticsearch容器
+##### 1.2 滚动重启elasticsearch容器
 
 ```bash
 root@k8s04-master:~# docker restart elk01
@@ -8103,9 +7924,7 @@ root@k8s04-node01:~# docker restart elk02
 root@Ubuntu-24:~/elasticsearch-blog# docker restart elk03
 ```
 
-
-
-#### 1.3 再次查看快照
+##### 1.3 再次查看快照
 
 ```bash
 root@Ubuntu-24:~/elasticsearch-blog# curl -s http://172.168.2.46:9200/_snapshot/my_backup/_all | jq .
